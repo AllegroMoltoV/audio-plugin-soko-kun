@@ -1,15 +1,27 @@
 // 乗っ取りの兆候のルールの検査 (docs/design/review-criteria.md の「乗っ取りの兆候」)。
 // 掲載中の版から新しい版までの差分 (unified diff) の先頭だけを読み、当たった項目とファイルを返す。
+// 差分が上限を超えたときは、変更されたファイルの一覧から計算した事実で diff-too-large を決める。
+export type TooLargeFact = 'github-changed' | 'build-script-changed' | 'binary-added' | 'list-incomplete';
+
 export interface DiffHit {
   rule: 'diff-workflow-changed' | 'diff-binary-added' | 'diff-external-link' | 'diff-too-large';
   file?: string;
+  // diff-too-large に当たった事実。
+  fact?: TooLargeFact;
 }
 
 const FILE_HEADER = /^diff --git a\/(\S+) b\/(\S+)$/;
 const URL_PATTERN = /https?:\/\/[^\s"'<>()`\]]+/gi;
 // ワークフローと、ワークフローが呼ぶ composite action とスクリプトの置き場所。
 const WORKFLOW_PATHS = ['.github/workflows/', '.github/actions/', '.github/scripts/'];
-const ALLOWED_HOSTS = new Set(['obsproject.com', 'audio-soko-kun.allegromoltov.jp']);
+// 本サービスと、README で SDK の文書へリンクする作者が多い規格の文書のホスト。
+const ALLOWED_HOSTS = new Set([
+  'audio-soko-kun.allegromoltov.jp',
+  'steinbergmedia.github.io',
+  'cleveraudio.org',
+  'lv2plug.in',
+  'developer.apple.com',
+]);
 
 // このリポジトリを指す URL の判定。github.com と raw.githubusercontent.com で、owner と repo が一致するものに限る。
 function isSameRepository(url: URL, owner: string, repo: string): boolean {
@@ -28,33 +40,46 @@ function isAllowed(raw: string, owner: string, repo: string): boolean {
   } catch {
     return false;
   }
-  const host = url.hostname.toLowerCase();
-  if (ALLOWED_HOSTS.has(host) || host.endsWith('.obsproject.com')) return true;
+  if (ALLOWED_HOSTS.has(url.hostname.toLowerCase())) return true;
   return isSameRepository(url, owner, repo);
 }
 
-export function checkDiff(diff: string, truncated: boolean, owner: string, repo: string): DiffHit[] {
+function collector(): { hits: DiffHit[]; add: (hit: DiffHit) => void } {
   const hits: DiffHit[] = [];
   const seen = new Set<string>();
-  const add = (hit: DiffHit) => {
-    const key = `${hit.rule}:${hit.file ?? ''}`;
-    if (seen.has(key)) return;
-    seen.add(key);
-    hits.push(hit);
+  return {
+    hits,
+    add: (hit) => {
+      const key = `${hit.rule}:${hit.fact ?? ''}:${hit.file ?? ''}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      hits.push(hit);
+    },
   };
+}
+
+// 差分の先頭で判定する。バイナリは追加と変更だけを数え、削除 (b の側が /dev/null) は数えない。
+export function checkDiff(diff: string, owner: string, repo: string): DiffHit[] {
+  const { hits, add } = collector();
   let file: string | undefined;
+  let deleted = false;
   for (const line of diff.split('\n')) {
     const header = FILE_HEADER.exec(line);
     if (header) {
       const [, before = '', after = ''] = header;
       file = after;
+      deleted = false;
       if (WORKFLOW_PATHS.some((prefix) => after.startsWith(prefix) || before.startsWith(prefix))) {
         add({ rule: 'diff-workflow-changed', file });
       }
       continue;
     }
+    if (line.startsWith('deleted file mode')) {
+      deleted = true;
+      continue;
+    }
     if (line.startsWith('Binary files ') || line === 'GIT binary patch') {
-      add({ rule: 'diff-binary-added', file });
+      if (!deleted && !/ and \/dev\/null differ$/.test(line)) add({ rule: 'diff-binary-added', file });
       continue;
     }
     if (line.startsWith('+') && !line.startsWith('+++')) {
@@ -63,6 +88,42 @@ export function checkDiff(diff: string, truncated: boolean, owner: string, repo:
       }
     }
   }
-  if (truncated) add({ rule: 'diff-too-large' });
+  return hits;
+}
+
+export interface ChangedFile {
+  path: string;
+  previousPath?: string;
+  status: 'added' | 'removed' | 'modified' | 'renamed' | 'copied' | 'changed' | 'unchanged';
+  // GitHub が差分の本文を持たず、行の増減も 0 のファイル。バイナリのファイルがこの形になる。
+  binary: boolean;
+}
+
+// ビルドの手順を変えられるファイル。ビルドの設定、依存の宣言、サブモジュールの取得元、シェルのスクリプト。
+const BUILD_SCRIPT =
+  /(^|\/)(CMakeLists\.txt|Cargo\.toml|build\.rs|meson\.build|meson_options\.txt|meson\.options|vcpkg\.json|vcpkg-configuration\.json|Makefile|GNUmakefile|premake5\.lua|conanfile\.(txt|py)|\.gitmodules)$|\.(cmake|mk|jucer|sh|ps1|bat|cmd)$/i;
+// 拡張子でバイナリとみなすファイル。GitHub がバイナリと判定したファイルも数える。
+const BINARY_EXTENSION =
+  /\.(dll|so|dylib|a|lib|o|obj|exe|msi|pkg|dmg|zip|7z|rar|tar|gz|xz|bz2|bin|clap|vst|vst3|aaxplugin|component|jar|wasm|node)$/i;
+const MAX_FACT_FILES = 5;
+
+// 差分が上限を超えたときの事実。どれかに当たれば diff-too-large として確認待ちにする。当たらなければ何も返さない。
+// files が null のときは、一覧を取得できなかったものとして扱う。
+export function tooLargeHits(files: ChangedFile[] | null, complete: boolean): DiffHit[] {
+  const { hits, add } = collector();
+  if (files === null || !complete) add({ rule: 'diff-too-large', fact: 'list-incomplete' });
+  const facts: Array<[TooLargeFact, (file: ChangedFile) => boolean]> = [
+    ['github-changed', (f) => f.path.startsWith('.github/') || (f.previousPath ?? '').startsWith('.github/')],
+    ['build-script-changed', (f) => BUILD_SCRIPT.test(f.path) || BUILD_SCRIPT.test(f.previousPath ?? '')],
+    [
+      'binary-added',
+      (f) => f.status !== 'removed' && f.status !== 'unchanged' && (f.binary || BINARY_EXTENSION.test(f.path)),
+    ],
+  ];
+  for (const [fact, matches] of facts) {
+    for (const entry of (files ?? []).filter(matches).slice(0, MAX_FACT_FILES)) {
+      add({ rule: 'diff-too-large', fact, file: entry.path });
+    }
+  }
   return hits;
 }

@@ -273,17 +273,22 @@ X07 の拒否は、外部呼び出しのモックで確かめなくても済み�
 | ID | 対象 | 期待 |
 | --- | --- | --- |
 | A01 | 審査の基準の正本と、作者に返す固定の文言のコード | 区分ごとの項目の ID が一致する。重大とする場合を持つ項目が一致する |
-| A02 | LLM の応答に、知らない項目と、ルールで判定する項目が含まれる | 捨てる |
-| A03 | LLM の応答で、重大とする場合を持たない項目に重大を付ける。`met` の項目に重大を付ける | 重大として扱わない |
+| A02 | LLM の応答に、知らない項目・ルールで判定する項目・判定しない項目が含まれる | 捨てる |
+| A03 | LLM の応答で、重大とする場合を持たない項目に重大を付ける。`met` の項目に重大を付ける。ルールが重大と判定した項目を LLM が `met` と返す | 重大として扱わない。ルールの重大な指摘は残す |
 | A04 | 同じ項目が重ねて返る | 最初の判定だけを使う |
 | A05 | 形の合わない応答 | レビューの失敗にする |
 | A06 | LLM の応答に `title`・`fix`・`references` が含まれる | 本サービスの固定の文言を返し、LLM の値を使わない |
 | A07 | Workers AI がどの例外を投げても | `review_state` を `done` にしない |
 | A08 | リポジトリの内容に指示の文が含まれる | 区切りの中に入れ、指示の文に混ぜない |
-| A09 | 差分の判定。ワークフロー・`.github/actions/`・`.github/scripts/` の変更、名前の変更での移動、バイナリの追加、別のホストと同じ名前の別のリポジトリへのリンク、切り詰めた差分 | それぞれ当たる |
+| A09 | 差分の判定。ワークフロー・`.github/actions/`・`.github/scripts/` の変更、名前の変更での移動、バイナリの追加と変更、別のホストと同じ名前の別のリポジトリへのリンク、許可しなくなった `obsproject.com` へのリンク | それぞれ当たる |
 | A10 | 差分の判定。このリポジトリ・本サービス・許可するホスト (`steinbergmedia.github.io`・`cleveraudio.org`・`lv2plug.in`・`developer.apple.com`) へのリンク、削除した行、バイナリのファイルの削除 | 当たらない |
+| A11 | 差分が上限を超えた版で、変更されたファイルの一覧に `.github/` 配下の変更・ビルドのスクリプトの変更・バイナリの追加がある。一覧が 300 件に達した。一覧を取得できない | それぞれ `diff_state` を `held` にする |
+| A12 | 差分が上限を超えた版で、変更されたファイルがソースコードと文書だけ。ファイルの削除と、バイナリの名前だけの変更 | `diff_state` を `held` にしない |
+| A13 | 差分が上限を超え確認待ちにした版で、LLM がすべての項目を満たすと答え、確認待ちを外すよう求める | `diff_state` を `held` のままにする |
+| A14 | README の案内の型。隔離属性の除去・Gatekeeper の無効化・「このまま開く」・Windows の保護機能の無効化と除外、取得した内容をシェルや PowerShell で実行するコマンド | 重大の `not_met` にし、根拠の行を返す |
+| A15 | README の、属性の表示・SmartScreen の警告の説明・ソースからビルドするコマンド・ファイルを保存するだけの取得 | 当たらない |
 
-A06 は、配信プラグイン倉庫くんに無いテストです。攻撃者のリポジトリの内容に誘導された LLM が、端末へのコマンドの貼り付けのような直し方を作者に返す経路を塞ぎます。A07 は、無料枠の不足の例外を成功と取り違え、レビューの無い版を掲載する経路を塞ぎます。
+A06 は、配信プラグイン倉庫くんに無いテストです。攻撃者のリポジトリの内容に誘導された LLM が、端末へのコマンドの貼り付けのような直し方を作者に返す経路を塞ぎます。A07 は、無料枠の不足の例外を成功と取り違え、レビューの無い版を掲載する経路を塞ぎます。A11 と A13 は、差分が上限を超えた版を自動で掲載する経路と、攻撃者が書ける差分に誘導された LLM が確認待ちを外す経路を塞ぎます。A14 と A15 は、セキュリティの機能を切らせる案内をルールで見逃す経路と、正当な手順を重大と誤る経路の境界を確かめます。
 
 ### MCP の応答
 
@@ -379,8 +384,9 @@ A06 は、配信プラグイン倉庫くんに無いテストです。攻撃者�
 | `domain/submit.test.ts` の URL の拒否、`not_admin`、二重登録、`name_reserved`、回数の上限、GitHub の障害、確認のモードの回数の上限 | X07・P07・N04・N03・Q01・R04・Q02 | なし |
 | `domain/cron.test.ts` の管理停止の維持、掲載終了、障害時の不変、新しい配布物の照会し直し、予算、所有者の変更、概要の追従の停止、掲載の期間と止めた版の記録 | C01 から C07・C12 | C04 を `attestation_checks` と `content_checks` に広げる |
 | `review-criteria.test.ts` | A01 | なし |
-| `review/diff-rules.test.ts` | A09・A10 | 許可するホストを `obsproject.com` から `steinbergmedia.github.io`・`cleveraudio.org`・`lv2plug.in`・`developer.apple.com` に替える |
-| `review/llm.test.ts` の `parseReview` と `reviewPrompt` | A02 から A05・A08 | なし |
+| `review/diff-rules.test.ts` | A09・A10・A11・A12 | 許可するホストを `obsproject.com` から `steinbergmedia.github.io`・`cleveraudio.org`・`lv2plug.in`・`developer.apple.com` に替える。バイナリの削除を数えないこと、差分が上限を超えたときの事実の判定を足す |
+| `review/rules.test.ts` | A03・A14・A15 | OBS に固有の判定をオーディオの判定に替える。`no-security-bypass` と `no-terminal-paste` の型の判定を足す |
+| `review/llm.test.ts` の `parseReview` と `reviewPrompt` | A02 から A05・A08 | LLM で判定する項目を `ci-plugin-validation` と `user-data-handling` に替える |
 | `translate.test.ts` の `acceptTranslation` | X05 | なし |
 | `images.test.ts` の SVG と形式の食い違い | X06 | なし |
 | `domain/metadata.test.ts` の `summarizeReadme` | X04 | なし |
@@ -394,6 +400,7 @@ A06 は、配信プラグイン倉庫くんに無いテストです。攻撃者�
 | `domain/submit.test.ts` の利用者のトークンと OAuth App の認証の使い分け | 呼び出しの記録の照合は実装の写しになる。GitHub API のモックが利用者のトークンにだけ `permissions` を返す形にし、P07 で確かめる |
 | `review/llm.test.ts` の `parseConfig` | 宣言ファイルの形が、OS の配列から配布物ごとの `pattern`・`os`・`arch`・`formats` に変わる。X08・X09・S14・S15 として作り直す |
 | `review/quota.test.ts` | 無料枠の待ちの規則は安全側のため書かない。代わりに、どの例外でもレビューを `done` にしない A07 を書く |
+| `review/diff-rules.test.ts` の切り詰めた差分 | 派生元は、差分が上限を超えた版をすべて確認待ちにしていた。変更されたファイルの一覧の事実で決める形に替わるため、新しい版の検査の通しの `review/diff-too-large.test.ts` で A11・A12・A13 として作り直す |
 
 ### 引き継がないもの
 

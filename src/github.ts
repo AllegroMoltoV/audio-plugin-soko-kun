@@ -1,10 +1,15 @@
 // GitHub REST API の呼び出し。利用者のトークンは管理権限の確認だけに使い、
 // それ以外は OAuth App の認証情報で呼ぶ。認証ヘッダーはログにもレスポンスにも出さない。
 import { type Budget, budgetedFetch } from './budget';
+import type { ChangedFile } from './review/diff-rules';
 
 const API = 'https://api.github.com';
 // ファイルの一覧の応答の上限。無料プランの CPU 時間の内で JSON を解析できる大きさに抑える。
 const MAX_TREE_BYTES = 1024 * 1024;
+// 変更されたファイルの一覧の応答の上限。理由はファイルの一覧と同じ。
+const MAX_COMPARE_BYTES = 1024 * 1024;
+// GitHub の compare が返す変更されたファイルの件数の上限。
+export const MAX_COMPARE_FILES = 300;
 
 export type GitHubAuth = { kind: 'user'; token: string } | { kind: 'app'; clientId: string; clientSecret: string };
 
@@ -269,6 +274,70 @@ export class GitHubClient {
     }
     if (!done) await reader.cancel();
     return { text: text.slice(0, maxChars), truncated: !done || text.length > maxChars };
+  }
+
+  // 2 つのタグの間で変更されたファイルの一覧。差分の本文が上限を超えたときにだけ呼ぶ。
+  // GitHub の compare の JSON は、変更されたファイルを比較の全体で 300 件までしか返さない
+  // (https://docs.github.com/en/rest/commits/commits#compare-two-commits)。300 件に達したら、一覧は欠けているものとする。
+  // 応答は各ファイルの差分の本文を含むため、CPU 時間を抑えるよう MAX_COMPARE_BYTES を超える応答は読み切らずに欠けとする。
+  async getCompareFiles(
+    owner: string,
+    repo: string,
+    base: string,
+    head: string,
+  ): Promise<{ files: ChangedFile[]; complete: boolean }> {
+    const response = await this.request(
+      `${API}/repos/${path(owner, repo)}/compare/${path(base)}...${path(head)}?per_page=1`,
+    );
+    if (Number(response.headers.get('Content-Length') ?? '0') > MAX_COMPARE_BYTES) {
+      await response.body?.cancel();
+      return { files: [], complete: false };
+    }
+    const reader = response.body?.getReader();
+    if (!reader) return { files: [], complete: false };
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    for (;;) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      size += chunk.value.byteLength;
+      if (size > MAX_COMPARE_BYTES) {
+        await reader.cancel();
+        return { files: [], complete: false };
+      }
+      chunks.push(chunk.value);
+    }
+    const bytes = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    let body: { files?: unknown };
+    try {
+      body = JSON.parse(new TextDecoder().decode(bytes));
+    } catch {
+      return { files: [], complete: false };
+    }
+    if (!Array.isArray(body.files)) return { files: [], complete: false };
+    const files: ChangedFile[] = [];
+    for (const item of body.files as Array<Record<string, unknown>>) {
+      if (typeof item?.filename !== 'string') continue;
+      const status = (typeof item.status === 'string' ? item.status : 'modified') as ChangedFile['status'];
+      files.push({
+        path: item.filename,
+        ...(typeof item.previous_filename === 'string' ? { previousPath: item.previous_filename } : {}),
+        status,
+        // バイナリのファイルは patch を持たず、行の増減が 0 になる。名前だけの変更も同じ形のため除く。
+        binary:
+          status !== 'removed' &&
+          status !== 'renamed' &&
+          typeof item.patch !== 'string' &&
+          item.additions === 0 &&
+          item.deletions === 0,
+      });
+    }
+    return { files, complete: files.length < MAX_COMPARE_FILES };
   }
 
   // その digest の配布物に、このリポジトリで作った証明が 1 件以上あるときに true。署名の検証はしない。

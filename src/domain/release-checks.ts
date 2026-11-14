@@ -3,32 +3,27 @@
 import type { Budget } from '../budget';
 import type { Env } from '../env';
 import { GitHubClient, GitHubError } from '../github';
-import { checkDiff } from '../review/diff-rules';
+import { LLM_CRITERIA } from '../review/criteria';
+import { type ChangedFile, checkDiff, type DiffHit, tooLargeHits } from '../review/diff-rules';
 import { type Finding, runReview } from '../review/llm';
-import {
-  computeFacts,
-  judgeByRules,
-  llmCriteriaFor,
-  llmFiles,
-  mergeFindings,
-  type RepositorySnapshot,
-} from '../review/rules';
+import { clean, computeFacts, judgeByRules, llmFiles, mergeFindings, type RepositorySnapshot } from '../review/rules';
 import { getPluginViewByInternalId } from './catalog';
 import { licenseAtTag } from './license';
 import { OS_VALUES } from './metadata';
 import { MAX_REVIEW_ATTEMPTS } from './status';
 
-// レビューのファイルの収集の外部呼び出しの上限。ファイルの一覧 1、ワークフロー 6、README 1、CMakeLists.txt 1、
-// ビルドの設定の cmake 2、vcpkg.json 1、CONTRIBUTING 1、PR テンプレート 1、Issue テンプレート 2 の合計。
-export const REVIEW_FILES_COST = 16;
-// 1 件の検査の外部呼び出しの上限。宣言ファイル 1、ライセンス 1、差分 1、レビューのファイルの収集、LLM 1 の合計。
-export const RELEASE_CHECK_COST = 4 + REVIEW_FILES_COST;
+// ルートのビルド系のファイル (docs/design/scanning.md の「定期処理で行う検査」の順序 5)。
+export const BUILD_FILES = ['CMakeLists.txt', 'Cargo.toml', 'vcpkg.json', '.gitmodules', 'meson.build'];
+const MAX_WORKFLOWS = 6;
+// レビューのファイルの収集の外部呼び出しの上限。ファイルの一覧 1、ワークフロー 6、README 1、ビルド系のファイル 5、
+// CONTRIBUTING 1、PR テンプレート 1 の合計。
+export const REVIEW_FILES_COST = 1 + MAX_WORKFLOWS + 1 + BUILD_FILES.length + 1 + 1;
+// 1 件の検査の外部呼び出しの上限。宣言ファイル 1、ライセンス 1、差分 1、差分が上限を超えたときの変更されたファイルの一覧 1、
+// レビューのファイルの収集、LLM 1 の合計。
+export const RELEASE_CHECK_COST = 5 + REVIEW_FILES_COST;
 const MAX_DIFF_CHARS = 24_000;
 const MAX_FILE_BYTES = 32 * 1024;
 const MAX_TOTAL_CHARS = 60_000;
-const MAX_WORKFLOWS = 6;
-const MAX_COMPILER_FILES = 2;
-const MAX_ISSUE_TEMPLATES = 2;
 const MAX_CONFIG_BYTES = 16 * 1024;
 
 interface PendingRow {
@@ -175,16 +170,25 @@ async function checkOne(env: Env, budget: Budget, github: GitHubClient, row: Pen
 
   // 差分の起点は、その時点の掲載対象のリリース。掲載中の版が無ければ、差分の検査を当てない。
   let diff: string | null = null;
+  let diffFacts: string[] = [];
+  let names = [row.repo];
   if (row.diff_state === 'pending' || row.review_state !== 'done') {
     budget.takeD1Query();
     const view = await getPluginViewByInternalId(env, row.plugin_id);
+    if (view && view.name !== row.repo) names = [row.repo, view.name];
     const base = view?.listedRelease ?? null;
     if (base && base.tag !== row.tag) {
       try {
         const compared = await github.getCompareDiff(row.owner, row.repo, base.tag, row.tag, MAX_DIFF_CHARS);
         diff = compared.text;
+        const hits = checkDiff(compared.text, row.owner, row.repo);
+        if (compared.truncated) {
+          const listed = await changedFiles(github, row.owner, row.repo, base.tag, row.tag);
+          const tooLarge = tooLargeHits(listed.files, listed.complete);
+          hits.push(...tooLarge);
+          diffFacts = tooLargeFacts(listed.files, listed.complete, tooLarge);
+        }
         if (row.diff_state === 'pending') {
-          const hits = checkDiff(compared.text, compared.truncated, row.owner, row.repo);
           update('diff_state = ?, diff_hits = ?', hits.length > 0 ? 'held' : 'passed', JSON.stringify(hits));
         }
       } catch (error) {
@@ -200,7 +204,10 @@ async function checkOne(env: Env, budget: Budget, github: GitHubClient, row: Pen
   // LLM のレビュー
   if (row.review_state !== 'done') {
     const input = await collectReviewFiles(github, row.owner, row.repo, row.tag);
-    const outcome = await reviewRepository(env, budget, `${row.owner}/${row.repo}`, input, diff);
+    const outcome = await reviewRepository(env, budget, `${row.owner}/${row.repo}`, input, diff, {
+      names,
+      diffFacts,
+    });
     if (outcome.kind === 'done') {
       const findings = outcome.findings;
       const serious = findings.filter((finding) => finding.serious).length;
@@ -221,6 +228,40 @@ async function checkOne(env: Env, budget: Budget, github: GitHubClient, row: Pen
     budget.takeD1Query();
     await env.DB.batch(statements);
   }
+}
+
+// 変更されたファイルの一覧。レート制限は呼び出し側へ投げ、それ以外の失敗は一覧を取り切れなかったものとして扱う。
+// 大きな比較で GitHub が 5xx を返し続けても、版を確認待ちにして検査を先へ進めるため。
+async function changedFiles(
+  github: GitHubClient,
+  owner: string,
+  repo: string,
+  base: string,
+  head: string,
+): Promise<{ files: ChangedFile[] | null; complete: boolean }> {
+  try {
+    return await github.getCompareFiles(owner, repo, base, head);
+  } catch (error) {
+    if (error instanceof GitHubError && error.kind === 'rate_limited') throw error;
+    return { files: null, complete: false };
+  }
+}
+
+// LLM に渡す、差分が上限を超えたときの事実。確認待ちはこの事実でルールが決め、LLM の判定では外さない。
+export function tooLargeFacts(files: ChangedFile[] | null, complete: boolean, hits: DiffHit[]): string[] {
+  const paths = (fact: string) =>
+    hits
+      .filter((hit) => hit.fact === fact && hit.file)
+      .map((hit) => clean(hit.file ?? ''))
+      .join(', ') || 'none';
+  return [
+    `Diff truncated: yes (only the first ${MAX_DIFF_CHARS.toLocaleString('en-US')} characters are given)`,
+    `Changed files listed: ${files?.length ?? 0} (list complete: ${complete && files !== null ? 'yes' : 'no'})`,
+    `Changed files under .github/: ${paths('github-changed')}`,
+    `Changed build scripts: ${paths('build-script-changed')}`,
+    `Binary files added or changed: ${paths('binary-added')}`,
+    `Held for an administrator by these facts (decided by the catalog, not by this review): ${hits.length > 0 ? 'yes' : 'no'}`,
+  ];
 }
 
 export type CollectedFiles = RepositorySnapshot;
@@ -275,31 +316,15 @@ export async function collectReviewFiles(
 export function reviewFilePlan(paths: string[]): { fetch: string[]; skipped: string[] } {
   const sorted = [...paths].sort();
   const workflows = sorted.filter((path) => /^\.github\/workflows\/[^/]+\.ya?ml$/i.test(path));
-  // テンプレートの config.yml はテンプレートの選び方の設定で、中身ではないため読まない。
-  const templates = sorted.filter(
-    (path) => /^\.github\/ISSUE_TEMPLATE\/[^/]+\.(md|ya?ml)$/i.test(path) && !/\/config\.ya?ml$/i.test(path),
-  );
-  // ビルドの設定は、パスに compiler を含む cmake のファイルを windows から順に読む。
-  const compiler = sorted
-    .filter((path) => /^cmake\/.*compiler[^/]*\.cmake$/i.test(path))
-    .sort((a, b) => Number(!a.includes('windows')) - Number(!b.includes('windows')));
   const first = (candidates: string[]) => candidates.filter((path) => paths.includes(path)).slice(0, 1);
   const fetch = [
     ...workflows.slice(0, MAX_WORKFLOWS),
     ...first(['README.md']),
-    ...first(['CMakeLists.txt']),
-    ...compiler.slice(0, MAX_COMPILER_FILES),
-    ...first(['vcpkg.json']),
+    ...BUILD_FILES.filter((path) => paths.includes(path)),
     ...first(['CONTRIBUTING.md', '.github/CONTRIBUTING.md']),
     ...first(['.github/PULL_REQUEST_TEMPLATE.md', '.github/pull_request_template.md']),
-    ...templates.slice(0, MAX_ISSUE_TEMPLATES),
   ];
-  const skipped = [
-    ...workflows.slice(MAX_WORKFLOWS),
-    ...compiler.slice(MAX_COMPILER_FILES),
-    ...templates.slice(MAX_ISSUE_TEMPLATES),
-  ];
-  return { fetch, skipped };
+  return { fetch, skipped: workflows.slice(MAX_WORKFLOWS) };
 }
 
 // 規則の判定、事実の計算、LLM の呼び出し、結果のまとめを行う。新しい版の検査、確認のモード、手元の確認が同じ関数を呼ぶ。
@@ -309,18 +334,20 @@ export async function reviewRepository(
   repository: string,
   collected: CollectedFiles,
   diff: string | null,
+  // names はリポジトリ名と表示名。diffFacts は差分が上限を超えたときの事実の行。
+  context: { names?: string[]; diffFacts?: string[] } = {},
 ): Promise<ReviewOutcome> {
   // テストの環境には Workers AI が無い。レビューできない版は失敗として記録し、管理者の判断に回る。
   if (!env.AI) return { kind: 'failed' };
-  const ruled = judgeByRules(collected);
+  const ruled = judgeByRules(collected, context.names ?? [repository.slice(repository.indexOf('/') + 1)]);
   budget.takeSubrequest();
   try {
     const review = await runReview(env.AI, {
       repository,
       files: llmFiles(collected.files),
       unreadFiles: collected.unreadFiles,
-      facts: computeFacts(collected, ruled),
-      criteria: llmCriteriaFor(collected),
+      facts: computeFacts(collected, ruled, context.diffFacts),
+      criteria: LLM_CRITERIA.map((criterion) => criterion.id),
       diff,
     });
     return review ? { kind: 'done', findings: mergeFindings(ruled, review.findings) } : { kind: 'failed' };

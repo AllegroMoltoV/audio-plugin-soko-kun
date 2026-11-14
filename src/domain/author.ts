@@ -174,7 +174,7 @@ const BLOCKER_TEXT: Record<BlockerCode, { message: string; fix: string; criterio
   },
   diff_held: {
     message:
-      'The change since the listed version touches workflows, binaries, or links to other hosts, so an administrator reviews it before listing. Every workflow change is reviewed, including action updates by Dependabot. The review has no fixed schedule.',
+      'The change since the listed version touches workflows, binaries, or links to other hosts, or it is too large to read in full and its file list shows changes under .github/, build scripts, or binaries, so an administrator reviews it before listing. Every workflow change is reviewed, including action updates by Dependabot. The review has no fixed schedule.',
     fix: 'No action is needed if the change is intended. An administrator reviews it before listing.',
   },
   owner_changed: {
@@ -570,6 +570,7 @@ function blockerView(
           hits: hits.map((hit) => ({
             rule: hit.rule,
             file: hit.file ?? null,
+            ...(hit.fact ? { fact: hit.fact } : {}),
             title: CRITERIA_BY_ID.get(hit.rule)?.title,
           })),
         }

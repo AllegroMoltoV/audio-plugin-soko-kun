@@ -1,6 +1,7 @@
-// 審査の基準の固定の文言。正本は docs/design/review-criteria.md で、ID の一致をテストで確かめる。
+// 審査の基準の固定の文言。正本は docs/design/review-criteria.md で、ID・判定の方法・重大とする場合の一致をテストで確かめる。
 // 作者の LLM に返す文言は英語に固定する。title・fix・viewpoint は本サービスが書き、LLM には書かせない。
 export type CriterionKind = 'condition' | 'takeover' | 'criterion' | 'recommendation';
+// future は、正本で「判定しない」と「ルール (将来)」の項目。判定せず、作者にも返さない。
 export type JudgedBy = 'rule' | 'llm' | 'future';
 
 export interface Criterion {
@@ -8,7 +9,7 @@ export interface Criterion {
   kind: CriterionKind;
   judgedBy: JudgedBy;
   title: string;
-  // LLM に渡す判定の観点。LLM が判定する項目だけが持つ。規則で判定する項目の基準は src/review/rules.ts にある。
+  // LLM に渡す判定の観点。LLM が判定する項目だけが持つ。ルールで判定する項目の基準は src/review/rules.ts にある。
   viewpoint?: string;
   // 重大とする場合。審査の基準のうち、重大な指摘を管理者の確認待ちにする項目だけが持つ。
   serious?: string;
@@ -21,14 +22,9 @@ export function referenceOf(id: string): string {
   return `${DOC}#${id}`;
 }
 
+const ADMIN_REVIEWS = 'No action is needed if the change is intended. An administrator reviews it before listing.';
+
 export const CRITERIA: Criterion[] = [
-  {
-    id: 'attestation',
-    kind: 'condition',
-    judgedBy: 'rule',
-    title: 'Every release file has a build provenance attestation',
-    fix: 'Add actions/attest-build-provenance to the job that creates the release, with subject-checksums covering every release file, and grant id-token: write and attestations: write. Then publish a new release.',
-  },
   {
     id: 'immutable-release',
     kind: 'condition',
@@ -40,36 +36,79 @@ export const CRITERIA: Criterion[] = [
     id: 'distribution-format',
     kind: 'condition',
     judgedBy: 'rule',
-    title: 'No exe or msi installer is distributed',
-    fix: 'Distribute the Windows build as a zip archive instead of an exe or msi installer, then publish a new release.',
+    title: 'The plugin is distributed as zip archives',
+    fix: 'Attach the plugin bundles to the release as zip archives, then publish a new release. Installers (exe, msi, pkg, dmg) and other files are not guided to users.',
+  },
+  {
+    id: 'attestation',
+    kind: 'condition',
+    judgedBy: 'rule',
+    title: 'Every release file has a build provenance attestation',
+    fix: 'Add actions/attest-build-provenance to the job that creates the release, with subject-checksums covering every release file, and grant id-token: write and attestations: write. Then publish a new release.',
+  },
+  {
+    id: 'plugin-content',
+    kind: 'condition',
+    judgedBy: 'rule',
+    title: 'A zip archive contains a VST 3, CLAP, LV2, or Audio Unit bundle',
+    fix: 'Put the built plugin bundles in the zip archives, then publish a new release.',
+  },
+  {
+    id: 'no-vst2',
+    kind: 'condition',
+    judgedBy: 'rule',
+    title: 'No release file contains a VST 2 plugin',
+    fix: 'Remove the VST 2 build from every release file, then publish a new release.',
+  },
+  {
+    id: 'macos-signing',
+    kind: 'condition',
+    judgedBy: 'rule',
+    title: 'macOS bundles are signed with a Developer ID and notarized',
+    fix: 'Sign the macOS bundles with a Developer ID certificate and notarize them, then publish a new release. macOS files without notarization are not guided to users.',
+  },
+  {
+    id: 'declaration',
+    kind: 'condition',
+    judgedBy: 'rule',
+    title: 'The declaration file, if present, is valid and matches the inspected contents',
+    fix: 'Correct .audio-soko-kun/config.json so that it matches the zip archives, or remove it, then publish a new release.',
+  },
+  {
+    id: 'open-source-license',
+    kind: 'condition',
+    judgedBy: 'rule',
+    title: 'The license at the release tag is OSI approved or FSF free',
+    fix: 'Put a LICENSE file with an OSI approved or FSF free license at the root of the repository, then publish a new release.',
   },
   {
     id: 'diff-workflow-changed',
     kind: 'takeover',
     judgedBy: 'rule',
     title: 'A workflow changed since the listed version',
-    fix: 'No action is needed if the change is intended. An administrator reviews it before listing.',
+    fix: ADMIN_REVIEWS,
   },
   {
     id: 'diff-binary-added',
     kind: 'takeover',
     judgedBy: 'rule',
     title: 'A binary file was added or changed since the listed version',
-    fix: 'No action is needed if the change is intended. An administrator reviews it before listing.',
+    fix: ADMIN_REVIEWS,
   },
   {
     id: 'diff-external-link',
     kind: 'takeover',
     judgedBy: 'rule',
     title: 'A link or download to another host was added since the listed version',
-    fix: 'No action is needed if the change is intended. An administrator reviews it before listing.',
+    fix: ADMIN_REVIEWS,
   },
   {
     id: 'diff-too-large',
     kind: 'takeover',
     judgedBy: 'rule',
-    title: 'The change since the listed version is too large to check automatically',
-    fix: 'No action is needed. An administrator reviews it before listing. Smaller releases are checked automatically.',
+    title:
+      'The change since the listed version is too large to read in full, and its file list shows changes under .github/, build scripts, or binaries, or could not be read in full',
+    fix: `${ADMIN_REVIEWS} Large changes that do not touch .github/, build scripts, or binaries are checked automatically.`,
   },
   {
     id: 'owner-changed',
@@ -79,6 +118,13 @@ export const CRITERIA: Criterion[] = [
     fix: 'No action is needed if the transfer is intended. An administrator reviews the next release before listing.',
   },
   {
+    id: 'team-id-mismatch',
+    kind: 'takeover',
+    judgedBy: 'rule',
+    title: 'The macOS bundles of the version are signed with different Team IDs',
+    fix: ADMIN_REVIEWS,
+  },
+  {
     id: 'ci-source-build',
     kind: 'criterion',
     judgedBy: 'future',
@@ -86,30 +132,36 @@ export const CRITERIA: Criterion[] = [
     fix: 'Build the release files from source in the GitHub Actions job that creates the release.',
   },
   {
-    id: 'ci-scenario-tests',
+    id: 'ci-plugin-validation',
     kind: 'criterion',
     judgedBy: 'llm',
-    title: 'Tests exercise the plugin in real use scenarios',
+    title: 'CI loads the built plugin into a validation tool',
     viewpoint:
-      'CI runs tests that load the plugin in OBS Studio and check its features, not only a build that compiles. The facts list the scripts under .github/scripts; read the workflows that call them.',
-    fix: 'Add a CI job that starts OBS Studio with the built plugin and checks that its features work in a scene.',
+      'CI loads the built plugin into a validation tool such as pluginval, the VST 3 SDK validator, clap-validator, lv2lint, or auval and runs it, not only builds it. The facts list the workflow lines that mention such tools and the scripts under .github/scripts; read the workflows that call them.',
+    fix: 'Add a CI step that runs pluginval, the VST 3 SDK validator, clap-validator, lv2lint, or auval on the built plugin.',
   },
   {
     id: 'no-security-bypass',
     kind: 'criterion',
-    judgedBy: 'llm',
+    judgedBy: 'rule',
     title: 'Users are not told to turn off security features',
-    viewpoint:
-      'The README and install instructions contain no step that tells users to disable SmartScreen, Microsoft Defender, Gatekeeper, or Smart App Control. If they contain such a step, answer not_met; if they contain none, answer met.',
-    serious: 'The instructions tell users to disable a security feature.',
-    fix: 'Remove instructions that disable security features. If a warning appears, explain how to verify the file instead.',
+    serious: 'The instructions tell users to turn off a security feature.',
+    fix: 'Remove instructions that remove the quarantine attribute, disable Gatekeeper, or turn off SmartScreen, Microsoft Defender, or Smart App Control. Sign and notarize the files instead, and explain how to verify them.',
+  },
+  {
+    id: 'no-terminal-paste',
+    kind: 'criterion',
+    judgedBy: 'rule',
+    title: 'Users are not told to paste a command that downloads and runs code',
+    serious: 'The instructions tell users to paste a command that downloads and runs code.',
+    fix: 'Remove commands that pipe downloaded content into a shell, PowerShell, or osascript. Tell users to download the zip archive from the release page instead.',
   },
   {
     id: 'dependency-pinning',
     kind: 'criterion',
     judgedBy: 'rule',
-    title: 'Dependencies are installed by a package manager with fixed versions',
-    fix: 'Manage dependencies with vcpkg (fix the baseline) or pin each download to a commit or hash.',
+    title: 'Dependencies are installed by a package manager or submodule with fixed versions',
+    fix: 'Pin each dependency: use submodules or FetchContent with a commit SHA, a vcpkg baseline, or a download with an expected hash, and do not commit binaries.',
   },
   {
     id: 'ci-hardening',
@@ -122,8 +174,8 @@ export const CRITERIA: Criterion[] = [
     id: 'third-party-provenance',
     kind: 'criterion',
     judgedBy: 'future',
-    title: 'Third-party models and binaries document their origin and license',
-    fix: 'Document the upstream URL, version, hash, and license terms of each bundled model or binary.',
+    title: 'Bundled third-party assets and binaries document their origin and license',
+    fix: 'Document the upstream URL, version, hash, and license terms of each bundled sample, impulse response, preset, font, image, model, or binary.',
   },
   {
     id: 'license-compatibility',
@@ -136,10 +188,10 @@ export const CRITERIA: Criterion[] = [
     id: 'user-data-handling',
     kind: 'criterion',
     judgedBy: 'llm',
-    title: 'Video, audio, settings, and keys are not sent out without telling users',
+    title: 'Audio, project files, settings, and keys are not sent out without telling users',
     // ソースのコードは入力に含まないため、README とワークフローから分かる範囲で判定する。重大の判定は、通信の機械的な検出を入れるまで持たない。
     viewpoint:
-      'If the README or the workflows show that the plugin sends video, audio, settings, or keys to another host, the README states where and what is sent. If the files do not show whether the plugin sends such data, answer unclear.',
+      'If the README or the workflows show that the plugin sends audio, project files, settings, or keys to another host, the README states where and what is sent. License activation and update checks are common for audio plugins; judge only whether what is sent is stated. If the files do not show whether the plugin sends such data, answer unclear.',
     fix: 'State in the README what data is sent and where, or remove the transmission.',
   },
   {
@@ -153,15 +205,22 @@ export const CRITERIA: Criterion[] = [
     id: 'windows-code-signing',
     kind: 'recommendation',
     judgedBy: 'future',
-    title: 'Windows DLLs are signed',
-    fix: 'Consider Authenticode signing. Unsigned DLLs can be blocked by Smart App Control. This is not required for listing.',
+    title: 'Windows binaries are signed',
+    fix: 'Consider Authenticode signing. Unsigned binaries can be blocked by Smart App Control. This is not required for listing.',
   },
   {
-    id: 'macos-code-signing',
+    id: 'plugin-name',
+    kind: 'recommendation',
+    judgedBy: 'rule',
+    title: 'The plugin and repository names do not include VST',
+    fix: 'Avoid the word VST in the plugin and repository names, as the VST 3 SDK README asks. This is not required for listing.',
+  },
+  {
+    id: 'no-impersonation',
     kind: 'recommendation',
     judgedBy: 'future',
-    title: 'macOS packages are signed and notarized',
-    fix: 'Consider a Developer ID signature and notarization. This is not required for listing.',
+    title: 'The name does not imitate a well-known commercial plugin',
+    fix: 'Avoid names of well-known commercial plugins and words such as crack or keygen.',
   },
   {
     id: 'user-verification-guide',
@@ -174,8 +233,36 @@ export const CRITERIA: Criterion[] = [
     id: 'install-location',
     kind: 'recommendation',
     judgedBy: 'rule',
-    title: 'Windows users install into ProgramData',
-    fix: 'Tell Windows users to extract the plugin into C:\\ProgramData\\obs-studio\\plugins.',
+    title: 'The README shows the standard install folder of each plugin format',
+    fix: 'Tell users the standard folders, such as C:\\Program Files\\Common Files\\VST3 and C:\\Program Files\\Common Files\\CLAP on Windows, and the folders under ~/Library/Audio/Plug-Ins/ on macOS.',
+  },
+  {
+    id: 'stable-plugin-id',
+    kind: 'recommendation',
+    judgedBy: 'future',
+    title: 'Plugin IDs stay the same across versions',
+    fix: 'Keep the CLAP ID, VST 3 class ID, Audio Unit type, subtype, and manufacturer, and LV2 URI unchanged across versions.',
+  },
+  {
+    id: 'realtime-safety',
+    kind: 'recommendation',
+    judgedBy: 'future',
+    title: 'The audio thread does not allocate, lock, or do file I/O',
+    fix: 'Avoid memory allocation, locks, and file I/O on the audio thread, and test real-time safety in CI.',
+  },
+  {
+    id: 'cpu-compatibility',
+    kind: 'recommendation',
+    judgedBy: 'rule',
+    title: 'Instruction sets such as AVX2 are not required unconditionally',
+    fix: 'Use runtime CPU dispatch instead of requiring AVX2 or -march=native for the whole plugin.',
+  },
+  {
+    id: 'dll-footprint',
+    kind: 'recommendation',
+    judgedBy: 'future',
+    title: 'Few shared libraries are bundled',
+    fix: 'Link dependencies statically where licenses allow, to avoid conflicts with other plugins in the same host process.',
   },
   {
     id: 'hermetic-build',
@@ -202,59 +289,15 @@ export const CRITERIA: Criterion[] = [
     id: 'license-notices',
     kind: 'recommendation',
     judgedBy: 'future',
-    title: 'Bundled dependencies and models are credited with their licenses',
-    fix: 'List the licenses of bundled dependencies and models in the README or a notices file.',
-  },
-  {
-    id: 'plugin-name',
-    kind: 'recommendation',
-    judgedBy: 'future',
-    title: 'The plugin name does not include OBS',
-    fix: 'Avoid OBS in the plugin and repository names, as the OBS Forum Resource and IP Policy asks.',
-  },
-  {
-    id: 'manifest-consistency',
-    kind: 'recommendation',
-    judgedBy: 'future',
-    title: 'buildspec.json and data/manifest.json agree',
-    fix: 'Keep the name, version, ID, and URL in buildspec.json and data/manifest.json the same.',
-  },
-  {
-    id: 'crash-report-privacy',
-    kind: 'recommendation',
-    judgedBy: 'llm',
-    title: 'Crash report templates ask users to remove personal information',
-    viewpoint:
-      'The issue templates for crash reports or logs ask users to check that no personal information is included. The facts list the issue templates.',
-    fix: 'Add a checkbox to the crash report template that asks users to remove personal information.',
-  },
-  {
-    id: 'resource-raii',
-    kind: 'recommendation',
-    judgedBy: 'future',
-    title: 'OBS resources are released with RAII',
-    fix: 'Wrap OBS resources in RAII helpers (for example, std::unique_ptr with a custom deleter).',
+    title: 'Bundled dependencies and assets are credited with their licenses',
+    fix: 'List the licenses of bundled dependencies and assets in the README or a notices file.',
   },
   {
     id: 'diagnostic-logging',
     kind: 'recommendation',
     judgedBy: 'future',
     title: 'Failures are logged with enough detail to find the cause',
-    fix: 'Log failures with blog() including what failed and why.',
-  },
-  {
-    id: 'cpu-compatibility',
-    kind: 'recommendation',
-    judgedBy: 'rule',
-    title: 'Instruction sets such as AVX2 are not required unconditionally',
-    fix: 'Use runtime CPU dispatch instead of requiring AVX2 for the whole plugin.',
-  },
-  {
-    id: 'dll-footprint',
-    kind: 'recommendation',
-    judgedBy: 'future',
-    title: 'Few DLLs are bundled',
-    fix: 'Link dependencies statically where licenses allow, to reduce bundled DLLs.',
+    fix: 'Log failures with what failed and why.',
   },
   {
     id: 'security-policy',
