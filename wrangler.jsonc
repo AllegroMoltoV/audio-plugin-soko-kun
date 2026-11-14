@@ -33,12 +33,12 @@
         {
           "binding": "DB",
           "database_name": "audio-plugin-soko-kun",
-          "database_id": "TO_BE_CREATED_IN_S2",
+          "database_id": "515c4fff-d4da-407e-902f-308110e366bd",
           "migrations_dir": "migrations"
         }
       ],
       "ai": { "binding": "AI" },
-      "kv_namespaces": [{ "binding": "OAUTH_KV", "id": "TO_BE_CREATED_IN_S2" }]
+      "kv_namespaces": [{ "binding": "OAUTH_KV", "id": "b6f1b86bc76044e7a346a51591efec0d" }]
     },
     "test": {
       "vars": { "ORIGIN": "http://localhost:8787" },
