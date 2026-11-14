@@ -1,10 +1,12 @@
-// GitHub Actions の OIDC のトークンの検証 (docs/design/scanning.md の「証明の検証の受け口」、ADR 0014)。
-// 本サービスのリポジトリの main で動く verify.yaml が発行したトークンだけを受け付ける。
+// GitHub Actions の OIDC のトークンの検証 (docs/design/scanning.md の「Worker の経路」、ADR 0014)。
+// 本サービスのリポジトリの main で動く、経路ごとに決めたワークフローが発行したトークンだけを受け付ける。
 export const ACTIONS_ISSUER = 'https://token.actions.githubusercontent.com';
 export const ACTIONS_JWKS_URL = `${ACTIONS_ISSUER}/.well-known/jwks`;
 export const EXPECTED_AUDIENCE = 'audio-soko-kun';
 export const EXPECTED_REPOSITORY = 'AllegroMoltoV/audio-plugin-soko-kun';
-export const EXPECTED_WORKFLOW_REF = `${EXPECTED_REPOSITORY}/.github/workflows/verify.yaml@refs/heads/main`;
+// job_workflow_ref はワークフローのファイルごとの値で、同じファイルの 2 つのジョブを区別できない。
+// そのため /internal/checks/ と /internal/macos-checks/ は別のファイルのワークフローに受け持たせる。
+export const VERIFY_WORKFLOW_REF = `${EXPECTED_REPOSITORY}/.github/workflows/verify.yaml@refs/heads/main`;
 
 // 鍵の一覧は isolate の中で 1 時間だけ使い回す。鍵の入れ替えに追従できるよう、知らない kid では取り直す。
 const JWKS_TTL_MS = 60 * 60 * 1000;
@@ -39,7 +41,11 @@ function decodeJson(part: string): Record<string, unknown> | null {
 }
 
 // 受け付けてよいトークンなら true。署名・発行者・宛先・リポジトリ・ワークフロー・期限のどれかが合わなければ false。
-export async function verifyActionsToken(token: string, nowSeconds = Date.now() / 1000): Promise<boolean> {
+export async function verifyActionsToken(
+  token: string,
+  expectedWorkflowRef: string,
+  nowSeconds = Date.now() / 1000,
+): Promise<boolean> {
   const parts = token.split('.');
   if (parts.length !== 3) return false;
   const [headerPart = '', payloadPart = '', signaturePart = ''] = parts;
@@ -78,7 +84,7 @@ export async function verifyActionsToken(token: string, nowSeconds = Date.now() 
     claims.iss === ACTIONS_ISSUER &&
     audienceOk &&
     claims.repository === EXPECTED_REPOSITORY &&
-    claims.job_workflow_ref === EXPECTED_WORKFLOW_REF &&
+    claims.job_workflow_ref === expectedWorkflowRef &&
     typeof claims.exp === 'number' &&
     claims.exp > nowSeconds &&
     (typeof claims.nbf !== 'number' || claims.nbf <= nowSeconds + skew)

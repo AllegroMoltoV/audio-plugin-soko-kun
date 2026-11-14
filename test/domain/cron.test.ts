@@ -446,6 +446,8 @@ describe('証明の検証のワークフローの起動', () => {
   it('検証待ちが無ければ起動しない', async () => {
     await registerFixture();
     await env.DB.prepare("UPDATE attestation_checks SET result = 'passed'").run();
+    // 中身の検査を待つアーカイブも検証待ちに数える
+    await env.DB.prepare("UPDATE content_checks SET result = 'passed'").run();
     network.use(repoById(503), ...scannerHandlers({ mb: 0 }));
     const report = await runCron(withToken);
     expect(report.verifyDispatch).toBe('skipped_no_pending');

@@ -1,7 +1,7 @@
 // 15 分ごとの定期処理。無料プランの 1 回の上限に収めるため、予算を使い切ったら次回へ持ち越す。
 
-import { MAX_ATTESTATION_ATTEMPTS } from '../attestation/route';
 import { Budget, BudgetExceededError, budgetedFetch } from '../budget';
+import { PENDING_CHECKS_BINDINGS, PENDING_CHECKS_FROM } from '../checks/route';
 import type { Env } from '../env';
 import { GitHubClient, GitHubError, type GitHubRelease } from '../github';
 import { checkImage, expectedType, IMAGE_LIMITS, type ImageKind } from '../images';
@@ -462,18 +462,14 @@ const VERIFY_DISPATCH_URL =
 
 export type VerifyDispatch = 'dispatched' | 'skipped_no_token' | 'skipped_no_pending' | `failed_${string}`;
 
-// 証明の検証のワークフローを起動する (ADR 0014)。GitHub の schedule は起動しないことがあるため、Worker から起動する。
-// 対象の条件は、ワークフローが読む GET /internal/attestations/pending と同じにする。
+// 証明の検証と中身の検査のワークフローを起動する (ADR 0014)。GitHub の schedule は起動しないことがあるため、Worker から起動する。
+// 対象の条件は、ワークフローが読む GET /internal/checks/pending と同じにする。
 async function dispatchVerify(env: Env, budget: Budget): Promise<VerifyDispatch> {
   const token = env.GITHUB_DISPATCH_TOKEN;
   if (!token) return 'skipped_no_token';
   budget.takeD1Query();
-  const pending = await env.DB.prepare(
-    `SELECT 1 FROM attestation_checks t JOIN assets a ON a.github_asset_id = t.github_asset_id
-     JOIN releases r ON r.github_release_id = a.release_id JOIN plugins p ON p.id = r.plugin_id
-     WHERE p.removed = 0 AND (t.result = 'pending' OR (t.result = 'error' AND t.attempts < ?)) LIMIT 1`,
-  )
-    .bind(MAX_ATTESTATION_ATTEMPTS)
+  const pending = await env.DB.prepare(`SELECT 1 ${PENDING_CHECKS_FROM} LIMIT 1`)
+    .bind(...PENDING_CHECKS_BINDINGS)
     .first();
   if (!pending) return 'skipped_no_pending';
   try {

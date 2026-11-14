@@ -1,5 +1,5 @@
-import { handleAttestations } from './attestation/route';
 import { authorizationServer, handleAuthorize, handleCallback, protectedResource } from './auth';
+import { handleChecks } from './checks/route';
 import { runCron } from './domain/cron';
 import type { Env } from './env';
 import { handleMcp } from './mcp/route';
@@ -29,7 +29,7 @@ export default {
 
     if (await isRateLimited(env, request, 'public')) return tooManyRequests();
     if (path === '/mcp' || path.startsWith('/mcp/')) return handleMcp(request, env, ctx);
-    if (path.startsWith('/internal/attestations/')) return handleAttestations(request, env);
+    if (path.startsWith('/internal/checks/')) return handleChecks(request, env);
     return handleWeb(request, env, ctx);
   },
 

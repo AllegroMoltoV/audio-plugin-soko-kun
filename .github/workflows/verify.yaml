@@ -1,7 +1,8 @@
-name: Verify attestations
+name: Verify release files
 
-# 掲載を待つ配布物の証明を検証し、結果を音のプラグイン倉庫くんへ送る (docs/decisions/0014-attestation-verification-in-actions.md)。
-# 音のプラグイン倉庫くんは、このリポジトリの main で動くこのワークフローの OIDC のトークンだけを受け付ける。
+# 掲載を待つ配布物の証明を検証し、アーカイブの中身を検査して、結果を音のプラグイン倉庫くんへ送る
+# (docs/design/scanning.md の「配布物の検証のワークフロー」、docs/decisions/0014-attestation-verification-in-actions.md)。
+# 音のプラグイン倉庫くんの /internal/checks/ は、このリポジトリの main で動作するこのワークフローの OIDC のトークンだけを受け付ける。
 on:
   schedule:
     - cron: '7,22,37,52 * * * *'
@@ -12,11 +13,14 @@ permissions:
   id-token: write
 
 concurrency:
-  group: verify-attestations
+  group: verify-release-files
   cancel-in-progress: false
 
 env:
   SOKO_KUN_ORIGIN: https://audio-soko-kun.allegromoltov.jp
+  # 配布物 1 件の取得の上限 (2 GiB) と、ジョブの最初に確かめる空き容量 (取得の上限に 1 GiB を足した値)
+  MAX_DOWNLOAD_BYTES: '2147483648'
+  MIN_FREE_BYTES: '3221225472'
 
 jobs:
   verify:
@@ -24,25 +28,37 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts
       - name: Verify pending release files
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          work="${RUNNER_TEMP}/verify"
+          mkdir -p "${work}"
+          free=$(df --output=avail -B1 "${work}" | tail -1 | tr -d ' ')
+          if [ "${free}" -lt "${MIN_FREE_BYTES}" ]; then
+            echo "free space ${free} bytes is below ${MIN_FREE_BYTES}; skip this run"
+            exit 0
+          fi
+
           token() {
             curl -fsS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
               "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=audio-soko-kun" | jq -r '.value'
           }
-          curl -fsS -H "Authorization: Bearer $(token)" "${SOKO_KUN_ORIGIN}/internal/attestations/pending" > pending.json
+          curl -fsS -H "Authorization: Bearer $(token)" "${SOKO_KUN_ORIGIN}/internal/checks/pending" > pending.json
           count=$(jq '.assets | length' pending.json)
           echo "pending: ${count}"
           if [ "${count}" -eq 0 ]; then exit 0; fi
 
-          work=$(mktemp -d)
           echo '[]' > results.json
           for i in $(seq 0 $((count - 1))); do
             item=$(jq -c ".assets[${i}]" pending.json)
             asset_id=$(jq -r '.assetId' <<< "${item}")
+            kind=$(jq -r '.kind' <<< "${item}")
             url=$(jq -r '.downloadUrl' <<< "${item}")
             digest=$(jq -r '.digest' <<< "${item}")
             repository=$(jq -r '.repository' <<< "${item}")
@@ -56,9 +72,13 @@ jobs:
             result=error
             reason=download_failed
             signer_found=""
+            content=""
 
-            # 配布物は実行せず、ハッシュと証明だけを確かめる。
-            if curl -fsSL --max-filesize 1073741824 -o "${file}" "${url}"; then
+            # 配布物は 1 件ずつ取得し、処理を終えるたびに削除する。中のコードは実行しない。
+            status=0
+            curl -fsSL --max-filesize "${MAX_DOWNLOAD_BYTES}" -o "${file}" "${url}" || status=$?
+            if [ "${status}" -eq 63 ]; then reason=download_too_large; fi
+            if [ "${status}" -eq 0 ]; then
               actual="sha256:$(sha256sum "${file}" | cut -d' ' -f1)"
               if [ "${actual}" != "${digest}" ]; then
                 result=failed
@@ -88,14 +108,30 @@ jobs:
                   sed 's/^/    /' "${work}/err.txt" | head -5
                 done
               fi
+              # アーカイブの中身は、ファイルへ展開せずメモリ上で読んで検査する。digest が違えば検査しない。
+              if [ "${kind}" = "archive" ]; then
+                if python3 -I .github/scripts/inspect_archive.py --digest "${digest}" "${file}" > "${work}/content.json"; then
+                  jq -c '.diagnostics' "${work}/content.json" | sed 's/^/  diagnostics: /'
+                  content=$(jq -c '{result, reason, bundles, formats, os, arches, vst2Files}' "${work}/content.json")
+                else
+                  content='{"result":"error","reason":"inspect_failed"}'
+                fi
+              fi
+            elif [ "${kind}" = "archive" ]; then
+              content=$(jq -cn --arg reason "${reason}" '{result: "error", reason: $reason}')
             fi
             rm -f "${file}"
-            echo "${repository} ${tag} asset ${asset_id}: ${result} ${reason}"
+            echo "${repository} ${tag} asset ${asset_id}: attestation ${result} ${reason}; content ${content:-none}"
             jq --argjson id "${asset_id}" --arg result "${result}" --arg reason "${reason}" --arg signer "${signer_found}" \
-              '. + [{assetId: $id, result: $result} + (if $reason == "" then {} else {reason: $reason} end) + (if $signer == "" then {} else {signerWorkflow: $signer} end)]' \
+              --arg content "${content}" \
+              '. + [{assetId: $id,
+                     attestation: ({result: $result}
+                       + (if $reason == "" then {} else {reason: $reason} end)
+                       + (if $signer == "" then {} else {signerWorkflow: $signer} end))}
+                    + (if $content == "" then {} else {content: ($content | fromjson)} end)]' \
               results.json > results.next && mv results.next results.json
           done
 
           jq '{results: .}' results.json > body.json
           curl -fsS -X POST -H "Authorization: Bearer $(token)" -H 'Content-Type: application/json' \
-            --data @body.json "${SOKO_KUN_ORIGIN}/internal/attestations/results"
+            --data @body.json "${SOKO_KUN_ORIGIN}/internal/checks/results"
