@@ -1,0 +1,94 @@
+name: macOS signing probe
+
+# Verification A2: can the Developer ID signature and Apple notarization of plugin bundles inside zip archives
+# be told apart on a macOS runner? Samples are downloaded from their authors' releases and checked by SHA-256.
+# Nothing in the samples is executed.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - name: Probe samples
+        run: |
+          set -uo pipefail
+          work="${RUNNER_TEMP}/samples"
+          out="${RUNNER_TEMP}/results"
+          mkdir -p "${work}" "${out}"
+          sw_vers > "${out}/runner.txt"
+
+          # name|expected|url|sha256
+          cat > "${work}/list.txt" <<'EOF'
+          retroplug|developer-id-notarized|https://github.com/tommitytom/RetroPlug/releases/download/v0.7.4/retroplug-v0.7.4-macos-universal-vst3.zip|50b0f72677982ae556d95ebebaf6cd56f2dd786f22c4eec92b07ceae21bf09d1
+          kr106|developer-id-notarized|https://github.com/kayrockscreenprinting/ultramaster_kr106/releases/download/v2.5.13/KR106-macOS.zip|e34e6ec4eca6d9ab07c5ef9ef20368267c02119e5cf41f73595be51dd80edcbe
+          hamburger|developer-id-notarized|https://github.com/Davit-G/Hamburger/releases/download/v0.9/Hamburger.v0.9.MacOS.arm64.Apple.Silicon.zip|e624cc09873206e1c8b3dd53be2894c720b1298673b8084acd154cb3b101b9e2
+          orchestra|apple-development|https://github.com/Tronhjem/ORchestra/releases/download/v0.2.6/ORchestra-v0.2.6-macOS-arm64.zip|09ae5603c4e000d08af9a0745ea04473e8e2b00ceaf26a295ac41988bea2eaf4
+          gate12|adhoc|https://github.com/tiagolr/gate12/releases/download/v1.3.3/gate12-macos-v1.3.3.zip|2c11517bd9b59a83fa813fe9f933c4233deff5c7571b4e299c8b6fd91b2e7189
+          dexed|adhoc-or-unsigned|https://github.com/asb2m10/dexed/releases/download/v1.1.0/Dexed-1.1.0-macOS.zip|d6576d064313327e216cec9d6f62caa650b44746bc7c8d4b010df7f55d9b8ae3
+          EOF
+
+          probe_bundle() {
+            local sample="$1" expected="$2" variant="$3" bundle="$4"
+            local log="${out}/${sample}-${variant}-$(basename "${bundle}" | tr ' ' '_').txt"
+            {
+              echo "== ${sample} ${variant} ${bundle} (expected ${expected})"
+              echo "-- codesign -dv --verbose=4"
+              codesign -dv --verbose=4 "${bundle}" 2>&1
+              echo "exit=$?"
+              echo "-- codesign --verify --deep --strict --verbose=2"
+              codesign --verify --deep --strict --verbose=2 "${bundle}" 2>&1
+              echo "exit=$?"
+              for type in execute install open; do
+                echo "-- spctl --assess -vvv --type ${type}"
+                if [ "${type}" = open ]; then
+                  spctl --assess -vvv --type open --context context:primary-signature "${bundle}" 2>&1
+                else
+                  spctl --assess -vvv --type "${type}" "${bundle}" 2>&1
+                fi
+                echo "exit=$?"
+              done
+              echo "-- xcrun stapler validate"
+              xcrun stapler validate "${bundle}" 2>&1
+              echo "exit=$?"
+            } > "${log}"
+            cat "${log}"
+          }
+
+          sed 's/^ *//' "${work}/list.txt" | while IFS='|' read -r name expected url sha; do
+            [ -z "${name}" ] && continue
+            dir="${work}/${name}"
+            mkdir -p "${dir}"
+            if ! curl -fsSL -o "${dir}/sample.zip" "${url}"; then
+              echo "${name}: download failed" | tee -a "${out}/errors.txt"
+              continue
+            fi
+            if ! echo "${sha}  ${dir}/sample.zip" | shasum -a 256 -c -; then
+              echo "${name}: sha256 mismatch" | tee -a "${out}/errors.txt"
+              continue
+            fi
+            ditto -x -k "${dir}/sample.zip" "${dir}/x"
+            find "${dir}/x" -type d \( -name '*.vst3' -o -name '*.clap' -o -name '*.component' \) -prune -print \
+              | while read -r bundle; do
+                  probe_bundle "${name}" "${expected}" original "${bundle}"
+                  # The stapled ticket lives in Contents/CodeResources, outside the signature's seal.
+                  # Removing it from a copy shows whether notarization can be told by the online check alone.
+                  if [ -f "${bundle}/Contents/CodeResources" ]; then
+                    copy="${dir}/unstapled/$(basename "${bundle}")"
+                    mkdir -p "${dir}/unstapled"
+                    ditto "${bundle}" "${copy}"
+                    rm "${copy}/Contents/CodeResources"
+                    probe_bundle "${name}" "${expected}" unstapled "${copy}"
+                  fi
+                done
+          done
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: macos-signing-probe
+          path: ${{ runner.temp }}/results
+          if-no-files-found: error
