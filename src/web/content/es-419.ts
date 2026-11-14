@@ -276,7 +276,7 @@ export const es419: Record<PageKey, PageContent> = {
       {
         heading: 'Aplicación',
         paragraphs: [
-          'Fecha de establecimiento: 14 de noviembre de 2026',
+          'Fecha de establecimiento: 15 de noviembre de 2026',
           'Estos términos se aplican a todas las personas que usan el sitio web y el endpoint MCP de Audio Plugin Soko-kun (en adelante, esta plataforma); por eso, usa esta plataforma solo después de aceptar estos términos.',
           'La versión en japonés de estos términos prevalece, y las demás versiones son traducciones de referencia.',
         ],

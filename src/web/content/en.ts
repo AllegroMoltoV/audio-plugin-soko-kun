@@ -273,7 +273,7 @@ export const en: Record<PageKey, PageContent> = {
       {
         heading: 'Scope',
         paragraphs: [
-          'Established: November 14, 2026',
+          'Established: November 15, 2026',
           'These terms apply to everyone who uses the website and the MCP endpoint of Audio Plugin Soko-kun (this platform), so use this platform only after agreeing to these terms.',
           'The Japanese version of these terms is authoritative, and other language versions are reference translations.',
         ],

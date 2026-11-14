@@ -273,7 +273,7 @@ export const ptBR: Record<PageKey, PageContent> = {
       {
         heading: 'Aplicação',
         paragraphs: [
-          'Data de criação: 14 de novembro de 2026',
+          'Data de criação: 15 de novembro de 2026',
           'Estes termos se aplicam a todos que usam o site e o endpoint MCP do Audio Plugin Soko-kun (doravante, esta plataforma); por isso, use esta plataforma somente após concordar com estes termos.',
           'A versão em japonês destes termos prevalece, e as outras versões são traduções de referência.',
         ],
