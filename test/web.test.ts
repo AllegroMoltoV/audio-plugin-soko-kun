@@ -2,6 +2,7 @@
 import { env, SELF } from 'cloudflare:test';
 import { describe, expect, it } from 'vitest';
 import { submitPlugin } from '../src/domain/submit';
+import { PAGE_KEYS, PAGES } from '../src/web/content';
 import { markListable } from './fixtures/checks';
 import { githubHandlers, OWNER, REPO, USER_TOKEN } from './fixtures/github';
 import { png } from './fixtures/images';
@@ -228,5 +229,61 @@ describe('Web', () => {
     expect(top).not.toContain('<meta name="robots" content="noindex"/>');
     const search = await (await SELF.fetch(`${ORIGIN}/?lang=en&q=pitch`)).text();
     expect(search).toContain('<meta name="robots" content="noindex"/>');
+  });
+
+  // VST の語の表示 (ADR 0004、docs/design/testing.md の V10〜V13)。
+  const LOGO = '<img src="/images/vst-compatible.png"';
+  const NOTICE = 'VST is a registered trademark of Steinberg Media Technologies GmbH.';
+
+  it('VST 3 のバンドルを検出しなかったプラグインは、VST 3 の絞り込みに出さず、詳細ページに VST の語もロゴも出さない', async () => {
+    await register();
+    await markListable(env.DB);
+    await env.DB.prepare(`UPDATE content_checks SET formats = '["clap"]'`).run();
+    // 右の列の新着は絞り込みに関係なく出るため、本文だけを見る。
+    const main = async (query: string) =>
+      (await (await SELF.fetch(`${ORIGIN}/?lang=en&${query}`)).text()).split('<main')[1]?.split('</main>')[0] ?? '';
+    expect(await main('format=vst3')).not.toContain(`/plugins/${OWNER}/${REPO}`);
+    expect(await main('format=clap')).toContain(`/plugins/${OWNER}/${REPO}`);
+    const detail = await (await SELF.fetch(`${ORIGIN}/plugins/${OWNER}/${REPO}?lang=en`)).text();
+    expect(detail).toContain('CLAP');
+    expect(detail).not.toContain('VST');
+    expect(detail).not.toContain(LOGO);
+  });
+
+  it('VST 3 のバンドルを検出したプラグインの詳細ページは、VST® 3 の隣にロゴを置き、商標の注記を出す', async () => {
+    await register();
+    await markListable(env.DB);
+    const detail = await (await SELF.fetch(`${ORIGIN}/plugins/${OWNER}/${REPO}?lang=ja`)).text();
+    expect(detail).toMatch(/VST® 3<\/span><picture class="vst-logo">/);
+    expect(detail).toContain(NOTICE);
+    expect(detail.indexOf('VST® 3')).toBe(detail.indexOf('VST'));
+  });
+
+  it('規格の選択肢に VST® 3 を出す一覧と検索結果のページは、絞り込みの隣にロゴを置き、商標の注記を出す', async () => {
+    for (const query of ['', '&format=vst3', '&q=pitch']) {
+      const html = await (await SELF.fetch(`${ORIGIN}/?lang=en${query}`)).text();
+      expect(html, query).toMatch(/<select name="format">.*?VST® 3.*?<\/select><\/label><picture class="vst-logo">/s);
+      expect(html, query).toContain(NOTICE);
+    }
+  });
+
+  it('VST の語を書く固定ページは、VST の語より前にロゴを伴う規格の行を置き、商標の注記を出す', async () => {
+    for (const lang of Object.keys(PAGES) as Array<keyof typeof PAGES>) {
+      for (const key of PAGE_KEYS) {
+        const blocks = PAGES[lang][key].sections.flatMap((section) => [section.heading, ...section.paragraphs]);
+        const firstVst = blocks.findIndex((block) => JSON.stringify(block).includes('VST'));
+        if (firstVst === -1) continue;
+        const formats = blocks.findIndex((block) => typeof block === 'object' && 'formats' in block);
+        expect(formats, `${lang} ${key}`).toBeGreaterThanOrEqual(0);
+        expect(formats, `${lang} ${key}`).toBeLessThan(firstVst);
+      }
+    }
+    for (const key of ['about', 'policy', 'submit', 'security']) {
+      const html = await (await SELF.fetch(`${ORIGIN}/${key}?lang=ja`)).text();
+      expect(html, key).toContain(LOGO);
+      expect(html, key).toContain(NOTICE);
+    }
+    const terms = await (await SELF.fetch(`${ORIGIN}/terms?lang=ja`)).text();
+    expect(terms).not.toContain(NOTICE);
   });
 });

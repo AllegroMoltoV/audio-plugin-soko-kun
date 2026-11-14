@@ -29,12 +29,18 @@ Malware disguised as cracked audio plugins has been reported repeatedly, and in 
 | `docs/decisions/` | Architecture decision records |
 | `docs/design/` | Draft design documents |
 | `docs/glossary.md` | Glossary |
-| `.github/workflows/` | Verification workflows run on GitHub Actions |
+| `docs/operations/` | Operations guides (deployment, admin commands, local development, incident response, backup) |
+| `src/` | Cloudflare Worker: web catalog, MCP server, checks and sync |
+| `public/` | Static files: service logo, sharing image, VST Compatible logo |
+| `migrations/` | D1 schema migrations |
+| `scripts/` | Admin commands and maintenance scripts |
+| `test/` | Automated tests |
+| `.github/workflows/` | CI, deployment and verification workflows run on GitHub Actions |
 | `LICENSE` | MIT License |
 
 ### License
 
-MIT License. See [LICENSE](LICENSE). The VST Compatible logo images (`docs/images/VST_Compatible_Logo_Steinberg*.png`) are trademarks of Steinberg Media Technologies GmbH and are not covered by the MIT License.
+MIT License. See [LICENSE](LICENSE). The VST Compatible logo images (`docs/images/VST_Compatible_Logo_Steinberg*.png` and their copies `public/images/vst-compatible*.png`) are trademarks of Steinberg Media Technologies GmbH and are not covered by the MIT License.
 
 ## 日本語
 
@@ -65,7 +71,13 @@ Steinberg Media Technologies GmbH、CLAP のプロジェクト、Apple、LV2 の
 | `docs/decisions/` | 設計判断の記録 |
 | `docs/design/` | 設計文書の下書き |
 | `docs/glossary.md` | 用語集 |
-| `.github/workflows/` | GitHub Actions で実行する検証のワークフロー |
+| `docs/operations/` | 運用の手順 (配備・管理コマンド・ローカルでの開発・障害対応・バックアップ) |
+| `src/` | Cloudflare Worker の本体。Web カタログ・MCP サーバー・検査と同期 |
+| `public/` | 静的なファイル。サービスのロゴ・共有のときの画像・VST Compatible ロゴ |
+| `migrations/` | D1 のスキーマのマイグレーション |
+| `scripts/` | 管理コマンドと保守用のスクリプト |
+| `test/` | 自動テスト |
+| `.github/workflows/` | GitHub Actions で実行する CI・配備・検証のワークフロー |
 | `LICENSE` | MIT License |
 
 ### 使い方
@@ -74,7 +86,7 @@ Steinberg Media Technologies GmbH、CLAP のプロジェクト、Apple、LV2 の
 
 ### ライセンス
 
-MIT License です。[LICENSE](LICENSE) を参照してください。VST Compatible ロゴの画像 (`docs/images/VST_Compatible_Logo_Steinberg*.png`) は Steinberg Media Technologies GmbH の商標で、MIT License の対象外です。
+MIT License です。[LICENSE](LICENSE) を参照してください。VST Compatible ロゴの画像 (`docs/images/VST_Compatible_Logo_Steinberg*.png` と、その複製の `public/images/vst-compatible*.png`) は Steinberg Media Technologies GmbH の商標で、MIT License の対象外です。
 
 ## 更新履歴
 

@@ -6,6 +6,13 @@ export type Category = (typeof CATEGORIES)[number];
 export const OS_VALUES = ['windows', 'macos', 'linux'] as const;
 export type Os = (typeof OS_VALUES)[number];
 
+// 規格とアーキテクチャの値 (docs/design/scanning.md の「中身の検査」)。表示と絞り込みは中身の検査の結果だけで行う。
+export const FORMAT_VALUES = ['vst3', 'clap', 'lv2', 'au'] as const;
+export type Format = (typeof FORMAT_VALUES)[number];
+
+export const ARCH_VALUES = ['x86_64', 'x86', 'arm64'] as const;
+export type Arch = (typeof ARCH_VALUES)[number];
+
 export type AssetKind = 'archive' | 'installer' | 'other';
 
 // 配布物の種類をファイル名の拡張子から決める (docs/design/scanning.md の「配布物の種類」)。案内の対象になるのは zip だけ。

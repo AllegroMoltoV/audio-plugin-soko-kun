@@ -110,6 +110,17 @@ describe('アクセス権限', () => {
     expect(payload.total).toBe(1);
   });
 
+  // V10: VST 3 の絞り込みには、中身の検査で VST 3 のバンドルを検出したものだけを出す (ADR 0004)。
+  it('VST 3 の絞り込みは中身の検査で検出した規格で行い、CLAP だけのプラグインを含めない', async () => {
+    await registerPendingFixture();
+    await markListable(env.DB);
+    await env.DB.prepare(`UPDATE content_checks SET formats = '["clap"]'`).run();
+    const vst3 = await toolResult(await SELF.fetch(toolCall('search_plugins', { format: 'vst3' })));
+    expect(vst3.payload.total).toBe(0);
+    const clap = await toolResult(await SELF.fetch(toolCall('search_plugins', { format: 'clap' })));
+    expect(clap.payload.total).toBe(1);
+  });
+
   it('管理者が停止したプラグインは検索結果から消える', async () => {
     await registerPendingFixture();
     await markListable(env.DB);

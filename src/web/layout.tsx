@@ -6,7 +6,7 @@ import { LOGO_VERSION } from './logo';
 import { STYLE_VERSION } from './style';
 
 // public/og.png の SHA-256 の先頭 8 桁。URL のクエリに付け、画像が変わったときに閲覧者のキャッシュを使わせない。
-const OG_VERSION = '067219cc';
+const OG_VERSION = '0ac36b70';
 
 export interface PageMeta {
   lang: Lang;
@@ -26,6 +26,8 @@ export interface PageMeta {
   origin: string;
   currentCategory?: Category;
   keyword?: string;
+  // VST の語を表示するページ。下部に商標の注記を置く (ADR 0004)。ロゴは本文の VST の語の近くに置く。
+  vst?: boolean;
 }
 
 export function withLang(path: string, lang: Lang): string {
@@ -77,6 +79,18 @@ export const websiteJsonLd = (origin: string) =>
     alternateName: SITE_NAME_EN,
     url: `${origin}/`,
   });
+
+// Steinberg の指定する商標の注記。翻訳しない (docs/design/i18n.md)。
+export const VST_NOTICE = 'VST is a registered trademark of Steinberg Media Technologies GmbH.';
+
+// VST Compatible ロゴ。掲載品の VST 3 への互換を示すためだけに、VST の語の隣に置く。装飾やブランドには使わない (ADR 0004)。
+// Steinberg の配布するファイルを、色と縦横の比を変えずに表示する。暗い配色では Steinberg の反転版を使う。
+export const VstLogo: FC = () => (
+  <picture class="vst-logo">
+    <source media="(prefers-color-scheme: dark)" srcset="/images/vst-compatible-negative.png" />
+    <img src="/images/vst-compatible.png" width={56} height={36} alt="VST Compatible" />
+  </picture>
+);
 
 // 収集を防ぐため、アドレスは HTML に書かない。フォームの送信を受けたときだけサーバーが返す。
 export const ContactButton: FC<{ t: Dict; lang: Lang }> = ({ t, lang }) => (
@@ -231,6 +245,11 @@ export const Layout: FC<{ meta: PageMeta; side: Child; sideNarrow: Child; childr
                 </li>
               </ul>
               <p>{t.notice}</p>
+              {meta.vst ? (
+                <p class="trademark" lang="en">
+                  {VST_NOTICE}
+                </p>
+              ) : null}
               <div class="contact-line">
                 {t.contactLabel}: <ContactButton t={t} lang={lang} />
                 <a class="sponsor" href="https://github.com/sponsors/AllegroMoltoV">

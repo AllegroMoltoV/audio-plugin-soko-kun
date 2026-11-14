@@ -1,0 +1,368 @@
+// 固定ページの簡体字中国語版。利用規約とプライバシーポリシーは日本語版、ほかのページは英語版の参考訳。
+import type { PageContent, PageKey } from '../content';
+
+export const zhHans: Record<PageKey, PageContent> = {
+  about: {
+    title: '什么是音のプラグイン倉庫くん？',
+    sections: [
+      {
+        heading: '关于本服务',
+        paragraphs: [
+          '音のプラグイン倉庫くん（Audio Plugin Soko-kun）是一个独立、开放的开源音频插件收录平台。本服务是与插件格式的制定方及 DAW 开发商无关的非官方服务。',
+          { formats: '支持的格式' },
+          '本平台不保存文件。它记录公开 GitHub 仓库的信息，并引导用户前往作者在 GitHub Releases 发布的 zip 压缩包。',
+          '本平台不保存文件，请直接从 GitHub 下载文件。',
+        ],
+      },
+      {
+        heading: '通过 AI 代理使用（MCP）',
+        paragraphs: [
+          '将 MCP 客户端连接到本站的 /mcp。在 Claude Code 中运行：',
+          { code: 'claude mcp add --transport http audio-plugin-soko-kun {{ORIGIN}}/mcp' },
+          '在 Codex 中运行：',
+          { code: 'codex mcp add audio-plugin-soko-kun --url {{ORIGIN}}/mcp' },
+          '搜索和查看详情无需登录 GitHub。提交仓库时，请在 MCP 客户端中使用 GitHub 登录（在 Claude Code 中运行 /mcp，在 Codex 中运行 codex mcp login audio-plugin-soko-kun）。本平台本身不会获得 GitHub 仓库的写入权限。',
+          '示例：“帮我找一个能在 Windows 上使用的变调插件”“帮我找一个能在 Apple Silicon Mac 上使用的 CLAP 混响插件”“把这个 GitHub 仓库的音频插件登记上去”“确认我的插件的新版本是否已收录”',
+        ],
+      },
+      {
+        heading: '支持开发',
+        paragraphs: [
+          '音のプラグイン倉庫くん可以免费使用。如果您愿意支持运营费用和开发，可以通过 GitHub Sponsors 赞助开发者：https://github.com/sponsors/AllegroMoltoV',
+          '赞助完全自愿，不会影响插件的收录和检查。',
+        ],
+      },
+    ],
+  },
+  policy: {
+    title: '收录政策',
+    sections: [
+      {
+        heading: '收录条件',
+        paragraphs: [
+          '本平台收录由 GitHub 仓库管理员即作者本人提交、并满足以下全部条件的开源音频插件。',
+          { formats: '支持的格式' },
+          {
+            list: [
+              '仓库在 GitHub 上公开，且未归档。',
+              '根据 SPDX License List，GitHub 在发布标签处检测到的许可证已获 OSI 批准，或被 FSF 认定为自由许可证。',
+              '发布是不可变发布（immutable release）。发布前，请在仓库设置中启用不可变发布。',
+              '发布中的每个文件（包括安装程序）都有由仓库的发布工作流生成的构建来源证明（build provenance attestation），例如使用 actions/attest-build-provenance 生成。',
+              '插件以 zip 压缩包分发。本平台只引导用户前往包含 VST 3、CLAP、LV2 或 Audio Unit 插件包的 zip 压缩包，不引导用户前往 exe、msi、pkg 等安装程序。',
+              '所有压缩包都不包含 VST 2。如果发布中的任何压缩包包含 VST 2 插件包或入口点，本平台不会收录该发布。',
+              'macOS 插件包已使用 Developer ID 证书签名，并通过 Apple 公证。如果压缩包中的 macOS 插件包未通过此项检查，本平台不会引导用户前往该压缩包。',
+              '发布通过“安全与免责声明”页面所述的其他自动检查，包括与已知恶意软件数据库的比对。',
+            ],
+          },
+          '许可证检查依据 GitHub 为仓库检测到的许可证。本平台不保证采样、预设、字体等随附素材的许可证。',
+        ],
+      },
+      {
+        heading: '收录的含义',
+        paragraphs: [
+          '是否使用 AI 开发不影响收录。所有插件适用相同条件，也不要求申报 AI 的使用。',
+          '本平台不会因收录而认证安全性或质量，请自行确认后再使用。',
+        ],
+      },
+    ],
+  },
+  submit: {
+    title: '提交插件',
+    sections: [
+      {
+        heading: '可以提交的插件',
+        paragraphs: [
+          '本平台收录由 GitHub 仓库管理员即作者本人提交的开源音频插件。',
+          { formats: '支持的格式' },
+          '提交前，请确认仓库及其最新发布满足收录条件：{{ORIGIN}}/policy',
+          '本平台根据 zip 压缩包中的插件包判断插件的格式、操作系统、架构和分类，您无需填写这些信息。',
+          '请不要在插件或仓库的名称中使用 VST 一词。VST 3 SDK 不允许在产品名称中使用 VST，审查也会将此类名称作为建议提出。',
+        ],
+      },
+      {
+        heading: '发布前检查仓库',
+        paragraphs: [
+          '发布之前，请让 AI 代理以检查模式运行 submit_plugin。检查模式会用最新发布判断收录条件，并审查默认分支的最新提交。检查模式不会登记插件。24 小时内最多可使用 5 次检查模式。',
+          '审查遵循在 GitHub 上公开的审查标准：https://github.com/AllegroMoltoV/audio-plugin-soko-kun/blob/main/docs/design/review-criteria.md',
+          '检查模式不会检查压缩包的内容和 macOS 签名，因为这些检查会在登记后于 GitHub Actions 中下载文件进行。代理会说明这些检查的要求。',
+        ],
+      },
+      {
+        heading: '提交步骤',
+        paragraphs: [
+          '请将 MCP 客户端连接到 {{ORIGIN}}/mcp。在 Claude Code 中请运行：',
+          { code: 'claude mcp add --transport http audio-plugin-soko-kun {{ORIGIN}}/mcp' },
+          '请在 MCP 客户端中使用 GitHub 账号登录。在 Claude Code 中请运行 /mcp 并选择 audio-plugin-soko-kun。在 Codex 中请先用 codex mcp add audio-plugin-soko-kun --url {{ORIGIN}}/mcp 连接，再用 codex mcp login audio-plugin-soko-kun 登录。本平台本身不会获得 GitHub 仓库的写入权限。',
+          '请让 AI 代理帮您提交，例如：“把 https://github.com/<owner>/<repository> 的音频插件登记上去”。',
+        ],
+      },
+      {
+        heading: '提交之后',
+        paragraphs: [
+          '本平台将插件登记为等待检查。在某个发布通过检查之前，插件不会出现在搜索结果中，也没有插件页面。',
+          '检查每 15 分钟进行一次，通常在几小时内完成。',
+          '本平台只收录通过检查的发布。您在 GitHub 上发布新版本后，本平台会自动获取并检查它，无需重新提交。',
+          '要查看检查结果，请让 AI 代理用 list_my_plugins 确认您的插件，例如：“确认我的插件的新版本是否已收录”。代理会显示每个发布的状态、发布或文件未被收录的原因、审查意见以及修改方法。',
+          '有些发布需要等待管理员确认。如需说明此类发布中的变更，请在本平台的仓库中提交 Issue：https://github.com/AllegroMoltoV/audio-plugin-soko-kun/issues',
+        ],
+      },
+      {
+        heading: '提交被拒绝时',
+        paragraphs: [
+          'AI 代理会显示原因代码和修改方法，请修正原因后重新提交。',
+          {
+            list: [
+              'not_admin：您没有该仓库的管理权限。请让仓库管理员提交。',
+              'private_repository、archived_repository：请公开仓库或取消归档。',
+              'no_license：请在仓库根目录放置采用开源许可证的 LICENSE 文件，然后发布新版本。',
+              'license_unrecognized：GitHub 无法识别许可证。请在 LICENSE 中只保留标准许可证文本，将其他声明移至 NOTICE 或 README，然后发布新版本。',
+              'license_not_open：请采用已获 OSI 批准或被 FSF 认定为自由许可证的许可证，然后发布新版本。',
+              'no_release、no_verifiable_asset：请发布附有插件文件的版本（最多 30 个文件）。',
+              'no_archive：请将插件包打包为 zip 压缩包并附加到发布中。',
+              'not_immutable：请在仓库设置中启用不可变发布，然后发布新版本。',
+              'no_attestation：请在发布工作流中加入 actions/attest-build-provenance，为包括安装程序在内的每个文件生成证明，然后发布新版本。',
+              'duplicate：该仓库已登记。请通过搜索打开插件页面。',
+              'name_reserved：某个已收录的插件在重命名之前使用过此仓库名称。请将仓库重命名为已收录插件从未使用过的名称。',
+              'rate_limited：24 小时内最多提交 10 次。请稍后再试。',
+              'invalid_url：请以 https://github.com/<owner>/<repository> 的形式指定仓库 URL。',
+              'not_found：找不到该仓库。请确认 URL 以及仓库是否公开。',
+              'unsupported_tag：发布标签只能使用字母、数字、“.”、“-”和“_”，且不超过 100 个字符。',
+              'github_unavailable：GitHub 未正常响应。请稍后再试。',
+            ],
+          },
+        ],
+      },
+      {
+        heading: '发布或文件未被收录时',
+        paragraphs: [
+          'list_my_plugins 会显示发布或文件未被收录的原因。需要作者修正的主要原因如下。',
+          {
+            list: [
+              'vst2_detected：压缩包中包含 VST 2 插件包或入口点。请从所有压缩包中移除 VST 2，然后发布新版本。',
+              'no_plugin_detected、no_plugin_in_archive：压缩包中找不到受支持的插件包。请将构建好的插件包放入 zip 压缩包。源代码压缩包无需修改。',
+              'content_undetermined：压缩包中包含无法检查的文件，例如安装程序或嵌套的压缩包。请将插件包直接放入 zip 压缩包。',
+              'macos_not_signed、macos_adhoc、macos_not_developer_id、macos_not_notarized：请使用 Developer ID 证书为 macOS 插件包签名，并通过 Apple 公证。',
+              'declaration_mismatch、not_declared：.audio-soko-kun/config.json 中的声明与检查的压缩包不一致。请修正声明，然后发布新版本。',
+              'installer_not_guided：本平台不引导用户前往安装程序。用户从 zip 压缩包获取插件。',
+            ],
+          },
+        ],
+      },
+      {
+        heading: '徽标与说明图片',
+        paragraphs: [
+          '作者可以各展示一张徽标和说明图片。请将图片放在仓库的 .audio-soko-kun 文件夹中。',
+          { code: '.audio-soko-kun/logo.png\n.audio-soko-kun/image.gif' },
+          {
+            list: [
+              '徽标：文件名为 logo。请将大小控制在 256 KB 以内，长和宽控制在 1,024 px 以内。',
+              '说明图片：文件名为 image。请将大小控制在 1.5 MB 以内，长和宽控制在 4,096 px 以内。GIF 会以动画形式播放。',
+            ],
+          },
+          '本平台不接受可包含脚本的 SVG，因此请使用 png、jpg、jpeg、gif 或 webp 扩展名。',
+          '本平台获取最新发布标签时的图片，因此更改图片后请发布新版本。',
+          '本平台不显示不符合条件的图片，因此如果图片未显示，请检查条件。',
+        ],
+      },
+      {
+        heading: '.audio-soko-kun/config.json',
+        paragraphs: [
+          '作者可以在 .audio-soko-kun/config.json 中声明显示名称、分类，以及每个压缩包的操作系统、架构和格式。请将该文件放在与图片相同的 .audio-soko-kun 文件夹中。',
+          {
+            code: '{\n  "name": "Simple Pitch Shift",\n  "category": "effect",\n  "assets": [\n    {\n      "pattern": "simple-pitchshift-*-windows-x64.zip",\n      "os": "windows",\n      "arch": ["x86_64"],\n      "formats": ["vst3", "clap"]\n    }\n  ]\n}',
+          },
+          {
+            list: [
+              'name：显示名称，1 到 60 个字符。未填写时，本平台显示仓库名称。',
+              'category：instrument、effect、analyzer、midi、utility 之一。仅在本平台无法根据插件包推断分类时使用。',
+              'assets：最多 20 条压缩包声明。pattern 与压缩包名称匹配，其中 * 匹配任意文本。os 为 windows、macos、linux 之一。arch 为由 x86_64、x86、arm64 组成的数组。formats 为由 vst3、clap、lv2、au 组成的数组。',
+            ],
+          },
+          '所有字段都是可选的。本平台根据检查的插件包确定格式、操作系统和架构，声明仅用于核对这些信息以及选择要引导的压缩包。',
+          '填写 assets 后，本平台只引导用户前往与 pattern 匹配的压缩包。如果文件无效、没有压缩包与任何 pattern 匹配，或检查的压缩包与声明不一致，本平台不会收录该发布。',
+          '本平台读取每个新发布标签时的该文件，因此更改文件后请发布新版本。',
+        ],
+      },
+      {
+        heading: '更新与撤下',
+        paragraphs: [
+          '更新收录内容时，请在 GitHub 上发布新版本。本平台会自动获取新版本，并在通过检查后收录。本平台也会根据仓库说明更新简介。',
+          '如果新版本未被收录，请让 AI 代理用 list_my_plugins 确认。代理会显示原因和修改方法。',
+          '撤下收录时，请将仓库设为私有或删除仓库。您也可以按举报页面的方法申请撤下。',
+        ],
+      },
+      {
+        id: 'rename',
+        heading: '重命名或转移仓库',
+        paragraphs: [
+          '本平台通过 GitHub 的仓库 ID 跟踪仓库，因此重命名仓库时无需任何操作。收录会在 15 分钟内转到新名称，指向旧名称的链接会重定向到新名称。',
+          '请不要用旧名称创建另一个仓库。本平台会为已重命名的插件保留旧名称，不会以该名称登记其他仓库。',
+          '如果将仓库转移到其他账号或组织，已收录的版本会继续收录，下一个版本由管理员确认后再收录。',
+          '要更改显示名称，请修改 .audio-soko-kun/config.json 中的 name 并发布新版本。',
+        ],
+      },
+    ],
+  },
+  security: {
+    title: '安全与免责声明',
+    sections: [
+      {
+        heading: '自动检查',
+        paragraphs: [
+          '本平台在收录每个新发布之前都会进行检查，只收录通过检查的发布。',
+          { formats: '检查的格式' },
+          {
+            list: [
+              '来源证明：每个文件都必须有构建来源证明。GitHub Actions 工作流会验证其签名，并确认证明与仓库、发布标签、标签的提交以及为该插件记录的发布工作流一致。',
+              '不可变发布：发布必须是不可变的。不可变发布中的文件在发布后无法替换。',
+              '压缩包检查：GitHub Actions 工作流会下载每个 zip 压缩包，并在不运行的情况下读取其中的插件包。此处显示的格式、操作系统和架构均来自这项检查。任何压缩包中包含 VST 2 的发布，以及包含无法检查的压缩包的发布，都不会被收录。',
+              'macOS 签名与公证：包含 macOS 插件包的压缩包，只有在确认其插件包已使用 Developer ID 证书签名并通过 Apple 公证后，才会引导用户前往。',
+              '恶意软件查询：在已知恶意软件样本数据库 MalwareBazaar 中查询 GitHub 公布的每个文件的 SHA-256。已收录的文件也会定期重新查询。',
+              '与已收录发布的差异：按规则检查从已收录发布到新发布的变更。符合规则的发布将等待管理员确认。',
+              '开发实践审查：由仓库文件即可判定的项目（例如 Action 的固定和发布工作流）按规则判定。只有需要阅读文字的项目（例如 README 中的安装步骤）才由 LLM 结合本平台计算的事实进行判定。审查不读取源代码。有严重问题的发布将等待管理员确认。',
+            ],
+          },
+          '审查标准在 GitHub 上公开：https://github.com/AllegroMoltoV/audio-plugin-soko-kun/blob/main/docs/design/review-criteria.md',
+          '未通过检查的发布不会显示。在新发布通过检查之前，之前收录的发布将继续收录。',
+          '如有文件被报告为恶意软件，将暂停该插件的收录。管理员也可能暂停某个发布。',
+          '被暂停的发布会在公告页面 {{ORIGIN}}/notices 上公布，并附上版本、每个文件的 SHA-256 以及在本平台收录的期间。插件页面也会显示警告。',
+        ],
+      },
+      {
+        heading: '检查的局限',
+        paragraphs: [
+          '恶意软件查询只能检出 MalwareBazaar 中已知的威胁。新型或定向的恶意软件可能无法检出，因此即使未检出任何问题，也请谨慎使用。',
+          'Developer ID 签名和公证表明了 macOS 插件包的签名者，以及 Apple 已对其进行扫描，但并不能证明插件是安全的。',
+          '压缩包检查根据插件包的结构及其导出的函数识别格式，无法判断实现了 VST 3 接口的插件是否使用 VST 3 SDK 构建。',
+          'SHA-256 代表记录时 GitHub 提供的文件。请将下载文件的 SHA-256 与此处显示的值进行比对。',
+        ],
+      },
+      {
+        heading: '免责声明',
+        paragraphs: ['本平台按现状提供，不作任何保证，安装插件的风险由用户自行承担。各插件由其作者负责。'],
+      },
+    ],
+  },
+  report: {
+    title: '举报',
+    sections: [
+      {
+        heading: '公开举报',
+        paragraphs: [
+          '错误信息或收录政策相关问题，请在 GitHub 仓库的 Issues 中提交：https://github.com/AllegroMoltoV/audio-plugin-soko-kun/issues',
+        ],
+      },
+      {
+        heading: '非公开举报',
+        paragraphs: [
+          '疑似恶意软件或安全问题，请通过 GitHub 的 Private vulnerability reporting 非公开举报：https://github.com/AllegroMoltoV/audio-plugin-soko-kun/security/advisories/new',
+          '举报由人工确认。仅凭举报不会暂停收录。确认存在明确危险时将暂停收录，即使仓库更新也会继续暂停。',
+        ],
+      },
+      {
+        heading: '联系方式',
+        paragraphs: ['其他咨询请发送至点击下方按钮显示的开发者联系方式。', { contact: true }],
+      },
+    ],
+  },
+  terms: {
+    title: '使用条款',
+    sections: [
+      {
+        heading: '适用范围',
+        paragraphs: [
+          '制定日期：2026 年 11 月 14 日',
+          '本条款适用于所有使用音のプラグイン倉庫くん（以下称本平台）网站和 MCP 端点的人，请在同意本条款后使用本平台。',
+          '本条款以日文版为准，其他语言版本仅供参考。',
+        ],
+      },
+      {
+        heading: '本平台提供的内容',
+        paragraphs: [
+          '本平台从 GitHub 收集并收录音频插件的信息，并引导用户前往作者在 GitHub 上发布的文件。',
+          '本平台不保存文件，也不保证插件的安全性、质量和运行，请用户自行负责确认后再使用。',
+        ],
+      },
+      {
+        heading: '提交插件的作者须遵守的事项',
+        paragraphs: [
+          '提交插件的作者请遵守以下事项。',
+          {
+            list: [
+              '只提交自己拥有管理权限的仓库。',
+              '不发布虚假信息。',
+              '不分发恶意软件或会伤害用户的程序。',
+              '不侵犯第三方的权利。',
+            ],
+          },
+        ],
+      },
+      {
+        heading: '禁止行为',
+        paragraphs: [
+          '用户请勿进行以下行为。',
+          {
+            list: [
+              '以大量提交或请求妨碍本平台的运营。',
+              '进行未经授权的访问或利用漏洞。',
+              '妨碍其他用户或运营者。',
+              '违反法律法规。',
+            ],
+          },
+        ],
+      },
+      {
+        heading: '收录的暂停与删除',
+        paragraphs: ['运营者确认违反本条款或对用户存在危险时，可以不经事先通知暂停或删除收录。'],
+      },
+      {
+        heading: '免责',
+        paragraphs: [
+          '对于因使用本平台或安装插件而产生的损害，除运营者故意或重大过失的情形外，运营者不承担责任。',
+          '运营者可能在不预先通知的情况下变更本平台的内容，或中断、终止提供。',
+        ],
+      },
+      {
+        heading: '条款的变更',
+        paragraphs: ['运营者会根据需要变更本条款，并在本页面公布变更后的条款及生效日期，请用户定期查看本页面。'],
+      },
+      {
+        heading: '准据法与管辖',
+        paragraphs: [
+          '本条款以日本法律为准据法。',
+          '与本条款或本平台有关的纠纷，以管辖运营者住所地的地方法院为第一审专属协议管辖法院。',
+        ],
+      },
+      {
+        heading: '联系方式',
+        paragraphs: ['关于本条款的咨询请发送至点击下方按钮显示的开发者联系方式。', { contact: true }],
+      },
+    ],
+  },
+  privacy: {
+    title: '隐私政策',
+    sections: [
+      {
+        heading: '隐私政策',
+        paragraphs: ['本隐私政策以日文版为准，其他语言版本仅供参考。'],
+      },
+      {
+        heading: '保存的信息',
+        paragraphs: [
+          '为提交插件而登录时，本平台会保存您的 GitHub 用户 ID 和登录名，以及用于确认仓库权限的 GitHub 访问令牌和用于更新该令牌的刷新令牌。本平台加密保存令牌，仅用于确认您所提交仓库的权限。',
+          '为防止滥用，本平台会将 IP 地址进行单向哈希后短期保存。浏览目录时，除记住语言选择的 cookie 外不使用其他 cookie。',
+        ],
+      },
+      {
+        heading: '您可以做的事',
+        paragraphs: [
+          '您可以随时在 GitHub 设置的 Applications 中撤销访问权限。如需删除数据，请按举报页面的方法提交非公开举报。',
+        ],
+      },
+      {
+        heading: '联系方式',
+        paragraphs: ['其他咨询请发送至点击下方按钮显示的开发者联系方式。', { contact: true }],
+      },
+    ],
+  },
+};

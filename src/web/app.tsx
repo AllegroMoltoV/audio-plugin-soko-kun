@@ -9,13 +9,14 @@ import {
   type PluginView,
   searchPlugins,
 } from '../domain/catalog';
-import { CATEGORIES, type Category, OS_VALUES, type Os } from '../domain/metadata';
+import { CATEGORIES, type Category, FORMAT_VALUES, type Format, OS_VALUES, type Os } from '../domain/metadata';
 import type { Env } from '../env';
-import { AUTHORITATIVE, PAGE_KEYS, PAGES } from './content';
+import { AUTHORITATIVE, mentionsVst, PAGE_KEYS, PAGES } from './content';
 import { DICTS, LANGS, type Lang, negotiate } from './i18n';
 import { Layout, type PageMeta, toJsonLd, websiteJsonLd, withLang } from './layout';
 import { LOGO_SVG } from './logo';
 import {
+  formatName,
   NoticesPage,
   PluginCards,
   PluginDetail,
@@ -129,7 +130,7 @@ function meta(
     description,
     path: pathWithoutLang(c.req.url),
     canonicalPath: canonicalPathOf(c.req.url),
-    noindex: u.searchParams.has('q') || u.searchParams.has('os'),
+    noindex: u.searchParams.has('q') || u.searchParams.has('os') || u.searchParams.has('format'),
     origin: c.env.ORIGIN,
     ...extra,
   };
@@ -169,18 +170,26 @@ app.get('/', async (c) => {
   const t = DICTS[lang];
   const keyword = (c.req.query('q') ?? '').slice(0, 100).trim();
   const os = OS_VALUES.find((v) => v === c.req.query('os')) as Os | undefined;
+  const format = FORMAT_VALUES.find((v) => v === c.req.query('format')) as Format | undefined;
   const category = CATEGORIES.find((v) => v === c.req.query('category')) as Category | undefined;
   const page = Math.max(1, Math.min(1000, Number.parseInt(c.req.query('page') ?? '1', 10) || 1));
   const result = await searchPlugins(c.env, {
     keyword,
     os,
+    format,
     category,
     limit: PAGE_SIZE,
     offset: (page - 1) * PAGE_SIZE,
   });
   const stats = await catalogStats(c.env);
-  const filtered = Boolean(keyword || os || category);
-  const heading = keyword ? t.resultsFor(keyword, result.total) : category ? t.categories[category] : t.latest;
+  const filtered = Boolean(keyword || os || format || category);
+  const heading = keyword
+    ? t.resultsFor(keyword, result.total)
+    : category
+      ? t.categories[category]
+      : format
+        ? formatName(format)
+        : t.latest;
   const pages = Math.max(1, Math.ceil(result.total / PAGE_SIZE));
   const pageLink = (n: number) => {
     const u = new URL(c.req.url);
@@ -194,6 +203,8 @@ app.get('/', async (c) => {
         keyword,
         currentCategory: category,
         jsonLd: !filtered && page === 1 ? websiteJsonLd(c.env.ORIGIN) : undefined,
+        // 検索フォームの規格の選択肢に VST の語を出すため、ロゴを絞り込みの隣に置き、注記を付ける。
+        vst: true,
       })}
       side={
         <SideCommon
@@ -219,7 +230,16 @@ app.get('/', async (c) => {
       }
     >
       <h1>{t.searchHeading}</h1>
-      <SearchForm t={t} lang={lang} keyword={keyword} os={os} category={category} categories={CATEGORIES} />
+      <SearchForm
+        t={t}
+        lang={lang}
+        keyword={keyword}
+        os={os}
+        format={format}
+        category={category}
+        categories={CATEGORIES}
+        formats={FORMAT_VALUES}
+      />
       <h2 class="bar">{filtered && !keyword ? `${heading} - ${t.results(result.total)}` : heading}</h2>
       <PluginCards items={result.items} t={t} lang={lang} />
       {pages > 1 ? (
@@ -274,6 +294,8 @@ app.get('/plugins/:owner/:repo', async (c) => {
       meta={meta(c, lang, `${view.name} - ${t.pluginTitleSuffix}`, description, {
         jsonLd: view.status === 'listed' ? softwareJsonLd(c.env.ORIGIN, lang, view, description) : undefined,
         currentCategory: view.category,
+        // VST 3 のバンドルを検出した掲載中のプラグインだけが、VST の語とロゴを表示する。
+        vst: view.status === 'listed' && view.formats.includes('vst3'),
         // URL の大文字と小文字の違いで重複しないよう、サイトマップと同じ小文字の ID にそろえる。
         canonicalPath: `/plugins/${view.id}`,
         // ロゴがあるプラグインは、共有のときにプラグインのロゴを出す。
@@ -360,6 +382,7 @@ for (const key of PAGE_KEYS) {
             '{{ORIGIN}}',
             c.env.ORIGIN,
           ),
+          { vst: mentionsVst(content) },
         )}
         side={
           <SideCommon

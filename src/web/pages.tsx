@@ -1,10 +1,10 @@
 import type { Child, FC } from 'hono/jsx';
 import type { ImageView, PluginView, SuspendedReleaseView } from '../domain/catalog';
-import type { Category } from '../domain/metadata';
+import type { Arch, Category, Format, Os } from '../domain/metadata';
 import type { ScanResult } from '../domain/status';
 import type { Block, PageContent } from './content';
 import type { Dict, Lang } from './i18n';
-import { ContactButton, SearchButton, withLang } from './layout';
+import { ContactButton, SearchButton, VstLogo, withLang } from './layout';
 
 const formatDate = (iso: string | null | undefined, lang: Lang) =>
   iso ? new Intl.DateTimeFormat(lang, { dateStyle: 'medium' }).format(new Date(iso)) : '-';
@@ -16,6 +16,14 @@ const formatDateTime = (iso: string | null | undefined, lang: Lang) =>
     : '-';
 const formatSize = (bytes: number, lang: Lang) =>
   new Intl.NumberFormat(lang, { style: 'unit', unit: 'megabyte', maximumFractionDigits: 1 }).format(bytes / 1_000_000);
+
+// 規格名は翻訳しない。VST の語には、ページの中の初出にだけ ® を付ける (docs/design/ui.md の「VST の語の表示」)。
+const FORMAT_NAMES: Record<Format, string> = { vst3: 'VST 3', clap: 'CLAP', lv2: 'LV2', au: 'Audio Unit' };
+export const formatName = (format: Format, firstOnPage = false) =>
+  format === 'vst3' && firstOnPage ? 'VST® 3' : FORMAT_NAMES[format];
+const formatList = (formats: Format[]) => formats.map((format) => FORMAT_NAMES[format]).join(', ');
+const osList = (t: Dict, os: Os[]) => os.map((value) => t.os[value]).join(', ');
+const archList = (arches: Arch[]) => arches.join(', ');
 
 export const CategoryTag: FC<{ category: Category; t: Dict; lang: Lang }> = ({ category, t, lang }) => (
   <a class={`tag ${category}`} href={withLang(`/?category=${category}`, lang)}>
@@ -126,9 +134,21 @@ export const PluginCards: FC<{ items: PluginView[]; t: Dict; lang: Lang }> = ({ 
             <li>
               <CategoryTag category={view.category} t={t} lang={lang} />
             </li>
+            {view.formats.map((format) => (
+              <li>
+                <span class="pill format">{formatName(format)}</span>
+              </li>
+            ))}
             {view.os.map((os) => (
               <li>
                 <span class="pill">{t.os[os]}</span>
+              </li>
+            ))}
+            {view.arches.map((arch) => (
+              <li>
+                <span class="pill" translate="no">
+                  {arch}
+                </span>
               </li>
             ))}
           </ul>
@@ -149,9 +169,11 @@ export const SearchForm: FC<{
   lang: Lang;
   keyword?: string;
   os?: string;
+  format?: string;
   category?: string;
   categories: readonly Category[];
-}> = ({ t, lang, keyword, os, category, categories }) => (
+  formats: readonly Format[];
+}> = ({ t, lang, keyword, os, format, category, categories, formats }) => (
   <search>
     <form class="search" method="get" action="/">
       <input type="hidden" name="lang" value={lang} />
@@ -165,6 +187,20 @@ export const SearchForm: FC<{
           maxlength={100}
         />
         <SearchButton label={t.searchButton} />
+      </div>
+      <div class="row">
+        <label>
+          {t.formatLabel}{' '}
+          <select name="format">
+            <option value="">{t.formatAll}</option>
+            {formats.map((value) => (
+              <option value={value} selected={format === value}>
+                {formatName(value, true)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <VstLogo />
       </div>
       <div class="row">
         <label>
@@ -466,6 +502,21 @@ export const PluginDetail: FC<{ view: PluginView; t: Dict; lang: Lang; showOrigi
         <li>
           <CategoryTag category={view.category} t={t} lang={lang} />
         </li>
+        {view.status === 'listed'
+          ? view.formats.map((format) =>
+              // 見出しのタグがページの中の VST の語の初出になる。
+              format === 'vst3' ? (
+                <li class="vst">
+                  <span class="pill format">{formatName(format, true)}</span>
+                  <VstLogo />
+                </li>
+              ) : (
+                <li>
+                  <span class="pill format">{formatName(format)}</span>
+                </li>
+              ),
+            )
+          : null}
         {view.status !== 'listed' ? (
           <li>
             <StatusBadge view={view} t={t} />
@@ -499,22 +550,34 @@ export const PluginDetail: FC<{ view: PluginView; t: Dict; lang: Lang; showOrigi
   }
 
   const release = view.listedRelease;
-  const primary = release.assets[0];
   return (
     <>
       {head}
       <Summary view={view} t={t} lang={lang} showOriginal={showOriginal} path={`/plugins/${view.id}`} />
       {view.images.image ? <Shot view={view} image={view.images.image} t={t} /> : null}
-      {primary ? (
-        <div class="download">
-          <a class="button" href={primary.downloadUrl} rel="noopener noreferrer">
-            {t.download}
-          </a>
-          <p>
-            {release.tag} / <span translate="no">{primary.name}</span> / {formatSize(primary.size, lang)}
-          </p>
-          <p>{t.downloadNote}</p>
-        </div>
+      <div class="download">
+        {release.assets.map((asset) => (
+          <div class="download-item">
+            <a class="button" href={asset.downloadUrl} rel="noopener noreferrer">
+              {t.download}
+            </a>
+            <p>
+              {release.tag} / <span translate="no">{asset.name}</span> / {formatSize(asset.size, lang)}
+            </p>
+            <p>
+              {[osList(t, asset.os), archList(asset.arches), formatList(asset.formats)]
+                .filter((part) => part.length > 0)
+                .join(' / ')}
+            </p>
+          </div>
+        ))}
+        <p>{t.downloadNote}</p>
+      </div>
+      {view.macosNotGuided ? (
+        <p class="callout">
+          <span class="label">{t.cautionLabel}</span>
+          {t.macosNotGuided}
+        </p>
       ) : null}
 
       <h2 class="bar">{t.version}</h2>
@@ -525,8 +588,16 @@ export const PluginDetail: FC<{ view: PluginView; t: Dict; lang: Lang; showOrigi
             <td translate="no">{view.owner}</td>
           </tr>
           <tr>
+            <th scope="row">{t.formatLabel}</th>
+            <td translate="no">{view.formats.length > 0 ? formatList(view.formats) : t.unknown}</td>
+          </tr>
+          <tr>
             <th scope="row">{t.supportedOs}</th>
-            <td>{view.os.length > 0 ? view.os.map((os) => t.os[os]).join(', ') : t.unknown}</td>
+            <td>{view.os.length > 0 ? osList(t, view.os) : t.unknown}</td>
+          </tr>
+          <tr>
+            <th scope="row">{t.archLabel}</th>
+            <td translate="no">{view.arches.length > 0 ? archList(view.arches) : t.unknown}</td>
           </tr>
           <tr>
             <th scope="row">{t.license}</th>
@@ -583,7 +654,16 @@ export const PluginDetail: FC<{ view: PluginView; t: Dict; lang: Lang; showOrigi
               <span class="meta">{formatSize(asset.size, lang)}</span>
             </div>
             <div class="hash">SHA-256: {asset.digest.replace(/^sha256:/, '')}</div>
+            {/* 案内する配布物は、証明の検証と、macOS 向けなら署名と公証の判定に通ったものだけ。 */}
             <ul class="checks">
+              <li>
+                {t.attestationLabel}: {t.attestationVerified}
+              </li>
+              {asset.os.includes('macos') ? (
+                <li>
+                  {t.macosSigningLabel}: {t.macosSigningPassed}
+                </li>
+              ) : null}
               <li>
                 MalwareBazaar: {checkLabel(t, asset.scans.malwarebazaar?.result)},{' '}
                 {formatDateTime(asset.scans.malwarebazaar?.scannedAt, lang)}
@@ -618,6 +698,15 @@ const BlockView: FC<{ block: Block; origin: string; t: Dict; lang: Lang }> = ({ 
     );
   }
   if ('contact' in block) return <ContactButton t={t} lang={lang} />;
+  // 対象の規格の行。ページの中の VST の語の初出に ® を付け、隣に VST Compatible ロゴを置く。
+  if ('formats' in block) {
+    return (
+      <p class="formats-line">
+        {block.formats}: <span translate="no">{formatName('vst3', true)}</span> <VstLogo />{' '}
+        <span translate="no">{(['clap', 'lv2', 'au'] as const).map((format) => formatName(format)).join(', ')}</span>
+      </p>
+    );
+  }
   if ('code' in block) {
     return (
       <pre class="code">

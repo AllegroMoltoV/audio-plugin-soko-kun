@@ -77,7 +77,14 @@ export interface Dict {
   author: string;
   license: string;
   supportedOs: string;
-  builtWithObs: string;
+  formatLabel: string;
+  formatAll: string;
+  archLabel: string;
+  macosNotGuided: string;
+  attestationLabel: string;
+  attestationVerified: string;
+  macosSigningLabel: string;
+  macosSigningPassed: string;
   pluginTitleSuffix: string;
   unknown: string;
   version: string;
@@ -163,13 +170,13 @@ export interface Dict {
 }
 
 const en: Dict = {
-  tagline: 'A warehouse of plugins for OBS Studio',
+  tagline: 'A warehouse of open-source audio plugins',
   siteDescription:
-    'A registry of OBS Studio plugins that lets you search from the web or from AI agents such as Claude Code and Codex. Each file is checked against a database of known malware samples.',
+    'A registry of open-source audio plugins that you can search from the web or from AI agents such as Claude Code and Codex. Every listed file has a verified build provenance attestation and is checked against a database of known malware samples.',
   notice:
-    'This platform is an unofficial, free service not affiliated with the OBS Project. It does not guarantee the safety of any plugin, so use plugins carefully and at your own risk.',
+    'This platform is an unofficial, free service not affiliated with the developers of plugin formats or DAWs. It does not guarantee the safety of any plugin, so use plugins carefully and at your own risk.',
   noticeShort: 'This platform is unofficial and does not guarantee the safety of any plugin, so use plugins carefully.',
-  searchHeading: 'Find plugins for OBS Studio',
+  searchHeading: 'Find audio plugins',
   searchPlaceholder: 'Keyword (e.g. pitch shift)',
   searchButton: 'Search',
   osLabel: 'OS',
@@ -197,8 +204,7 @@ const en: Dict = {
   author: 'Author',
   license: 'License',
   supportedOs: 'Supported OS',
-  builtWithObs: 'Built with OBS',
-  pluginTitleSuffix: 'OBS Studio plugin',
+  pluginTitleSuffix: 'Audio plugin',
   unknown: 'Not confirmed',
   version: 'Version',
   commit: 'Commit',
@@ -222,6 +228,7 @@ const en: Dict = {
   cautions: 'Notes',
   cautionItems: [
     'The author published these files on GitHub, so read the author’s instructions before installing.',
+    'Extract the archive and put each plugin bundle in the plugin folder for its format, as the author describes.',
     'Compare the SHA-256 of the downloaded file with the value shown here.',
   ],
   reportPlugin: 'Report this plugin',
@@ -234,17 +241,18 @@ const en: Dict = {
   listedPeriod: (from, until) => `Listed here from ${from} to ${until ?? 'now'}`,
   noticesTitle: 'Notices',
   noticesIntro:
-    'These are versions that this platform suspended. If you downloaded one of these files during the listed period, delete the plugin folder from the OBS Studio plugins folder and scan your PC.',
+    'These are versions that this platform suspended. If you downloaded one of these files during the listed period, delete the plugin from your plugin folders and scan your PC.',
   noticesEmpty: 'There are no notices.',
   sideAgentTitle: 'Use from AI agents',
   sideAgentBody:
-    'Connect Claude Code or Codex over MCP to search for plugins in conversation. Authors of OBS Studio plugins can also submit their plugins in conversation.',
+    'Connect Claude Code or Codex over MCP to search for plugins in conversation. Authors of audio plugins can also submit their plugins in conversation.',
   sideAgentExample: 'Example: "Find a pitch shift plugin that works on Windows"',
   sideAgentLink: 'How to connect',
   sideListingTitle: 'About listings and checks',
   sideListingItems: [
     'Authors submit their own public GitHub repositories.',
-    'This platform checks files against known malware databases.',
+    'This platform verifies the build provenance of every file and inspects the plugin bundles in each archive.',
+    'This platform checks files against a database of known malware.',
     'A file with no detections is not necessarily safe, so use it carefully.',
   ],
   sidePolicy: 'Listing policy',
@@ -277,7 +285,7 @@ const en: Dict = {
   downloadNote: 'The file is downloaded directly from GitHub. This platform does not host files.',
   sideLatestTitle: 'Latest 5 plugins',
   sideSubmitTitle: 'Submit your plugin',
-  sideSubmitBody: 'Authors of OBS Studio plugins can submit their GitHub repositories from an AI agent.',
+  sideSubmitBody: 'Authors of audio plugins can submit their GitHub repositories from an AI agent.',
   sideSubmitLink: 'How to submit',
   submitNav: 'Submit a plugin',
   translationNoteJa: 'This translation is for reference, so check the exact content in the Japanese version.',
@@ -294,16 +302,24 @@ const en: Dict = {
   downloadsAsOf: 'as of {date}',
   downloadsNote: 'This is the number of downloads on GitHub, including downloads not made through this site.',
   sideWeeklyTitle: 'Top 5 weekly downloads',
+  formatLabel: 'Format',
+  formatAll: 'All',
+  archLabel: 'Architecture',
+  macosNotGuided: 'This platform does not list the macOS files of this version. Only the files shown here are listed.',
+  attestationLabel: 'Build provenance',
+  attestationVerified: 'Verified',
+  macosSigningLabel: 'macOS signing and notarization',
+  macosSigningPassed: 'Developer ID signature and notarization confirmed',
 };
 
 const ja: Dict = {
-  tagline: 'OBS Studio 向けプラグインの倉庫',
+  tagline: 'オープンソースのオーディオプラグインの倉庫',
   siteDescription:
-    'OBS Studio のプラグインを、Web と Claude Code や Codex などの AI エージェントから探せるレジストリです。配布物は既知のマルウェアのデータベースと照合しています。',
+    'オープンソースのオーディオプラグインを、Web と Claude Code や Codex などの AI エージェントから探せるレジストリです。掲載する配布物は、ビルドの来歴の証明を検証し、既知のマルウェアのデータベースと照合しています。',
   notice:
-    'このプラットフォームは OBS Project と無関係の非公式で無料のサービスです。各プラグインの安全性を保証しないので、個人の責任にもとづき注意して利用してください。',
+    'このプラットフォームは、プラグインの規格の策定元や DAW の開発元と無関係の、非公式で無料のサービスです。各プラグインの安全性を保証しないので、個人の責任にもとづき注意して利用してください。',
   noticeShort: 'このプラットフォームは非公式で、各プラグインの安全性を保証しないので、注意して利用してください。',
-  searchHeading: 'OBS Studio 向けのプラグインを探す',
+  searchHeading: 'オーディオプラグインを探す',
   searchPlaceholder: 'キーワード (例: pitch shift)',
   searchButton: '探す',
   osLabel: 'OS',
@@ -331,8 +347,7 @@ const ja: Dict = {
   author: '作者',
   license: 'ライセンス',
   supportedOs: '対応 OS',
-  builtWithObs: 'ビルドに使った OBS',
-  pluginTitleSuffix: 'OBS Studio プラグイン',
+  pluginTitleSuffix: 'オーディオプラグイン',
   unknown: '確認できません',
   version: 'バージョン',
   commit: 'コミット',
@@ -356,6 +371,7 @@ const ja: Dict = {
   cautions: '注意事項',
   cautionItems: [
     '配布物は作者が GitHub で公開したものなので、作者の説明を読んでから導入してください。',
+    'アーカイブを展開し、作者の説明にしたがって、各プラグインのバンドルを規格ごとのプラグインのフォルダーに置いてください。',
     'ダウンロードしたファイルの SHA-256 をここに示した値と照合してください。',
   ],
   reportPlugin: 'このプラグインを通報する',
@@ -368,16 +384,17 @@ const ja: Dict = {
   listedPeriod: (from, until) => `このプラットフォームでの掲載: ${from} から ${until ?? '現在'} まで`,
   noticesTitle: '告知',
   noticesIntro:
-    'このプラットフォームが掲載を止めた版の一覧です。掲載の期間にこれらのファイルをダウンロードした場合は、OBS Studio のプラグインのフォルダーから該当のプラグインのフォルダーを削除し、PC をスキャンしてください。',
+    'このプラットフォームが掲載を止めた版の一覧です。掲載の期間にこれらのファイルをダウンロードした場合は、プラグインのフォルダーから該当のプラグインを削除し、PC をスキャンしてください。',
   noticesEmpty: '告知はありません。',
   sideAgentTitle: 'AI エージェントから使う',
   sideAgentBody:
-    'Claude Code や Codex を MCP で接続すると、会話でプラグインを探せます。OBS Studio のプラグインの作者は、会話でプラグインを登録することもできます。',
+    'Claude Code や Codex を MCP で接続すると、会話でプラグインを探せます。オーディオプラグインの作者は、会話でプラグインを登録することもできます。',
   sideAgentExample: '例:「Windows で動くピッチシフトのプラグインを探して」',
   sideAgentLink: '接続方法を見る',
   sideListingTitle: '掲載と検査について',
   sideListingItems: [
     '作者本人が GitHub の公開リポジトリを登録します。',
+    'このプラットフォームは、すべての配布物のビルドの来歴の証明を検証し、アーカイブの中のプラグインのバンドルを検査します。',
     'このプラットフォームは配布物を既知のマルウェアのデータベースと照合します。',
     '検査で何も検出されなくても安全とは限らないので、注意して利用してください。',
   ],
@@ -411,7 +428,7 @@ const ja: Dict = {
   downloadNote: '配布物は GitHub から直接ダウンロードします。このプラットフォームは配布物を保管しません。',
   sideLatestTitle: '新着 5 件',
   sideSubmitTitle: 'プラグインを登録する',
-  sideSubmitBody: 'OBS Studio のプラグインの作者は、AI エージェントから GitHub リポジトリを登録できます。',
+  sideSubmitBody: 'オーディオプラグインの作者は、AI エージェントから GitHub リポジトリを登録できます。',
   sideSubmitLink: '登録の方法を見る',
   submitNav: 'プラグインを登録する',
   translationNoteJa: 'この翻訳は参考訳なので、正確な内容は日本語版で確認してください。',
@@ -428,19 +445,30 @@ const ja: Dict = {
   downloadsAsOf: '{date} 時点',
   downloadsNote: 'GitHub でのダウンロード数で、このサイトを経由したものに限りません。',
   sideWeeklyTitle: '週間 DL 数ランキング 5 件',
+  formatLabel: '規格',
+  formatAll: 'すべて',
+  archLabel: 'アーキテクチャ',
+  macosNotGuided:
+    'このプラットフォームは、この版の macOS 向けの配布物を案内していません。案内するのは、ここに示した配布物だけです。',
+  attestationLabel: 'ビルドの来歴の証明',
+  attestationVerified: '検証済み',
+  macosSigningLabel: 'macOS の署名と公証',
+  macosSigningPassed: 'Developer ID の署名と公証を確認済み',
 };
 
 const zhHans: Dict = {
-  ...en,
-  tagline: 'OBS Studio 插件仓库',
+  tagline: '开源音频插件仓库',
   siteDescription:
-    '一个可以通过网页以及 Claude Code、Codex 等 AI 代理查找 OBS Studio 插件的收录平台。发布文件会与已知恶意软件数据库进行比对。',
-  notice: '本平台是与 OBS Project 无关的非官方免费服务。本平台不保证各插件的安全性，请自行承担责任并谨慎使用。',
+    '一个可以通过网页以及 Claude Code、Codex 等 AI 代理查找开源音频插件的收录平台。收录的发布文件均已验证构建来源证明，并与已知恶意软件数据库进行比对。',
+  notice:
+    '本平台是与插件格式的制定方及 DAW 开发商无关的非官方免费服务。本平台不保证各插件的安全性，请自行承担责任并谨慎使用。',
   noticeShort: '本平台为非官方服务，不保证各插件的安全性，请谨慎使用。',
-  searchHeading: '查找 OBS Studio 插件',
+  searchHeading: '查找音频插件',
   searchPlaceholder: '关键词（例：pitch shift）',
   searchButton: '搜索',
   osAll: '全部',
+  osLabel: 'OS',
+  os: { windows: 'Windows', macos: 'macOS', linux: 'Linux' },
   categoryLabel: '分类',
   categoryAll: '全部',
   latest: '最新与更新',
@@ -463,8 +491,7 @@ const zhHans: Dict = {
   author: '作者',
   license: '许可证',
   supportedOs: '支持的系统',
-  builtWithObs: '构建所用的 OBS',
-  pluginTitleSuffix: 'OBS Studio 插件',
+  pluginTitleSuffix: '音频插件',
   unknown: '未确认',
   version: '版本',
   commit: '提交',
@@ -487,7 +514,8 @@ const zhHans: Dict = {
   noDetectionNotSafe: '即使检查未检出任何问题，文件也不一定安全，请谨慎使用。',
   cautions: '注意事项',
   cautionItems: [
-    '文件由作者在 GitHub 上发布，请阅读作者的说明后再安装。',
+    '发布文件由作者在 GitHub 上公开，安装前请阅读作者的说明。',
+    '请解压压缩包，并按照作者的说明将各插件包放入对应格式的插件文件夹。',
     '请将下载文件的 SHA-256 与此处显示的值进行比对。',
   ],
   reportPlugin: '举报此插件',
@@ -500,18 +528,18 @@ const zhHans: Dict = {
   listedPeriod: (from, until) => `在本平台的收录期间：${from} 至 ${until ?? '现在'}`,
   noticesTitle: '公告',
   noticesIntro:
-    '以下是本平台已停止收录的版本。如果您在收录期间下载了这些文件，请从 OBS Studio 的插件文件夹中删除该插件的文件夹，并扫描您的电脑。',
+    '以下是本平台已停止收录的版本。如果您在收录期间下载了这些文件，请从插件文件夹中删除该插件，并扫描您的电脑。',
   noticesEmpty: '暂无公告。',
   sideAgentTitle: '通过 AI 代理使用',
-  sideAgentBody:
-    '通过 MCP 连接 Claude Code 或 Codex，即可在对话中查找插件。OBS Studio 插件的作者也可以在对话中提交插件。',
+  sideAgentBody: '通过 MCP 连接 Claude Code 或 Codex，即可在对话中查找插件。音频插件的作者也可以在对话中提交插件。',
   sideAgentExample: '例：“帮我找一个能在 Windows 上使用的变调插件”',
   sideAgentLink: '查看连接方法',
   sideListingTitle: '关于收录与检查',
   sideListingItems: [
-    '由作者本人提交 GitHub 公开仓库。',
-    '本平台会将文件与已知恶意软件数据库进行比对。',
-    '即使检查未检出任何问题，文件也不一定安全，请谨慎使用。',
+    '作者本人提交自己的 GitHub 公开仓库。',
+    '本平台验证所有发布文件的构建来源证明，并检查压缩包中的插件包。',
+    '本平台将发布文件与已知恶意软件数据库进行比对。',
+    '即使未检测到任何问题，也不代表一定安全，请谨慎使用。',
   ],
   sidePolicy: '收录政策',
   sideReport: '举报',
@@ -543,7 +571,7 @@ const zhHans: Dict = {
   downloadNote: '文件直接从 GitHub 下载。本平台不保存文件。',
   sideLatestTitle: '最新 5 个插件',
   sideSubmitTitle: '提交插件',
-  sideSubmitBody: 'OBS Studio 插件的作者可以通过 AI 代理提交 GitHub 仓库。',
+  sideSubmitBody: '音频插件的作者可以通过 AI 代理提交 GitHub 仓库。',
   sideSubmitLink: '查看提交方法',
   submitNav: '提交插件',
   translationNoteJa: '本翻译仅供参考，准确内容请以日文版为准。',
@@ -560,16 +588,25 @@ const zhHans: Dict = {
   downloadsAsOf: '截至 {date}',
   downloadsNote: '这是在 GitHub 上的下载次数，不限于通过本站的下载。',
   sideWeeklyTitle: '每周下载次数排行前 5 名',
+  formatLabel: '格式',
+  formatAll: '全部',
+  archLabel: '架构',
+  macosNotGuided: '本平台未收录此版本的 macOS 发布文件。仅收录此处显示的文件。',
+  attestationLabel: '构建来源证明',
+  attestationVerified: '已验证',
+  macosSigningLabel: 'macOS 签名与公证',
+  macosSigningPassed: '已确认 Developer ID 签名与公证',
 };
 
 const zhHant: Dict = {
   ...zhHans,
-  tagline: 'OBS Studio 外掛倉庫',
+  tagline: '開源音訊外掛倉庫',
   siteDescription:
-    '一個可以透過網頁以及 Claude Code、Codex 等 AI 代理尋找 OBS Studio 外掛的收錄平台。發行檔案會與已知惡意軟體資料庫進行比對。',
-  notice: '本平台是與 OBS Project 無關的非官方免費服務。本平台不保證各外掛的安全性，請自行承擔責任並謹慎使用。',
+    '一個可以透過網頁以及 Claude Code、Codex 等 AI 代理尋找開源音訊外掛的收錄平台。收錄的發行檔案均已驗證建置來源證明，並與已知惡意軟體資料庫進行比對。',
+  notice:
+    '本平台是與外掛格式的制定方及 DAW 開發商無關的非官方免費服務。本平台不保證各外掛的安全性，請自行承擔責任並謹慎使用。',
   noticeShort: '本平台為非官方服務，不保證各外掛的安全性，請謹慎使用。',
-  searchHeading: '尋找 OBS Studio 外掛',
+  searchHeading: '尋找音訊外掛',
   searchPlaceholder: '關鍵字（例：pitch shift）',
   searchButton: '搜尋',
   categoryLabel: '分類',
@@ -591,8 +628,7 @@ const zhHant: Dict = {
   library: '外掛庫',
   license: '授權',
   supportedOs: '支援的系統',
-  builtWithObs: '建置所用的 OBS',
-  pluginTitleSuffix: 'OBS Studio 外掛',
+  pluginTitleSuffix: '音訊外掛',
   unknown: '未確認',
   version: '版本',
   commit: '提交',
@@ -614,7 +650,8 @@ const zhHant: Dict = {
   noDetectionNotSafe: '即使檢查未檢出任何問題，檔案也不一定安全，請謹慎使用。',
   cautions: '注意事項',
   cautionItems: [
-    '檔案由作者在 GitHub 上發布，請閱讀作者的說明後再安裝。',
+    '發行檔案由作者在 GitHub 上公開，安裝前請閱讀作者的說明。',
+    '請解壓縮壓縮檔，並依照作者的說明將各外掛套件放入對應格式的外掛資料夾。',
     '請將下載檔案的 SHA-256 與此處顯示的值進行比對。',
   ],
   reportPlugin: '檢舉此外掛',
@@ -627,18 +664,18 @@ const zhHant: Dict = {
   listedPeriod: (from, until) => `在本平台的收錄期間：${from} 至 ${until ?? '現在'}`,
   noticesTitle: '公告',
   noticesIntro:
-    '以下是本平台已停止收錄的版本。如果您在收錄期間下載了這些檔案，請從 OBS Studio 的外掛資料夾中刪除該外掛的資料夾，並掃描您的電腦。',
+    '以下是本平台已停止收錄的版本。如果您在收錄期間下載了這些檔案，請從外掛資料夾中刪除該外掛，並掃描您的電腦。',
   noticesEmpty: '目前沒有公告。',
   sideAgentTitle: '透過 AI 代理使用',
-  sideAgentBody:
-    '透過 MCP 連接 Claude Code 或 Codex，即可在對話中尋找外掛。OBS Studio 外掛的作者也可以在對話中提交外掛。',
+  sideAgentBody: '透過 MCP 連接 Claude Code 或 Codex，即可在對話中尋找外掛。音訊外掛的作者也可以在對話中提交外掛。',
   sideAgentExample: '例：「幫我找一個能在 Windows 上使用的變調外掛」',
   sideAgentLink: '查看連接方法',
   sideListingTitle: '關於收錄與檢查',
   sideListingItems: [
-    '由作者本人提交 GitHub 公開儲存庫。',
-    '本平台會將檔案與已知惡意軟體資料庫進行比對。',
-    '即使檢查未檢出任何問題，檔案也不一定安全，請謹慎使用。',
+    '作者本人提交自己的 GitHub 公開儲存庫。',
+    '本平台驗證所有發行檔案的建置來源證明，並檢查壓縮檔中的外掛套件。',
+    '本平台將發行檔案與已知惡意軟體資料庫進行比對。',
+    '即使未偵測到任何問題，也不代表一定安全，請謹慎使用。',
   ],
   sidePolicy: '收錄政策',
   sideReport: '檢舉',
@@ -670,7 +707,7 @@ const zhHant: Dict = {
   downloadNote: '檔案直接從 GitHub 下載。本平台不保存檔案。',
   sideLatestTitle: '最新 5 個外掛',
   sideSubmitTitle: '提交外掛',
-  sideSubmitBody: 'OBS Studio 外掛的作者可以透過 AI 代理提交 GitHub 儲存庫。',
+  sideSubmitBody: '音訊外掛的作者可以透過 AI 代理提交 GitHub 儲存庫。',
   sideSubmitLink: '查看提交方法',
   submitNav: '提交外掛',
   translationNoteJa: '本翻譯僅供參考，正確內容請以日文版為準。',
@@ -687,20 +724,29 @@ const zhHant: Dict = {
   downloadsAsOf: '截至 {date}',
   downloadsNote: '這是在 GitHub 上的下載次數，不限於透過本站的下載。',
   sideWeeklyTitle: '每週下載次數排行前 5 名',
+  formatLabel: '格式',
+  formatAll: '全部',
+  archLabel: '架構',
+  macosNotGuided: '本平台未收錄此版本的 macOS 發行檔案。僅收錄此處顯示的檔案。',
+  attestationLabel: '建置來源證明',
+  attestationVerified: '已驗證',
+  macosSigningLabel: 'macOS 簽署與公證',
+  macosSigningPassed: '已確認 Developer ID 簽署與公證',
 };
 
 const ko: Dict = {
-  ...en,
-  tagline: 'OBS Studio 플러그인 창고',
+  tagline: '오픈 소스 오디오 플러그인 창고',
   siteDescription:
-    '웹과 Claude Code, Codex 같은 AI 에이전트에서 OBS Studio 플러그인을 찾을 수 있는 레지스트리입니다. 배포 파일은 알려진 악성 코드 데이터베이스와 대조합니다.',
+    '웹과 Claude Code, Codex 같은 AI 에이전트에서 오픈 소스 오디오 플러그인을 찾을 수 있는 레지스트리입니다. 게재하는 배포 파일은 빌드 출처 증명을 검증하고, 알려진 악성 코드 데이터베이스와 대조합니다.',
   notice:
-    '이 플랫폼은 OBS Project와 관계없는 비공식 무료 서비스입니다. 각 플러그인의 안전성을 보장하지 않으므로, 본인의 책임하에 주의해서 이용해 주세요.',
+    '이 플랫폼은 플러그인 규격의 제정 주체나 DAW 개발사와 관계없는 비공식 무료 서비스입니다. 각 플러그인의 안전성을 보장하지 않으므로, 본인의 책임하에 주의해서 이용해 주세요.',
   noticeShort: '이 플랫폼은 비공식이며 각 플러그인의 안전성을 보장하지 않으므로 주의해서 이용해 주세요.',
-  searchHeading: 'OBS Studio 플러그인 찾기',
+  searchHeading: '오디오 플러그인 찾기',
   searchPlaceholder: '키워드 (예: pitch shift)',
   searchButton: '검색',
   osAll: '전체',
+  osLabel: 'OS',
+  os: { windows: 'Windows', macos: 'macOS', linux: 'Linux' },
   categoryLabel: '카테고리',
   categoryAll: '전체',
   latest: '신규·업데이트',
@@ -723,8 +769,7 @@ const ko: Dict = {
   author: '작성자',
   license: '라이선스',
   supportedOs: '지원 OS',
-  builtWithObs: '빌드에 사용한 OBS',
-  pluginTitleSuffix: 'OBS Studio 플러그인',
+  pluginTitleSuffix: '오디오 플러그인',
   unknown: '확인할 수 없음',
   version: '버전',
   commit: '커밋',
@@ -747,8 +792,9 @@ const ko: Dict = {
   noDetectionNotSafe: '검사에서 아무것도 검출되지 않아도 안전하다고 단정할 수 없으므로 주의해서 이용해 주세요.',
   cautions: '주의 사항',
   cautionItems: [
-    '배포 파일은 작성자가 GitHub에 공개한 것이므로, 작성자의 설명을 읽은 뒤에 설치해 주세요.',
-    '다운로드한 파일의 SHA-256을 여기 표시된 값과 비교해 주세요.',
+    '배포 파일은 작성자가 GitHub에 공개한 것이므로, 설치하기 전에 작성자의 설명을 읽어 주세요.',
+    '압축 파일을 풀고, 작성자의 설명에 따라 각 플러그인 번들을 규격별 플러그인 폴더에 넣어 주세요.',
+    '다운로드한 파일의 SHA-256을 여기에 표시된 값과 대조해 주세요.',
   ],
   reportPlugin: '이 플러그인 신고하기',
   suspendedDetail: '이 플랫폼은 이 플러그인의 게재를 중지했으므로 다운로드 안내를 표시하지 않습니다.',
@@ -760,18 +806,19 @@ const ko: Dict = {
   listedPeriod: (from, until) => `이 플랫폼의 게재 기간: ${from}부터 ${until ?? '현재'}까지`,
   noticesTitle: '공지',
   noticesIntro:
-    '이 플랫폼이 게재를 중지한 버전 목록입니다. 게재 기간에 이 파일을 다운로드했다면 OBS Studio의 플러그인 폴더에서 해당 플러그인 폴더를 삭제하고 PC를 검사해 주세요.',
+    '이 플랫폼이 게재를 중지한 버전 목록입니다. 게재 기간에 이 파일을 다운로드했다면 플러그인 폴더에서 해당 플러그인을 삭제하고 PC를 검사해 주세요.',
   noticesEmpty: '공지가 없습니다.',
   sideAgentTitle: 'AI 에이전트에서 사용하기',
   sideAgentBody:
-    'Claude Code나 Codex를 MCP로 연결하면 대화로 플러그인을 찾을 수 있습니다. OBS Studio 플러그인 작성자는 대화로 플러그인을 등록할 수도 있습니다.',
+    'Claude Code나 Codex를 MCP로 연결하면 대화로 플러그인을 찾을 수 있습니다. 오디오 플러그인 작성자는 대화로 플러그인을 등록할 수도 있습니다.',
   sideAgentExample: '예: "Windows에서 동작하는 피치 시프트 플러그인을 찾아 줘"',
   sideAgentLink: '연결 방법 보기',
   sideListingTitle: '게재와 검사에 대하여',
   sideListingItems: [
     '작성자 본인이 GitHub 공개 저장소를 등록합니다.',
-    '이 플랫폼은 배포 파일을 알려진 악성코드 데이터베이스와 대조합니다.',
-    '검사에서 아무것도 검출되지 않아도 안전하다고 단정할 수 없으므로 주의해서 이용해 주세요.',
+    '이 플랫폼은 모든 배포 파일의 빌드 출처 증명을 검증하고, 압축 파일 안의 플러그인 번들을 검사합니다.',
+    '이 플랫폼은 배포 파일을 알려진 악성 코드 데이터베이스와 대조합니다.',
+    '검사에서 아무것도 검출되지 않아도 안전하다고 단정할 수 없으므로, 주의해서 이용해 주세요.',
   ],
   sidePolicy: '게재 정책',
   sideReport: '신고하기',
@@ -803,7 +850,7 @@ const ko: Dict = {
   downloadNote: '배포 파일은 GitHub에서 직접 다운로드합니다. 이 플랫폼은 배포 파일을 보관하지 않습니다.',
   sideLatestTitle: '신규 5개',
   sideSubmitTitle: '플러그인 등록하기',
-  sideSubmitBody: 'OBS Studio 플러그인 작성자는 AI 에이전트에서 GitHub 저장소를 등록할 수 있습니다.',
+  sideSubmitBody: '오디오 플러그인 작성자는 AI 에이전트에서 GitHub 저장소를 등록할 수 있습니다.',
   sideSubmitLink: '등록 방법 보기',
   submitNav: '플러그인 등록하기',
   translationNoteJa: '이 번역은 참고용이므로, 정확한 내용은 일본어판에서 확인해 주세요.',
@@ -820,20 +867,30 @@ const ko: Dict = {
   downloadsAsOf: '{date} 기준',
   downloadsNote: 'GitHub에서의 다운로드 수이며, 이 사이트를 거친 다운로드에 한정되지 않습니다.',
   sideWeeklyTitle: '주간 다운로드 순위 5위',
+  formatLabel: '규격',
+  formatAll: '전체',
+  archLabel: '아키텍처',
+  macosNotGuided: '이 플랫폼은 이 버전의 macOS용 배포 파일을 안내하지 않습니다. 여기에 표시된 파일만 안내합니다.',
+  attestationLabel: '빌드 출처 증명',
+  attestationVerified: '검증됨',
+  macosSigningLabel: 'macOS 서명과 공증',
+  macosSigningPassed: 'Developer ID 서명과 공증 확인됨',
 };
 
 const ptBR: Dict = {
-  ...en,
-  tagline: 'Um depósito de plugins para o OBS Studio',
+  tagline: 'Um depósito de plugins de áudio de código aberto',
   siteDescription:
-    'Um registro de plugins do OBS Studio que você pode pesquisar pela web ou por agentes de IA como Claude Code e Codex. Cada arquivo é comparado com um banco de dados de malware conhecido.',
+    'Um registro de plugins de áudio de código aberto que você pode pesquisar pela web ou por agentes de IA como Claude Code e Codex. Cada arquivo listado tem a atestação de procedência da build verificada e é comparado com um banco de dados de malware conhecido.',
   notice:
-    'Esta plataforma é um serviço gratuito e não oficial, sem vínculo com o OBS Project. Ela não garante a segurança de nenhum plugin; por isso, use os plugins com cuidado e por sua conta e risco.',
+    'Esta plataforma é um serviço gratuito e não oficial, sem vínculo com os criadores dos formatos de plugin nem com os desenvolvedores de DAWs. Ela não garante a segurança de nenhum plugin; por isso, use os plugins com cuidado e por sua conta e risco.',
   noticeShort: 'Esta plataforma não é oficial e não garante a segurança dos plugins; por isso, use-os com cuidado.',
-  searchHeading: 'Encontre plugins para o OBS Studio',
+  searchHeading: 'Encontre plugins de áudio',
   searchPlaceholder: 'Palavra-chave (ex.: pitch shift)',
   searchButton: 'Buscar',
   osAll: 'Todos',
+  osLabel: 'SO',
+  os: { windows: 'Windows', macos: 'macOS', linux: 'Linux' },
+  commit: 'Commit',
   categoryLabel: 'Categoria',
   categoryAll: 'Todas',
   latest: 'Novos e atualizados',
@@ -856,8 +913,7 @@ const ptBR: Dict = {
   author: 'Autor',
   license: 'Licença',
   supportedOs: 'Sistemas suportados',
-  builtWithObs: 'OBS usado na compilação',
-  pluginTitleSuffix: 'Plugin para OBS Studio',
+  pluginTitleSuffix: 'Plugin de áudio',
   unknown: 'Não confirmado',
   version: 'Versão',
   source: 'Código-fonte',
@@ -880,6 +936,7 @@ const ptBR: Dict = {
   cautions: 'Observações',
   cautionItems: [
     'O autor publicou estes arquivos no GitHub; por isso, leia as instruções do autor antes de instalar.',
+    'Extraia o arquivo compactado e coloque cada bundle de plugin na pasta de plugins do formato correspondente, conforme as instruções do autor.',
     'Compare o SHA-256 do arquivo baixado com o valor mostrado aqui.',
   ],
   reportPlugin: 'Denunciar este plugin',
@@ -892,18 +949,19 @@ const ptBR: Dict = {
   listedPeriod: (from, until) => `Listada aqui de ${from} até ${until ?? 'agora'}`,
   noticesTitle: 'Avisos',
   noticesIntro:
-    'Estas são as versões que esta plataforma suspendeu. Se você baixou um destes arquivos durante o período listado, apague a pasta do plugin da pasta de plugins do OBS Studio e verifique seu PC.',
+    'Estas são as versões que esta plataforma suspendeu. Se você baixou um destes arquivos durante o período listado, apague o plugin das suas pastas de plugins e verifique seu PC.',
   noticesEmpty: 'Não há avisos.',
   sideAgentTitle: 'Use com agentes de IA',
   sideAgentBody:
-    'Conecte o Claude Code ou o Codex via MCP para buscar plugins conversando. Os autores de plugins do OBS Studio também podem enviar seus plugins conversando.',
+    'Conecte o Claude Code ou o Codex via MCP para buscar plugins conversando. Os autores de plugins de áudio também podem enviar seus plugins conversando.',
   sideAgentExample: 'Exemplo: "Encontre um plugin de pitch shift que funcione no Windows"',
   sideAgentLink: 'Como conectar',
   sideListingTitle: 'Sobre listagens e verificações',
   sideListingItems: [
-    'Os próprios autores enviam seus repositórios públicos do GitHub.',
-    'Esta plataforma compara os arquivos com bases de malware conhecidas.',
-    'Um arquivo sem detecções não é necessariamente seguro; por isso, use-o com cuidado.',
+    'Os autores enviam os próprios repositórios públicos do GitHub.',
+    'Esta plataforma verifica a procedência da build de cada arquivo e inspeciona os bundles de plugin dentro de cada arquivo compactado.',
+    'Esta plataforma compara os arquivos com um banco de dados de malware conhecido.',
+    'Um arquivo sem detecções não é necessariamente seguro; use-o com cuidado.',
   ],
   sidePolicy: 'Política de listagem',
   sideReport: 'Denunciar',
@@ -935,7 +993,7 @@ const ptBR: Dict = {
   downloadNote: 'O arquivo é baixado diretamente do GitHub. Esta plataforma não hospeda arquivos.',
   sideLatestTitle: '5 plugins mais recentes',
   sideSubmitTitle: 'Envie seu plugin',
-  sideSubmitBody: 'Autores de plugins do OBS Studio podem enviar seus repositórios do GitHub por um agente de IA.',
+  sideSubmitBody: 'Autores de plugins de áudio podem enviar seus repositórios do GitHub por um agente de IA.',
   sideSubmitLink: 'Como enviar',
   submitNav: 'Enviar um plugin',
   translationNoteJa: 'Esta tradução é apenas uma referência; por isso, confira o conteúdo exato na versão em japonês.',
@@ -952,20 +1010,31 @@ const ptBR: Dict = {
   downloadsAsOf: 'em {date}',
   downloadsNote: 'É o número de downloads no GitHub, sem se limitar aos feitos por este site.',
   sideWeeklyTitle: 'Top 5 de downloads semanais',
+  formatLabel: 'Formato',
+  formatAll: 'Todos',
+  archLabel: 'Arquitetura',
+  macosNotGuided:
+    'Esta plataforma não lista os arquivos para macOS desta versão. Apenas os arquivos mostrados aqui são indicados.',
+  attestationLabel: 'Procedência da build',
+  attestationVerified: 'Verificada',
+  macosSigningLabel: 'Assinatura e notarização no macOS',
+  macosSigningPassed: 'Assinatura Developer ID e notarização confirmadas',
 };
 
 const es419: Dict = {
-  ...en,
-  tagline: 'Un depósito de plugins para OBS Studio',
+  tagline: 'Un depósito de plugins de audio de código abierto',
   siteDescription:
-    'Un registro de plugins de OBS Studio que puedes buscar desde la web o desde agentes de IA como Claude Code y Codex. Cada archivo se compara con una base de datos de malware conocido.',
+    'Un registro de plugins de audio de código abierto que puedes buscar desde la web o desde agentes de IA como Claude Code y Codex. Cada archivo listado tiene verificada la atestación de procedencia de la compilación y se compara con una base de datos de malware conocido.',
   notice:
-    'Esta plataforma es un servicio gratuito y no oficial, sin relación con OBS Project. No garantiza la seguridad de ningún plugin; por eso, usa los plugins con cuidado y bajo tu propia responsabilidad.',
+    'Esta plataforma es un servicio gratuito y no oficial, sin relación con los creadores de los formatos de plugin ni con los desarrolladores de DAW. No garantiza la seguridad de ningún plugin; por eso, usa los plugins con cuidado y bajo tu propia responsabilidad.',
   noticeShort: 'Esta plataforma no es oficial y no garantiza la seguridad de los plugins; por eso, úsalos con cuidado.',
-  searchHeading: 'Encuentra plugins para OBS Studio',
+  searchHeading: 'Encuentra plugins de audio',
   searchPlaceholder: 'Palabra clave (p. ej., pitch shift)',
   searchButton: 'Buscar',
   osAll: 'Todos',
+  osLabel: 'SO',
+  os: { windows: 'Windows', macos: 'macOS', linux: 'Linux' },
+  commit: 'Commit',
   categoryLabel: 'Categoría',
   categoryAll: 'Todas',
   latest: 'Nuevos y actualizados',
@@ -988,8 +1057,7 @@ const es419: Dict = {
   author: 'Autor',
   license: 'Licencia',
   supportedOs: 'Sistemas compatibles',
-  builtWithObs: 'OBS usado para compilar',
-  pluginTitleSuffix: 'Plugin para OBS Studio',
+  pluginTitleSuffix: 'Plugin de audio',
   unknown: 'Sin confirmar',
   version: 'Versión',
   source: 'Código fuente',
@@ -1011,7 +1079,8 @@ const es419: Dict = {
   noDetectionNotSafe: 'Un archivo sin detecciones no es necesariamente seguro; por eso, úsalo con cuidado.',
   cautions: 'Notas',
   cautionItems: [
-    'El autor publicó estos archivos en GitHub; por eso, lee sus instrucciones antes de instalar.',
+    'El autor publicó estos archivos en GitHub; por eso, lee las instrucciones del autor antes de instalar.',
+    'Extrae el archivo comprimido y coloca cada bundle de plugin en la carpeta de plugins de su formato, según las instrucciones del autor.',
     'Compara el SHA-256 del archivo descargado con el valor que se muestra aquí.',
   ],
   reportPlugin: 'Reportar este plugin',
@@ -1024,18 +1093,19 @@ const es419: Dict = {
   listedPeriod: (from, until) => `En la lista de esta plataforma desde ${from} hasta ${until ?? 'ahora'}`,
   noticesTitle: 'Avisos',
   noticesIntro:
-    'Estas son las versiones que esta plataforma suspendió. Si descargaste uno de estos archivos durante el período indicado, borra la carpeta del plugin de la carpeta de plugins de OBS Studio y analiza tu PC.',
+    'Estas son las versiones que esta plataforma suspendió. Si descargaste uno de estos archivos durante el período indicado, borra el plugin de tus carpetas de plugins y analiza tu PC.',
   noticesEmpty: 'No hay avisos.',
   sideAgentTitle: 'Úsalo con agentes de IA',
   sideAgentBody:
-    'Conecta Claude Code o Codex por MCP para buscar plugins conversando. Los autores de plugins de OBS Studio también pueden enviar sus plugins conversando.',
+    'Conecta Claude Code o Codex por MCP para buscar plugins conversando. Los autores de plugins de audio también pueden enviar sus plugins conversando.',
   sideAgentExample: 'Ejemplo: "Busca un plugin de pitch shift que funcione en Windows"',
   sideAgentLink: 'Cómo conectar',
   sideListingTitle: 'Sobre la lista y las revisiones',
   sideListingItems: [
-    'Los propios autores envían sus repositorios públicos de GitHub.',
-    'Esta plataforma compara los archivos con bases de malware conocidas.',
-    'Un archivo sin detecciones no es necesariamente seguro; por eso, úsalo con cuidado.',
+    'Los autores envían sus propios repositorios públicos de GitHub.',
+    'Esta plataforma verifica la procedencia de la compilación de cada archivo e inspecciona los bundles de plugin de cada archivo comprimido.',
+    'Esta plataforma compara los archivos con una base de datos de malware conocido.',
+    'Un archivo sin detecciones no es necesariamente seguro; úsalo con cuidado.',
   ],
   sidePolicy: 'Política de la lista',
   sideReport: 'Reportar',
@@ -1068,8 +1138,7 @@ const es419: Dict = {
   downloadNote: 'El archivo se descarga directamente de GitHub. Esta plataforma no aloja archivos.',
   sideLatestTitle: 'Los 5 plugins más recientes',
   sideSubmitTitle: 'Envía tu plugin',
-  sideSubmitBody:
-    'Los autores de plugins de OBS Studio pueden enviar sus repositorios de GitHub desde un agente de IA.',
+  sideSubmitBody: 'Los autores de plugins de audio pueden enviar sus repositorios de GitHub desde un agente de IA.',
   sideSubmitLink: 'Cómo enviar',
   submitNav: 'Enviar un plugin',
   translationNoteJa:
@@ -1087,6 +1156,15 @@ const es419: Dict = {
   downloadsAsOf: 'al {date}',
   downloadsNote: 'Es el número de descargas en GitHub, sin limitarse a las hechas desde este sitio.',
   sideWeeklyTitle: 'Top 5 de descargas semanales',
+  formatLabel: 'Formato',
+  formatAll: 'Todos',
+  archLabel: 'Arquitectura',
+  macosNotGuided:
+    'Esta plataforma no lista los archivos para macOS de esta versión. Solo se indican los archivos que se muestran aquí.',
+  attestationLabel: 'Procedencia de la compilación',
+  attestationVerified: 'Verificada',
+  macosSigningLabel: 'Firma y notarización en macOS',
+  macosSigningPassed: 'Firma Developer ID y notarización confirmadas',
 };
 
 export const DICTS: Record<Lang, Dict> = {

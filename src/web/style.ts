@@ -3,24 +3,26 @@
 // グラデーションの見出し帯、下線付きのリンク、立体的なボタン、細い灰色の罫線。
 export const STYLE_CSS = `
 /*
-  配色の規則 (docs/design/ui.md): テーマカラーは主の色 #250213 と副の色 #e2c69c の 2 つで、ほかは無彩色。
+  配色の規則 (docs/design/ui.md): テーマカラーは主の色 #20256e と副の色 #e2c69c の 2 つで、ほかは無彩色。
+  派生の色 (--primary-light・--primary-dark・--link など) は主の色の明度だけを変えて作る。
   注意の表示は副の色の淡い背景に太い枠線と「注意」の見出しで区別する。
   例外の色は赤 (--danger) だけで、掲載停止と掲載終了に使う。危険の表示を見落とさせないため。
   暗い配色はブラウザの設定 (prefers-color-scheme) に従い、テーマカラーを背景に使う場所を減らして文字を明るくする。
   文字と背景の組み合わせは、どちらの配色でもコントラスト比 4.5 以上を計算で確かめている。
+  VST Compatible ロゴは Steinberg の配布するファイルを色を変えずに表示するため、配色の規則の外に置く。
 */
 :root {
   color-scheme: light dark;
-  --primary: #250213;
-  --primary-light: #4e0428;
-  --primary-dark: #13010a;
+  --primary: #20256e;
+  --primary-light: #363d94;
+  --primary-dark: #12153f;
   --sub: #e2c69c;
   --sub-pale: #f7efe3;
   --sub-dark: #a2742f;
   --on-primary: #ffffff;
-  --heading: #250213;
+  --heading: #20256e;
   --bar-bg: #e2c69c;
-  --bar-text: #250213;
+  --bar-text: #20256e;
   --caution-text: #674a1e;
   --ink: #222222;
   --muted: #666666;
@@ -37,18 +39,18 @@ export const STYLE_CSS = `
   --button-bottom: #d9d9d9;
   --button-light: #cccccc;
   --button-dark: #777777;
-  --link: #8b1850;
-  --link-hover: #250213;
+  --link: #2f3aa6;
+  --link-hover: #20256e;
   --control-height: 24px;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --primary-light: #721d46;
-    --primary: #4e0e2d;
-    --primary-dark: #2b0819;
+    --primary-light: #3d45a3;
+    --primary: #2a3184;
+    --primary-dark: #161a4a;
     --sub-pale: #362e21;
     --sub-dark: #a2742f;
-    --heading: #f2cadd;
+    --heading: #c8ccf4;
     --bar-bg: #362e21;
     --bar-text: #e2c69c;
     --caution-text: #e2c69c;
@@ -67,8 +69,8 @@ export const STYLE_CSS = `
     --button-bottom: #333333;
     --button-light: #666666;
     --button-dark: #222222;
-    --link: #ebadcb;
-    --link-hover: #f2cadd;
+    --link: #a6aef0;
+    --link-hover: #c8ccf4;
   }
 }
 * { box-sizing: border-box; }
@@ -177,6 +179,12 @@ form.search .row:first-of-type { flex-wrap: nowrap; }
 form.search input[type=search] { flex: 1 1 auto; width: 0; min-width: 0; height: var(--control-height); padding: 0 4px; font-size: 13px; border: 1px solid var(--line); background: var(--paper); color: var(--ink); }
 form.search button { height: var(--control-height); }
 form.search select { font-size: 12px; max-width: 100%; background: var(--paper); color: var(--ink); border: 1px solid var(--line); }
+/* VST Compatible ロゴは縦横の比を保ったまま、高さ 36 px で表示する。 */
+.vst-logo { display: inline-flex; flex: none; vertical-align: middle; }
+.vst-logo img { display: block; height: 36px; width: auto; }
+.tags li.vst { display: flex; align-items: center; gap: 4px; }
+.pill.format { font-weight: bold; }
+p.formats-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
 
 ol.cards { list-style: none; margin: 0; padding: 0; }
 ol.cards li { border-bottom: 1px dotted var(--line); padding: 8px 2px; }
@@ -204,6 +212,7 @@ details.shot[open] summary { display: none; }
 .download a.button { display: inline-block; padding: 6px 22px; font-size: 14px; font-weight: bold; color: var(--on-primary); text-decoration: none; background: var(--primary) linear-gradient(var(--primary-light), var(--primary)); border: 1px solid var(--primary-dark); border-radius: 3px; }
 .download a.button:visited, .download a.button:hover { color: var(--on-primary); }
 .download p { margin: 5px 0 0; color: var(--muted); font-size: 11px; }
+.download-item + .download-item { margin-top: 10px; padding-top: 10px; border-top: 1px dotted var(--sub-dark); }
 table.info { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
 table.info th, table.info td { border: 1px solid var(--line); padding: 3px 6px; text-align: left; vertical-align: top; }
 table.info th { width: 8.5rem; background: var(--surface); font-weight: normal; }

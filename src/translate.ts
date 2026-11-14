@@ -22,7 +22,7 @@ const LANGUAGE_NAME: Record<TranslationLang, string> = {
 // 訳を繰り返したり、原文に無い内容を足したりしたため、まとめ方と足さないことを指示する。
 // 画面は訳を文字のまま表示するため、Markdown の記号で飾らないことも指示する。
 export const instructions = (from: TranslationLang, to: TranslationLang) =>
-  `You translate descriptions of OBS Studio plugins from ${LANGUAGE_NAME[from]} into ${LANGUAGE_NAME[to]}. ` +
+  `You translate descriptions of audio plugins from ${LANGUAGE_NAME[from]} into ${LANGUAGE_NAME[to]}. ` +
   'The text may give the same description in more than one language; translate its meaning once, ' +
   `as a single ${LANGUAGE_NAME[to]} text, and keep no part in another language. ` +
   'Do not add anything that the text does not say. ' +

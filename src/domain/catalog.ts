@@ -2,7 +2,16 @@
 import type { Env } from '../env';
 import { detectLang, type TranslationLang } from '../translate';
 import { isDeclared, parseDeclaredAssets } from './declaration';
-import { type AssetKind, type Category, OS_VALUES, type Os } from './metadata';
+import {
+  ARCH_VALUES,
+  type Arch,
+  type AssetKind,
+  type Category,
+  FORMAT_VALUES,
+  type Format,
+  OS_VALUES,
+  type Os,
+} from './metadata';
 import {
   type AssetForStatus,
   type AttestationResult,
@@ -32,8 +41,10 @@ export interface AssetView {
   size: number;
   digest: string;
   downloadUrl: string;
-  // 中身の検査で検出した OS。配布物の名前からは推定しない。
+  // 中身の検査で検出した OS・規格・アーキテクチャ。配布物の名前からは推定しない。
   os: Os[];
+  formats: Format[];
+  arches: Arch[];
   scans: Record<Scanner, ScanView | null>;
 }
 
@@ -85,7 +96,12 @@ export interface PluginView {
   translations: Partial<Record<TranslationLang, string>>;
   license: string;
   category: Category;
+  // 掲載対象バージョンの案内する配布物の中身の検査の結果を合わせたもの。
   os: Os[];
+  formats: Format[];
+  arches: Arch[];
+  // 掲載対象バージョンに、macOS 向けのバンドルを含むが案内しないアーカイブがある。理由は作者にだけ返す。
+  macosNotGuided: boolean;
   status: PluginStatus;
   reason?: string;
   suspendedReason: string | null;
@@ -234,7 +250,7 @@ async function loadViews(env: Env, pluginId?: string): Promise<PluginView[]> {
     ),
     bind(
       env.DB.prepare(
-        `SELECT t.github_asset_id, t.result, t.attempts, t.os FROM content_checks t
+        `SELECT t.github_asset_id, t.result, t.attempts, t.os, t.formats, t.arches FROM content_checks t
          JOIN assets a ON a.github_asset_id = t.github_asset_id
          JOIN releases r ON r.github_release_id = a.release_id JOIN plugins p ON p.id = r.plugin_id ${where}`,
       ),
@@ -338,13 +354,20 @@ async function loadViews(env: Env, pluginId?: string): Promise<PluginView[]> {
     attestationByAsset.set(row.github_asset_id, { result: row.result, attempts: row.attempts });
   }
   const contentByAsset = new Map<number, AssetForStatus['content']>();
+  const detectedByAsset = new Map<number, { formats: Format[]; arches: Arch[] }>();
   for (const row of (contents?.results ?? []) as Array<{
     github_asset_id: number;
     result: ContentResult;
     attempts: number;
     os: string | null;
+    formats: string | null;
+    arches: string | null;
   }>) {
     contentByAsset.set(row.github_asset_id, { result: row.result, attempts: row.attempts, os: parseOs(row.os) });
+    detectedByAsset.set(row.github_asset_id, {
+      formats: parseEnumArray(row.formats, FORMAT_VALUES),
+      arches: parseEnumArray(row.arches, ARCH_VALUES),
+    });
   }
   const macosByAsset = new Map<number, AssetForStatus['macos']>();
   for (const row of (macos?.results ?? []) as Array<{
@@ -442,9 +465,19 @@ async function loadViews(env: Env, pluginId?: string): Promise<PluginView[]> {
       (digest, scanner) => scanMap.get(`${digest}:${scanner}`)?.result,
     );
     const listed = pluginReleases.find((release) => release.github_release_id === status.listedReleaseId);
-    const listedAssets = listed
-      ? guidedAssets(statusAssets(listed)).map((asset) => ({ ...asset.row, os: asset.content?.os ?? [] }))
-      : [];
+    const listedStatusAssets = listed ? statusAssets(listed) : [];
+    const guided = guidedAssets(listedStatusAssets);
+    const listedAssets = guided.map((asset) => ({
+      ...asset.row,
+      os: asset.content?.os ?? [],
+      formats: detectedByAsset.get(asset.row.github_asset_id)?.formats ?? [],
+      arches: detectedByAsset.get(asset.row.github_asset_id)?.arches ?? [],
+    }));
+    const macosNotGuided = listedStatusAssets.some(
+      (asset) => asset.content?.os.includes('macos') === true && !guided.includes(asset),
+    );
+    const union = <T extends string>(values: T[][], order: readonly T[]) =>
+      order.filter((value) => values.some((list) => list.includes(value)));
     const releaseById = new Map(pluginReleases.map((release) => [release.github_release_id, release]));
     return {
       id: `${plugin.owner}/${plugin.repo}`.toLowerCase(),
@@ -459,7 +492,19 @@ async function loadViews(env: Env, pluginId?: string): Promise<PluginView[]> {
       // 掲載対象バージョンのタグの時点のライセンス。掲載していなければ登録のときの値。
       license: (listed ? licenseByRelease.get(listed.github_release_id) : null) ?? plugin.license_spdx,
       category: plugin.category,
-      os: [...new Set(listedAssets.flatMap((asset) => asset.os))].sort(),
+      os: union(
+        listedAssets.map((asset) => asset.os),
+        OS_VALUES,
+      ),
+      formats: union(
+        listedAssets.map((asset) => asset.formats),
+        FORMAT_VALUES,
+      ),
+      arches: union(
+        listedAssets.map((asset) => asset.arches),
+        ARCH_VALUES,
+      ),
+      macosNotGuided,
       status: status.status,
       reason: status.reason,
       suspendedReason: plugin.suspended_reason,
@@ -479,6 +524,8 @@ async function loadViews(env: Env, pluginId?: string): Promise<PluginView[]> {
               digest: asset.digest,
               downloadUrl: asset.download_url,
               os: asset.os,
+              formats: asset.formats,
+              arches: asset.arches,
               scans: {
                 malwarebazaar: toScan(asset.digest, 'malwarebazaar'),
               },
@@ -498,17 +545,21 @@ async function loadViews(env: Env, pluginId?: string): Promise<PluginView[]> {
   });
 }
 
-// content_checks の os の JSON の配列。決めた値の一覧の外の値は捨てる。
-export function parseOs(value: string | null): Os[] {
+// content_checks の os・formats・arches の JSON の配列。決めた値の一覧の外の値は捨てる。
+function parseEnumArray<T extends string>(value: string | null, allowed: readonly T[]): T[] {
   if (!value) return [];
   try {
     const parsed = JSON.parse(value);
     return Array.isArray(parsed)
-      ? parsed.filter((item): item is Os => (OS_VALUES as readonly unknown[]).includes(item))
+      ? parsed.filter((item): item is T => (allowed as readonly unknown[]).includes(item))
       : [];
   } catch {
     return [];
   }
+}
+
+export function parseOs(value: string | null): Os[] {
+  return parseEnumArray(value, OS_VALUES);
 }
 
 // macos_signing_checks の team_id。複数のバンドルで食い違うときは JSON の配列で記録している。
@@ -528,6 +579,7 @@ const normalize = (text: string) => text.toLowerCase().replace(/[^\p{L}\p{N}]+/g
 export interface SearchQuery {
   keyword?: string;
   os?: Os;
+  format?: Format;
   category?: Category;
   limit?: number;
   offset?: number;
@@ -542,6 +594,8 @@ export async function searchPlugins(env: Env, query: SearchQuery): Promise<{ tot
   const listed = (await loadViews(env)).filter((view) => view.status === 'listed');
   const matched = listed
     .filter((view) => !query.os || view.os.includes(query.os))
+    // 規格の絞り込みは中身の検査で検出した規格だけで行う。VST 3 には VST 3 のバンドルを検出したものだけを出す (ADR 0004)。
+    .filter((view) => !query.format || view.formats.includes(query.format))
     .filter((view) => !query.category || view.category === query.category)
     .filter((view) => {
       if (tokens.length === 0) return true;
