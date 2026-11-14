@@ -87,11 +87,12 @@ describe('runCron', () => {
     expect(await env.DB.prepare('SELECT * FROM plugins').first()).toEqual(before);
   });
 
-  it('新しく現れた配布物は、同じ digest の過去の結果があっても照会し直す', async () => {
+  it('新しく現れた配布物は、同じ digest の過去の結果があっても照会し直し、証明と中身を検査し直す', async () => {
     await registerFixture();
     await env.DB.prepare(
       "UPDATE scans SET result = 'not_found', attempts = 1, scanned_at = '2026-11-01T00:00:00Z'",
     ).run();
+    await markListable(env.DB);
     // 同じ内容のファイルを別のアセット ID で上げ直した新しいリリース
     network.use(
       ...imageHandlers(),
@@ -125,6 +126,11 @@ describe('runCron', () => {
       .bind(`sha256:${'d1'.repeat(32)}`)
       .first<{ result: string }>();
     expect(scan?.result).toBe('pending');
+    const checks = await env.DB.prepare(
+      `SELECT t.result AS attestation, c.result AS content FROM attestation_checks t
+       LEFT JOIN content_checks c ON c.github_asset_id = t.github_asset_id WHERE t.github_asset_id = 8101`,
+    ).first();
+    expect(checks).toEqual({ attestation: 'pending', content: 'pending' });
   });
 
   it('多数のプラグインがあっても 1 回の外部呼び出しと D1 クエリが予算に収まる', async () => {
@@ -252,43 +258,6 @@ describe('runCron の画像の取得', () => {
   });
 });
 
-describe('runCron のビルドに使った OBS の版', () => {
-  it('buildspec.json の版を保存し、形の合わない値は保存しない', async () => {
-    await registerFixture();
-    const calls: string[] = [];
-    const buildspec = (version: string) =>
-      http.get('https://api.github.com/repos/:owner/:repo/contents/buildspec.json', () => {
-        calls.push('buildspec');
-        return HttpResponse.text(JSON.stringify({ dependencies: { 'obs-studio': { version } } }));
-      });
-    network.use(
-      repoById(),
-      ...githubHandlers(),
-      ...imageHandlers(),
-      ...downloadHandlers(),
-      ...scannerHandlers({ mb: 0 }),
-      buildspec('31.1.1'),
-      ...releaseCheckHandlers(),
-    );
-    await runCron(env);
-    expect(await env.DB.prepare('SELECT obs_build_version FROM releases').first('obs_build_version')).toBe('31.1.1');
-
-    // 同じリリースでは取得し直さない。新しい版の検査も buildspec.json を読むため、この確認では検査を済ませておく。
-    await env.DB.prepare('UPDATE release_checks SET legacy = 1').run();
-    calls.length = 0;
-    await env.DB.prepare("UPDATE plugins SET last_synced_at = '2000-01-01T00:00:00Z'").run();
-    await runCron(env);
-    expect(calls).toEqual([]);
-
-    // 形の合わない値は、画面に出さないよう空文字列で記録する。
-    await env.DB.prepare('UPDATE releases SET obs_build_version = NULL').run();
-    await env.DB.prepare("UPDATE plugins SET last_synced_at = '2000-01-01T00:00:00Z'").run();
-    network.use(buildspec('<script>'));
-    await runCron(env);
-    expect(await env.DB.prepare('SELECT obs_build_version FROM releases').first('obs_build_version')).toBe('');
-  });
-});
-
 describe('runCron のダウンロード数の記録', () => {
   it('下書きを除いたダウンロード数の合計を記録し、同じ日には取得し直さない', async () => {
     await registerFixture();
@@ -410,8 +379,9 @@ describe('掲載の期間と止めた版の記録', () => {
     await registerFixture();
     await markListable(env.DB);
     await recordListings(env, new Budget());
-    const open = await env.DB.prepare('SELECT count(*) AS n FROM listing_periods WHERE ended_at IS NULL').first('n');
-    expect(open).toBe(2);
+    // 記録するのは案内する zip だけで、案内しない tar.gz は記録しない。
+    const open = await env.DB.prepare('SELECT asset_name FROM listing_periods WHERE ended_at IS NULL').all();
+    expect(open.results).toEqual([{ asset_name: 'audio-fixture-pitchshift-1.1.0-windows-x64.zip' }]);
 
     await env.DB.prepare("UPDATE scans SET result = 'malicious'").run();
     await recordListings(env, new Budget());
@@ -419,7 +389,7 @@ describe('掲載の期間と止めた版の記録', () => {
     expect(await env.DB.prepare('SELECT count(*) AS n FROM listing_periods WHERE ended_at IS NULL').first('n')).toBe(0);
 
     await env.DB.prepare('DELETE FROM plugins').run();
-    expect(await env.DB.prepare('SELECT count(*) AS n FROM listing_periods').first('n')).toBe(2);
+    expect(await env.DB.prepare('SELECT count(*) AS n FROM listing_periods').first('n')).toBe(1);
     expect(await env.DB.prepare('SELECT count(*) AS n FROM release_suspensions').first('n')).toBe(1);
   });
 });

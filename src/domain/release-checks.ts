@@ -1,5 +1,5 @@
 // 新しい版の検査 (docs/design/scanning.md の「新しい版の検査」)。Cron の定期処理から 1 回の起動で 1 件ずつ行う。
-// 宣言ファイルの判定、乗っ取りの兆候のルールの検査、規則と LLM による開発の実践のレビューを行い、release_checks に書く。
+// 宣言ファイルとライセンスの判定、乗っ取りの兆候のルールの検査、規則と LLM による開発の実践のレビューを行い、release_checks に書く。
 import type { Budget } from '../budget';
 import type { Env } from '../env';
 import { GitHubClient, GitHubError } from '../github';
@@ -14,14 +14,15 @@ import {
   type RepositorySnapshot,
 } from '../review/rules';
 import { getPluginViewByInternalId } from './catalog';
+import { licenseAtTag } from './license';
 import { OS_VALUES } from './metadata';
 import { MAX_REVIEW_ATTEMPTS } from './status';
 
 // レビューのファイルの収集の外部呼び出しの上限。ファイルの一覧 1、ワークフロー 6、README 1、CMakeLists.txt 1、
 // ビルドの設定の cmake 2、vcpkg.json 1、CONTRIBUTING 1、PR テンプレート 1、Issue テンプレート 2 の合計。
 export const REVIEW_FILES_COST = 16;
-// 1 件の検査の外部呼び出しの上限。宣言ファイル 1、差分 1、レビューのファイルの収集、LLM 1 の合計。
-export const RELEASE_CHECK_COST = 3 + REVIEW_FILES_COST;
+// 1 件の検査の外部呼び出しの上限。宣言ファイル 1、ライセンス 1、差分 1、レビューのファイルの収集、LLM 1 の合計。
+export const RELEASE_CHECK_COST = 4 + REVIEW_FILES_COST;
 const MAX_DIFF_CHARS = 24_000;
 const MAX_FILE_BYTES = 32 * 1024;
 const MAX_TOTAL_CHARS = 60_000;
@@ -37,6 +38,7 @@ interface PendingRow {
   repo: string;
   tag: string;
   diff_state: string;
+  license_state: string;
   config_state: string;
   review_state: string;
   review_attempts: number;
@@ -81,15 +83,26 @@ export function parseConfig(text: string | 'too_large' | null, assetOs: Array<st
   };
 }
 
+// content_checks の os の JSON の配列。中身の検査が済んでいないアーカイブは null を 1 つ返す。
+function parseOsList(value: string | null): Array<string | null> {
+  if (!value) return [null];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [null];
+  } catch {
+    return [null];
+  }
+}
+
 export async function runReleaseChecks(env: Env, budget: Budget): Promise<number> {
   if (!budget.canFetch(RELEASE_CHECK_COST) || !budget.canQuery(4)) return 0;
   budget.takeD1Query();
   const row = await env.DB.prepare(
-    `SELECT c.github_release_id, r.plugin_id, p.owner, p.repo, r.tag, c.diff_state, c.config_state, c.review_state,
-       c.review_attempts
+    `SELECT c.github_release_id, r.plugin_id, p.owner, p.repo, r.tag, c.diff_state, c.license_state, c.config_state,
+       c.review_state, c.review_attempts
      FROM release_checks c JOIN releases r ON r.github_release_id = c.github_release_id JOIN plugins p ON p.id = r.plugin_id
-     WHERE c.legacy = 0 AND p.removed = 0 AND c.review_attempts < ? AND (c.diff_state = 'pending'
-       OR c.config_state = 'pending'
+     WHERE p.removed = 0 AND c.review_attempts < ? AND (c.diff_state = 'pending'
+       OR c.license_state = 'pending' OR c.config_state = 'pending'
        OR (c.review_state IN ('pending', 'failed') AND (c.review_wait_until IS NULL OR c.review_wait_until <= ?)))
      ORDER BY r.published_at LIMIT 1`,
   )
@@ -128,16 +141,19 @@ async function checkOne(env: Env, budget: Budget, github: GitHubClient, row: Pen
       ),
     );
 
-  // 宣言ファイル
+  // 宣言ファイル。宣言した OS は、アーカイブの中身の検査で検出した OS と照合する。
   if (row.config_state === 'pending') {
     budget.takeD1Query();
-    const assets = await env.DB.prepare('SELECT os FROM assets WHERE release_id = ?')
+    const assets = await env.DB.prepare(
+      `SELECT c.os FROM assets a LEFT JOIN content_checks c ON c.github_asset_id = a.github_asset_id
+       WHERE a.release_id = ? AND a.kind = 'archive'`,
+    )
       .bind(row.github_release_id)
       .all<{ os: string | null }>();
     const text = await github.getTextFile(row.owner, row.repo, '.soko-kun', 'config.json', row.tag, MAX_CONFIG_BYTES);
     const config = parseConfig(
       text,
-      assets.results.map((asset) => asset.os),
+      assets.results.flatMap((asset) => parseOsList(asset.os)),
     );
     update('config_state = ?', config.state);
     if (config.state === 'ok') {
@@ -149,6 +165,12 @@ async function checkOne(env: Env, budget: Budget, github: GitHubClient, row: Pen
         ),
       );
     }
+  }
+
+  // ライセンス。版のタグの時点で判定する。
+  if (row.license_state === 'pending') {
+    const license = await licenseAtTag(github, row.owner, row.repo, row.tag);
+    update('license_state = ?, license_spdx = ?', license.state, license.spdx);
   }
 
   // 差分の起点は、その時点の掲載対象のリリース。掲載中の版が無ければ、差分の検査を当てない。

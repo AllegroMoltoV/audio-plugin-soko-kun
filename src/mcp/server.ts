@@ -90,8 +90,6 @@ function detailItem(env: Env, view: PluginView) {
       commitSha: release.commitSha,
       publishedAt: release.publishedAt,
       releaseUrl: release.htmlUrl,
-      // 作者がビルドに使った OBS Studio の版。動作を保証する範囲ではない。
-      builtWithObsVersion: release.obsBuildVersion,
       files: release.assets.map((asset) => ({
         name: asset.name,
         size: asset.size,

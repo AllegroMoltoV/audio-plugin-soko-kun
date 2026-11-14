@@ -1,4 +1,4 @@
-// GitHub の情報から、表示と検索に使う値を推定する。対応 OS は推定できなければ null、カテゴリは other にする。
+// GitHub の情報から、表示と検索に使う値を推定する。カテゴリは推定できなければ other にする。
 export const CATEGORIES = [
   'audio-filter',
   'video-filter',
@@ -13,13 +13,14 @@ export type Category = (typeof CATEGORIES)[number];
 export const OS_VALUES = ['windows', 'macos', 'linux'] as const;
 export type Os = (typeof OS_VALUES)[number];
 
-export function inferOs(assetName: string): Os | null {
+export type AssetKind = 'archive' | 'installer' | 'other';
+
+// 配布物の種類をファイル名の拡張子から決める (docs/design/scanning.md の「配布物の種類」)。案内の対象になるのは zip だけ。
+export function assetKind(assetName: string): AssetKind {
   const name = assetName.toLowerCase();
-  if (/(^|[^a-z])(source|src)([^a-z]|$)/.test(name)) return null;
-  if (/windows|win64|win32|(^|[^a-z])win([^a-z]|$)|\.exe$|\.msi$/.test(name)) return 'windows';
-  if (/macos|darwin|(^|[^a-z])mac([^a-z]|$)|\.pkg$|\.dmg$/.test(name)) return 'macos';
-  if (/linux|ubuntu|debian|fedora|\.deb$|\.rpm$|\.appimage$|\.flatpak$/.test(name)) return 'linux';
-  return null;
+  if (name.endsWith('.zip')) return 'archive';
+  if (/\.(exe|msi|pkg|dmg)$/.test(name)) return 'installer';
+  return 'other';
 }
 
 // 先に並べた区分ほど優先する。監視や計測のように専用の画面を足すものはドック・パネルを先に判定する。
@@ -70,18 +71,4 @@ export function summarizeReadme(readme: string): string | null {
     return plain.length > SUMMARY_MAX ? `${plain.slice(0, SUMMARY_MAX - 1)}…` : plain;
   }
   return null;
-}
-
-// libobs を参照する CMake の書き方。find_package、pkg-config のモジュールの指定、リンク先の指定を受け付ける。
-export function cmakeReferencesLibobs(cmake: string): boolean {
-  const text = cmake.replace(/#.*$/gm, '');
-  return (
-    /find_package\s*\(\s*libobs\b/i.test(text) ||
-    /pkg_(check_modules|search_module)\s*\([^)]*\blibobs\b/i.test(text) ||
-    /target_link_libraries\s*\([^)]*\b(OBS::libobs|libobs)\b/i.test(text)
-  );
-}
-
-export function hasNativeSource(languages: Record<string, number>): boolean {
-  return (languages.C ?? 0) > 0 || (languages['C++'] ?? 0) > 0;
 }

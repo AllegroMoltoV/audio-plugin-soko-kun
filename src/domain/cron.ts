@@ -9,7 +9,7 @@ import { runPreviews } from '../previews';
 import { ScannerRateLimitedError, scanWithMalwareBazaar } from '../scanners';
 import { runTranslations } from '../translate';
 import { loadAllViews } from './catalog';
-import { inferOs } from './metadata';
+import { type AssetKind, assetKind } from './metadata';
 import { runReleaseChecks } from './release-checks';
 import type { Scanner } from './status';
 
@@ -95,8 +95,8 @@ interface SyncRow {
   has_pending: number;
 }
 
-// プラグイン 1 件の同期に必要な外部呼び出しの最大数: リポジトリ、リリース、コミットの解決、画像の一覧とダウンロード 2 件、buildspec.json。
-const SYNC_COST = 7;
+// プラグイン 1 件の同期に必要な外部呼び出しの最大数: リポジトリ、リリース、コミットの解決、画像の一覧とダウンロード 2 件。
+const SYNC_COST = 6;
 
 async function syncOne(env: Env, budget: Budget, github: GitHubClient, row: SyncRow): Promise<void> {
   const timestamp = now();
@@ -131,16 +131,10 @@ async function syncOne(env: Env, budget: Budget, github: GitHubClient, row: Sync
   const freezeSummary = row.has_pending === 1 || newRelease;
   statements.push(
     // 概要は description が空でなければ追従させ、空なら登録時の概要 (README から作ったものを含む) を残す。
+    // ライセンスは版ごとにタグの時点で判定するため、リポジトリの現在のライセンスには追従させない。
     env.DB.prepare(
-      'UPDATE plugins SET owner = ?, repo = ?, license_spdx = COALESCE(?, license_spdx), summary = COALESCE(?, summary), removed = 0 WHERE id = ?',
-    ).bind(
-      repo.owner.login,
-      repo.name,
-      // 登録時と同じく NOASSERTION はライセンスとみなさず、保存している値を残す。
-      repo.license?.spdx_id && repo.license.spdx_id !== 'NOASSERTION' ? repo.license.spdx_id : null,
-      freezeSummary ? null : repo.description?.trim() || null,
-      row.id,
-    ),
+      'UPDATE plugins SET owner = ?, repo = ?, summary = COALESCE(?, summary), removed = 0 WHERE id = ?',
+    ).bind(repo.owner.login, repo.name, freezeSummary ? null : repo.description?.trim() || null, row.id),
   );
   // 名前の変更と移管では、変わる前の URL の ID を記録し、旧い URL から転送できるようにする。
   // 旧い名前は大文字と小文字を保って残す。名前を変える前に作られた証明は、その名前でしか検証に通らないため (ADR 0015)。
@@ -171,11 +165,6 @@ async function syncOne(env: Env, budget: Budget, github: GitHubClient, row: Sync
   // 画像は最新リリースのタグの時点のものを使う。タグが変わったときだけ取得し直し、外部呼び出しを抑える。
   if (latestTag && latestTag !== row.images_tag) {
     statements.push(...(await imageStatements(env, budget, github, row.id, repo.owner.login, repo.name, latestTag)));
-  }
-  if (latestTag) {
-    statements.push(
-      ...(await obsVersionStatements(env, budget, github, row.id, repo.owner.login, repo.name, latestTag)),
-    );
   }
   statements.push(
     env.DB.prepare('UPDATE plugins SET updated_at = ?, last_synced_at = ? WHERE id = ?').bind(
@@ -225,78 +214,23 @@ async function releaseStatements(
     ).bind(release.id, ...assets.map((asset) => asset.id)),
   ];
   for (const asset of assets) {
+    const kind = assetKind(asset.name);
     statements.push(
       env.DB.prepare(
-        `INSERT INTO assets (github_asset_id, release_id, name, size, digest, download_url, os) VALUES (?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO assets (github_asset_id, release_id, name, size, digest, download_url, kind) VALUES (?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT (github_asset_id) DO UPDATE SET name = excluded.name, size = excluded.size, digest = excluded.digest,
-           download_url = excluded.download_url, os = excluded.os`,
-      ).bind(
-        asset.id,
-        release.id,
-        asset.name,
-        asset.size,
-        asset.digest,
-        asset.browser_download_url,
-        inferOs(asset.name),
-      ),
+           download_url = excluded.download_url, kind = excluded.kind`,
+      ).bind(asset.id, release.id, asset.name, asset.size, asset.digest, asset.browser_download_url, kind),
     );
-    // 新しく現れた配布物 (新しいアセット、または digest の変化) は、同じ digest の過去の結果があっても照会し直す。
+    // 新しく現れた配布物 (新しいアセット、または digest の変化) は、同じ digest の過去の結果があっても検査し直す。
     // 既知の配布物はダウンロード数の変化などで ETag が変わっても照会し直さず、照会の上限を使い切らないようにする。
     if (!knownKeys.has(`${asset.id}:${asset.digest}`)) {
       statements.push(...resetScanStatements(env, asset.digest as string));
       statements.push(resetAttestationStatement(env, asset.id));
+      statements.push(...resetContentStatements(env, asset.id, kind));
     }
   }
   return statements;
-}
-
-const BUILDSPEC_MAX_BYTES = 64 * 1024;
-const OBS_VERSION = /^\d{1,3}\.\d{1,3}(\.\d{1,3})?$/;
-
-// buildspec.json の dependencies.obs-studio.version を読む。形の合わない値は外部データとして捨てる。
-export function parseObsBuildVersion(bytes: Uint8Array | null): string {
-  if (!bytes) return '';
-  try {
-    const spec = JSON.parse(new TextDecoder().decode(bytes)) as {
-      dependencies?: { 'obs-studio'?: { version?: unknown } };
-    };
-    const version = spec.dependencies?.['obs-studio']?.version;
-    return typeof version === 'string' && OBS_VERSION.test(version) ? version : '';
-  } catch {
-    return '';
-  }
-}
-
-// 最新リリースのタグの時点の buildspec.json から、ビルドに使った OBS の版を取得する。リリースごとに 1 回だけ取得する。
-async function obsVersionStatements(
-  env: Env,
-  budget: Budget,
-  github: GitHubClient,
-  pluginId: string,
-  owner: string,
-  repo: string,
-  tag: string,
-): Promise<D1PreparedStatement[]> {
-  budget.takeD1Query();
-  const release = await env.DB.prepare(
-    'SELECT github_release_id, obs_build_version FROM releases WHERE plugin_id = ? AND tag = ?',
-  )
-    .bind(pluginId, tag)
-    .first<{ github_release_id: number; obs_build_version: string | null }>();
-  // 同じ同期で追加したリリースはまだ書き込まれていないため、次の同期で取得する。
-  if (!release || release.obs_build_version !== null) return [];
-  let bytes: Uint8Array | null = null;
-  try {
-    bytes = await github.getFileBytes(owner, repo, '', 'buildspec.json', tag, BUILDSPEC_MAX_BYTES);
-  } catch (error) {
-    if (!(error instanceof GitHubError && error.kind === 'not_found')) throw error;
-  }
-  return [
-    env.DB.prepare('UPDATE releases SET obs_build_version = ? WHERE github_release_id = ?').bind(
-      parseObsBuildVersion(bytes),
-      release.github_release_id,
-    ),
-  ];
 }
 
 const IMAGE_DIR = '.soko-kun';
@@ -367,6 +301,24 @@ export function resetAttestationStatement(env: Env, assetId: number): D1Prepared
   ).bind(assetId);
 }
 
+// 新しく現れた配布物は、中身の検査からやり直す。中身の検査はアーカイブにだけ行う。
+// macOS の判定の行は、中身の検査で macOS 向けのバンドルを検出したときに作り直すため、ここで消す。
+export function resetContentStatements(env: Env, assetId: number, kind: AssetKind): D1PreparedStatement[] {
+  const statements = [env.DB.prepare('DELETE FROM macos_signing_checks WHERE github_asset_id = ?').bind(assetId)];
+  if (kind !== 'archive') {
+    statements.push(env.DB.prepare('DELETE FROM content_checks WHERE github_asset_id = ?').bind(assetId));
+    return statements;
+  }
+  statements.push(
+    env.DB.prepare(
+      `INSERT INTO content_checks (github_asset_id, result) VALUES (?, 'pending')
+       ON CONFLICT (github_asset_id) DO UPDATE SET result = 'pending', bundles = NULL, formats = NULL, os = NULL,
+         arches = NULL, vst2_files = NULL, reason = NULL, attempts = 0, checked_at = NULL`,
+    ).bind(assetId),
+  );
+  return statements;
+}
+
 async function runSync(env: Env, budget: Budget, report: CronReport): Promise<void> {
   const github = new GitHubClient(budget, {
     kind: 'app',
@@ -381,7 +333,7 @@ async function runSync(env: Env, budget: Budget, report: CronReport): Promise<vo
        (SELECT r.github_release_id FROM releases r WHERE r.plugin_id = p.id ORDER BY r.published_at DESC LIMIT 1)
          AS latest_release_id,
        EXISTS (SELECT 1 FROM releases r JOIN release_checks c ON c.github_release_id = r.github_release_id
-         WHERE r.plugin_id = p.id AND c.legacy = 0
+         WHERE r.plugin_id = p.id
            AND NOT EXISTS (SELECT 1 FROM listing_periods l WHERE l.github_release_id = r.github_release_id)
            AND NOT EXISTS (SELECT 1 FROM release_suspensions s WHERE s.github_release_id = r.github_release_id)
            AND r.published_at > COALESCE((SELECT max(r2.published_at) FROM releases r2

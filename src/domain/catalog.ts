@@ -1,12 +1,17 @@
 // 検索と詳細表示のためのデータ読み出し。掲載状態はここで算出し、掲載中のものだけを一覧に出す。
 import type { Env } from '../env';
 import { detectLang, type TranslationLang } from '../translate';
-import type { Category, Os } from './metadata';
+import { type AssetKind, type Category, OS_VALUES, type Os } from './metadata';
 import {
+  type AssetForStatus,
   type AttestationResult,
   type ConfigState,
+  type ContentResult,
   computeStatus,
   type DiffState,
+  guidedAssets,
+  type LicenseState,
+  type MacosResult,
   type PluginStatus,
   type ReleaseChecks,
   type ReleaseForStatus,
@@ -26,7 +31,8 @@ export interface AssetView {
   size: number;
   digest: string;
   downloadUrl: string;
-  os: Os | null;
+  // 中身の検査で検出した OS。配布物の名前からは推定しない。
+  os: Os[];
   scans: Record<Scanner, ScanView | null>;
 }
 
@@ -37,8 +43,7 @@ export interface ReleaseView {
   commitSha: string;
   publishedAt: string;
   htmlUrl: string;
-  // タグの時点の buildspec.json に書かれた、ビルドに使った OBS Studio の版。外部データ。
-  obsBuildVersion: string | null;
+  // 案内する配布物だけを持つ。
   assets: AssetView[];
 }
 
@@ -122,7 +127,6 @@ interface ReleaseRow {
   commit_sha: string;
   published_at: string;
   html_url: string;
-  obs_build_version: string | null;
 }
 interface AssetRow {
   github_asset_id: number;
@@ -131,12 +135,13 @@ interface AssetRow {
   size: number;
   digest: string;
   download_url: string;
-  os: Os | null;
+  kind: AssetKind;
 }
 interface CheckRow {
   github_release_id: number;
-  legacy: number;
   immutable: number;
+  license_state: LicenseState;
+  license_spdx: string | null;
   diff_state: DiffState;
   config_state: ConfigState;
   review_state: ReviewState;
@@ -175,6 +180,8 @@ async function loadViews(env: Env, pluginId?: string): Promise<PluginView[]> {
     snapshots,
     checks,
     attestations,
+    contents,
+    macos,
     suspensions,
     periods,
   ] = await env.DB.batch([
@@ -219,7 +226,22 @@ async function loadViews(env: Env, pluginId?: string): Promise<PluginView[]> {
     ),
     bind(
       env.DB.prepare(
-        `SELECT t.github_asset_id, t.result FROM attestation_checks t JOIN assets a ON a.github_asset_id = t.github_asset_id
+        `SELECT t.github_asset_id, t.result, t.attempts FROM attestation_checks t
+         JOIN assets a ON a.github_asset_id = t.github_asset_id
+         JOIN releases r ON r.github_release_id = a.release_id JOIN plugins p ON p.id = r.plugin_id ${where}`,
+      ),
+    ),
+    bind(
+      env.DB.prepare(
+        `SELECT t.github_asset_id, t.result, t.attempts, t.os FROM content_checks t
+         JOIN assets a ON a.github_asset_id = t.github_asset_id
+         JOIN releases r ON r.github_release_id = a.release_id JOIN plugins p ON p.id = r.plugin_id ${where}`,
+      ),
+    ),
+    bind(
+      env.DB.prepare(
+        `SELECT t.github_asset_id, t.result, t.attempts, t.team_id, t.reason FROM macos_signing_checks t
+         JOIN assets a ON a.github_asset_id = t.github_asset_id
          JOIN releases r ON r.github_release_id = a.release_id JOIN plugins p ON p.id = r.plugin_id ${where}`,
       ),
     ),
@@ -292,10 +314,12 @@ async function loadViews(env: Env, pluginId?: string): Promise<PluginView[]> {
   }
 
   const checksByRelease = new Map<number, ReleaseChecks>();
+  const licenseByRelease = new Map<number, string | null>();
   for (const row of (checks?.results ?? []) as CheckRow[]) {
+    licenseByRelease.set(row.github_release_id, row.license_spdx);
     checksByRelease.set(row.github_release_id, {
-      legacy: row.legacy === 1,
       immutable: row.immutable === 1,
+      licenseState: row.license_state,
       diffState: row.diff_state,
       configState: row.config_state,
       reviewState: row.review_state,
@@ -304,9 +328,37 @@ async function loadViews(env: Env, pluginId?: string): Promise<PluginView[]> {
       adminApproved: row.admin_approved_at !== null,
     });
   }
-  const attestationByAsset = new Map<number, AttestationResult>();
-  for (const row of (attestations?.results ?? []) as Array<{ github_asset_id: number; result: AttestationResult }>) {
-    attestationByAsset.set(row.github_asset_id, row.result);
+  const attestationByAsset = new Map<number, AssetForStatus['attestation']>();
+  for (const row of (attestations?.results ?? []) as Array<{
+    github_asset_id: number;
+    result: AttestationResult;
+    attempts: number;
+  }>) {
+    attestationByAsset.set(row.github_asset_id, { result: row.result, attempts: row.attempts });
+  }
+  const contentByAsset = new Map<number, AssetForStatus['content']>();
+  for (const row of (contents?.results ?? []) as Array<{
+    github_asset_id: number;
+    result: ContentResult;
+    attempts: number;
+    os: string | null;
+  }>) {
+    contentByAsset.set(row.github_asset_id, { result: row.result, attempts: row.attempts, os: parseOs(row.os) });
+  }
+  const macosByAsset = new Map<number, AssetForStatus['macos']>();
+  for (const row of (macos?.results ?? []) as Array<{
+    github_asset_id: number;
+    result: MacosResult;
+    attempts: number;
+    team_id: string | null;
+    reason: string | null;
+  }>) {
+    macosByAsset.set(row.github_asset_id, {
+      result: row.result,
+      attempts: row.attempts,
+      teamIds: parseTeamIds(row.team_id),
+      reason: row.reason,
+    });
   }
   const suspensionRows = (suspensions?.results ?? []) as Array<{
     plugin_id: string;
@@ -359,15 +411,26 @@ async function loadViews(env: Env, pluginId?: string): Promise<PluginView[]> {
 
   return ((plugins?.results ?? []) as PluginRow[]).map((plugin) => {
     const pluginReleases = releasesByPlugin.get(plugin.id) ?? [];
+    // 作者が OS を宣言していれば、宣言した OS を中身の検査で検出した配布物だけを案内する。
+    const declaredOs = parseDeclaredOs(plugin.declared_os);
+    const statusAssets = (release: ReleaseRow) =>
+      (assetsByRelease.get(release.github_release_id) ?? []).map((asset) => {
+        const content = contentByAsset.get(asset.github_asset_id);
+        return {
+          row: asset,
+          name: asset.name,
+          digest: asset.digest,
+          kind: asset.kind,
+          attestation: attestationByAsset.get(asset.github_asset_id),
+          content,
+          macos: macosByAsset.get(asset.github_asset_id),
+          ...(declaredOs ? { declared: (content?.os ?? []).some((os) => declaredOs.includes(os)) } : {}),
+        };
+      });
     const forStatus: ReleaseForStatus[] = pluginReleases.map((release) => ({
       githubReleaseId: release.github_release_id,
       publishedAt: release.published_at,
-      assets: (assetsByRelease.get(release.github_release_id) ?? []).map((asset) => ({
-        name: asset.name,
-        digest: asset.digest,
-        os: asset.os,
-        attestation: attestationByAsset.get(asset.github_asset_id),
-      })),
+      assets: statusAssets(release),
       checks: checksByRelease.get(release.github_release_id),
       suspended: suspendedReleases.has(release.github_release_id),
       ownerChanged: plugin.owner_changed_at !== null,
@@ -378,11 +441,9 @@ async function loadViews(env: Env, pluginId?: string): Promise<PluginView[]> {
       (digest, scanner) => scanMap.get(`${digest}:${scanner}`)?.result,
     );
     const listed = pluginReleases.find((release) => release.github_release_id === status.listedReleaseId);
-    // 作者が OS を宣言していれば、宣言した OS の配布物だけを載せる。OS を推定できないソースの配布物は残す。
-    const declaredOs = parseDeclaredOs(plugin.declared_os);
-    const listedAssets = (listed ? (assetsByRelease.get(listed.github_release_id) ?? []) : []).filter(
-      (asset) => !declaredOs || asset.os === null || declaredOs.includes(asset.os),
-    );
+    const listedAssets = listed
+      ? guidedAssets(statusAssets(listed)).map((asset) => ({ ...asset.row, os: asset.content?.os ?? [] }))
+      : [];
     const releaseById = new Map(pluginReleases.map((release) => [release.github_release_id, release]));
     return {
       id: `${plugin.owner}/${plugin.repo}`.toLowerCase(),
@@ -394,9 +455,10 @@ async function loadViews(env: Env, pluginId?: string): Promise<PluginView[]> {
       summary: plugin.summary,
       summaryLang: plugin.summary ? detectLang(plugin.summary) : null,
       translations: translationsByPlugin.get(plugin.id) ?? {},
-      license: plugin.license_spdx,
+      // 掲載対象バージョンのタグの時点のライセンス。掲載していなければ登録のときの値。
+      license: (listed ? licenseByRelease.get(listed.github_release_id) : null) ?? plugin.license_spdx,
       category: plugin.category,
-      os: [...new Set(listedAssets.map((asset) => asset.os).filter((os): os is Os => os !== null))].sort(),
+      os: [...new Set(listedAssets.flatMap((asset) => asset.os))].sort(),
       status: status.status,
       reason: status.reason,
       suspendedReason: plugin.suspended_reason,
@@ -410,7 +472,6 @@ async function loadViews(env: Env, pluginId?: string): Promise<PluginView[]> {
             commitSha: listed.commit_sha,
             publishedAt: listed.published_at,
             htmlUrl: listed.html_url,
-            obsBuildVersion: listed.obs_build_version || null,
             assets: listedAssets.map((asset) => ({
               name: asset.name,
               size: asset.size,
@@ -436,7 +497,32 @@ async function loadViews(env: Env, pluginId?: string): Promise<PluginView[]> {
   });
 }
 
-function parseDeclaredOs(value: string | null): string[] | null {
+// content_checks の os の JSON の配列。決めた値の一覧の外の値は捨てる。
+export function parseOs(value: string | null): Os[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed)
+      ? parsed.filter((item): item is Os => (OS_VALUES as readonly unknown[]).includes(item))
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+// macos_signing_checks の team_id。複数のバンドルで食い違うときは JSON の配列で記録している。
+export function parseTeamIds(value: string | null): string[] {
+  if (!value) return [];
+  if (!value.startsWith('[')) return [value];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [value];
+  } catch {
+    return [value];
+  }
+}
+
+export function parseDeclaredOs(value: string | null): string[] | null {
   if (!value) return null;
   try {
     const parsed = JSON.parse(value);

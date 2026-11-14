@@ -6,13 +6,20 @@ import { GitHubClient, GitHubError } from '../github';
 import { CRITERIA_BY_ID, referenceOf } from '../review/criteria';
 import type { DiffHit } from '../review/diff-rules';
 import type { Finding } from '../review/llm';
-import { getPluginViewByInternalId } from './catalog';
+import { getPluginViewByInternalId, parseDeclaredOs, parseOs, parseTeamIds } from './catalog';
+import type { AssetKind } from './metadata';
 import {
+  type AssetForStatus,
   type AttestationResult,
   BLOCKER_WAITS_FOR,
   type BlockerCode,
   type ConfigState,
+  type ContentResult,
   type DiffState,
+  type LicenseState,
+  type MacosResult,
+  type NotGuidedCode,
+  notGuidedReason,
   type ReleaseChecks,
   type ReleaseForStatus,
   type ReviewState,
@@ -88,10 +95,9 @@ const BLOCKER_TEXT: Record<BlockerCode, { message: string; fix: string; criterio
   },
   checks_missing: { message: 'The checks for this version have not started.', fix: 'No action is needed.' },
   not_immutable: { message: 'The release is not immutable.', fix: '', criterion: 'immutable-release' },
-  installer_not_allowed: {
-    message: 'The release includes an exe or msi installer.',
-    fix: '',
-    criterion: 'distribution-format',
+  no_archive: {
+    message: 'The release has no zip archive. Installers and other files are not guided.',
+    fix: 'Attach the plugin bundles as zip archives to the release, then publish a new release.',
   },
   attestation_pending: {
     message: 'The build provenance attestations are waiting for verification.',
@@ -101,6 +107,57 @@ const BLOCKER_TEXT: Record<BlockerCode, { message: string; fix: string; criterio
     message: 'A release file has no valid build provenance attestation for this tag, commit, and release workflow.',
     fix: '',
     criterion: 'attestation',
+  },
+  content_check_pending: {
+    message: 'The contents of the zip archives have not been inspected yet.',
+    fix: 'No action is needed.',
+  },
+  no_plugin_detected: {
+    message: 'No VST 3, CLAP, LV2, or Audio Unit bundle was found in any zip archive.',
+    fix: 'Put the built plugin bundles in the zip archives, then publish a new release.',
+  },
+  vst2_detected: {
+    message: 'A zip archive contains a .vst bundle or a binary that exports a VST 2 entry point.',
+    fix: 'Remove the VST 2 build from every release file, then publish a new release.',
+  },
+  content_undetermined: {
+    message:
+      'A zip archive contains an installer or a nested archive, so it cannot be confirmed that the release has no VST 2 build.',
+    fix: 'Put the plugin bundles directly in the zip archive, then publish a new release.',
+  },
+  macos_check_pending: {
+    message: 'The macOS code signing and notarization check has not finished yet.',
+    fix: 'No action is needed.',
+  },
+  no_guided_asset: {
+    message: 'No zip archive of this release meets the conditions for guiding users to it.',
+    fix: 'See notGuidedBecause of each asset, fix the release workflow, then publish a new release.',
+  },
+  check_retries_exhausted: {
+    message: 'The attestation, content, or macOS check failed three times.',
+    fix: 'No action is needed. An administrator investigates the cause.',
+  },
+  license_pending: { message: 'The license at the release tag has not been checked yet.', fix: 'No action is needed.' },
+  no_license: {
+    message: 'GitHub finds no license file at the release tag.',
+    fix: 'Put a LICENSE file with an open source license at the root of the repository, then publish a new release.',
+  },
+  license_unrecognized: {
+    message: 'GitHub cannot identify the license at the release tag (NOASSERTION).',
+    fix: 'Keep only the standard license text in LICENSE. Move copyright preambles, third-party notices, and asset licenses to NOTICE or README, then publish a new release.',
+  },
+  license_not_open: {
+    message: 'The license at the release tag is neither OSI approved nor FSF free (SPDX License List).',
+    fix: 'License the plugin under an OSI approved or FSF free license, then publish a new release.',
+  },
+  declaration_mismatch: {
+    message: 'The declaration file does not match the inspected contents of the zip archives.',
+    fix: 'Correct the declaration, then publish a new release.',
+  },
+  macos_team_id_mismatch: {
+    message:
+      'The macOS bundles are signed with different Team IDs, so an administrator reviews this version before listing.',
+    fix: 'No action is needed if this is intended. An administrator reviews it before listing.',
   },
   config_pending: { message: 'The .soko-kun/config.json check has not run yet.', fix: 'No action is needed.' },
   config_invalid: {
@@ -160,8 +217,9 @@ interface ReleaseRow {
 }
 interface CheckRow {
   github_release_id: number;
-  legacy: number;
   immutable: number;
+  license_state: LicenseState;
+  license_spdx: string | null;
   diff_state: DiffState;
   diff_hits: string | null;
   config_state: ConfigState;
@@ -187,7 +245,7 @@ function parseJson<T>(text: string | null, fallback: T): T {
 export async function authorReport(env: Env, internalId: string, includeOlder: boolean) {
   const view = await getPluginViewByInternalId(env, internalId);
   if (!view) return null;
-  const [releases, checks, assets, suspended] = await env.DB.batch([
+  const [releases, checks, assets, suspended, declared] = await env.DB.batch([
     env.DB.prepare(
       'SELECT github_release_id, tag, published_at FROM releases WHERE plugin_id = ? ORDER BY published_at DESC',
     ).bind(internalId),
@@ -195,27 +253,32 @@ export async function authorReport(env: Env, internalId: string, includeOlder: b
       'SELECT c.* FROM release_checks c JOIN releases r ON r.github_release_id = c.github_release_id WHERE r.plugin_id = ?',
     ).bind(internalId),
     env.DB.prepare(
-      `SELECT a.release_id, a.github_asset_id, a.name, a.digest, a.os, t.result AS attestation, s.result AS scan
+      `SELECT a.release_id, a.github_asset_id, a.name, a.digest, a.kind, t.result AS attestation,
+         t.attempts AS attestation_attempts, c.result AS content, c.attempts AS content_attempts, c.os, c.formats,
+         c.arches, c.vst2_files, m.result AS macos, m.attempts AS macos_attempts, m.team_id, m.reason AS macos_reason,
+         s.result AS scan
        FROM assets a JOIN releases r ON r.github_release_id = a.release_id
        LEFT JOIN attestation_checks t ON t.github_asset_id = a.github_asset_id
+       LEFT JOIN content_checks c ON c.github_asset_id = a.github_asset_id
+       LEFT JOIN macos_signing_checks m ON m.github_asset_id = a.github_asset_id
        LEFT JOIN scans s ON s.digest = a.digest AND s.scanner = 'malwarebazaar'
        WHERE r.plugin_id = ?`,
     ).bind(internalId),
     env.DB.prepare('SELECT github_release_id FROM release_suspensions WHERE plugin_id = ?').bind(internalId),
+    env.DB.prepare('SELECT declared_os FROM plugins WHERE id = ?').bind(internalId),
   ]);
   const checkById = new Map(((checks?.results ?? []) as CheckRow[]).map((row) => [row.github_release_id, row]));
-  const assetRows = (assets?.results ?? []) as Array<{
-    release_id: number;
-    name: string;
-    digest: string;
-    os: string | null;
-    attestation: AttestationResult | null;
-    scan: ScanResult | null;
-  }>;
+  const declaredOs = parseDeclaredOs(
+    ((declared?.results ?? []) as Array<{ declared_os: string | null }>)[0]?.declared_os ?? null,
+  );
+  const assetRows = ((assets?.results ?? []) as AssetRow[]).map((row) => ({
+    row,
+    status: toStatusAsset(row, declaredOs),
+  }));
   const suspendedIds = new Set(
     ((suspended?.results ?? []) as Array<{ github_release_id: number }>).map((row) => row.github_release_id),
   );
-  const scanOf = new Map(assetRows.map((row) => [row.digest, row.scan ?? 'pending']));
+  const scanOf = new Map(assetRows.map(({ row }) => [row.digest, row.scan ?? 'pending']));
   const listedId = view.status === 'listed' ? view.listedRelease?.githubReleaseId : undefined;
   const listedPublished = ((releases?.results ?? []) as ReleaseRow[]).find(
     (row) => row.github_release_id === listedId,
@@ -225,16 +288,11 @@ export async function authorReport(env: Env, internalId: string, includeOlder: b
     .filter((row) => includeOlder || !listedPublished || row.published_at >= listedPublished)
     .map((row) => {
       const check = checkById.get(row.github_release_id);
-      const releaseAssets = assetRows.filter((asset) => asset.release_id === row.github_release_id);
+      const releaseAssets = assetRows.filter((asset) => asset.row.release_id === row.github_release_id);
       const forStatus: ReleaseForStatus = {
         githubReleaseId: row.github_release_id,
         publishedAt: row.published_at,
-        assets: releaseAssets.map((asset) => ({
-          name: asset.name,
-          digest: asset.digest,
-          os: asset.os,
-          attestation: asset.attestation ?? undefined,
-        })),
+        assets: releaseAssets.map((asset) => asset.status),
         checks: check ? toChecks(check) : undefined,
         suspended: suspendedIds.has(row.github_release_id),
         ownerChanged: view.ownerChanged,
@@ -252,23 +310,47 @@ export async function authorReport(env: Env, internalId: string, includeOlder: b
           state === 'listed' || state === 'superseded'
             ? []
             : blockers.map((code) => blockerView(code, diffHits, view.id, row.tag, check?.review_wait_until ?? null)),
-        checks: check?.legacy
-          ? { legacy: true }
-          : {
-              immutableRelease: { result: check?.immutable ? 'passed' : 'failed' },
-              attestation: { result: attestationSummary(releaseAssets.map((asset) => asset.attestation)) },
-              distributionFormat: { result: blockers.includes('installer_not_allowed') ? 'failed' : 'passed' },
-              malwarebazaar: { result: blockers.includes('scan_pending') ? 'pending' : 'passed' },
-              diffRules: { result: check?.diff_state ?? 'pending', hits: diffHits },
-              config: { result: check?.config_state ?? 'pending' },
-            },
-        review: check?.legacy
-          ? null
-          : {
-              status: check?.review_state ?? 'pending',
-              reviewedAt: check?.reviewed_at ?? null,
-              ...reviewView(review),
-            },
+        assets: releaseAssets.map(({ row: asset, status }) => assetView(asset, status)),
+        checks: {
+          immutableRelease: { result: check?.immutable ? 'passed' : 'failed' },
+          distributionFormat: {
+            result: blockers.includes('no_archive') ? 'failed' : 'passed',
+            installers: releaseAssets
+              .filter(({ row: asset }) => asset.kind === 'installer')
+              .map(({ row: asset }) => asset.name),
+          },
+          attestation: { result: attestationSummary(releaseAssets.map(({ row: asset }) => asset.attestation)) },
+          pluginContent: {
+            result: blockers.includes('content_check_pending')
+              ? 'pending'
+              : blockers.includes('no_plugin_detected')
+                ? 'failed'
+                : 'passed',
+          },
+          noVst2: {
+            result:
+              blockers.includes('vst2_detected') || blockers.includes('content_undetermined') ? 'failed' : 'passed',
+          },
+          openSourceLicense: {
+            result: check?.license_state === 'passed' ? 'passed' : (check?.license_state ?? 'pending'),
+            spdx: check?.license_spdx ?? null,
+          },
+          macosSigning: {
+            result: blockers.includes('macos_check_pending')
+              ? 'pending'
+              : releaseAssets.some(({ status }) => status.macos?.result === 'failed')
+                ? 'failed'
+                : 'passed',
+          },
+          declaration: { result: check?.config_state ?? 'pending' },
+          malwarebazaar: { result: blockers.includes('scan_pending') ? 'pending' : 'passed' },
+          diffRules: { result: check?.diff_state ?? 'pending', hits: diffHits },
+        },
+        review: {
+          status: check?.review_state ?? 'pending',
+          reviewedAt: check?.reviewed_at ?? null,
+          ...reviewView(review),
+        },
       };
     });
 
@@ -283,10 +365,141 @@ export async function authorReport(env: Env, internalId: string, includeOlder: b
   };
 }
 
+interface AssetRow {
+  release_id: number;
+  github_asset_id: number;
+  name: string;
+  digest: string;
+  kind: AssetKind;
+  attestation: AttestationResult | null;
+  attestation_attempts: number | null;
+  content: ContentResult | null;
+  content_attempts: number | null;
+  os: string | null;
+  formats: string | null;
+  arches: string | null;
+  vst2_files: string | null;
+  macos: MacosResult | null;
+  macos_attempts: number | null;
+  team_id: string | null;
+  macos_reason: string | null;
+  scan: ScanResult | null;
+}
+
+function toStatusAsset(row: AssetRow, declaredOs: string[] | null): AssetForStatus {
+  const os = parseOs(row.os);
+  return {
+    name: row.name,
+    digest: row.digest,
+    kind: row.kind,
+    ...(row.attestation ? { attestation: { result: row.attestation, attempts: row.attestation_attempts ?? 0 } } : {}),
+    ...(row.content ? { content: { result: row.content, attempts: row.content_attempts ?? 0, os } } : {}),
+    ...(row.macos
+      ? {
+          macos: {
+            result: row.macos,
+            attempts: row.macos_attempts ?? 0,
+            teamIds: parseTeamIds(row.team_id),
+            reason: row.macos_reason,
+          },
+        }
+      : {}),
+    ...(declaredOs ? { declared: os.some((value) => declaredOs.includes(value)) } : {}),
+  };
+}
+
+// 配布物を案内しない理由ごとの、作者への説明。固定の文言で、LLM には書かせない。
+const NOT_GUIDED_TEXT: Record<NotGuidedCode, { message: string; fix: string; waitsFor: WaitsFor }> = {
+  installer_not_guided: {
+    message: 'Installers are not guided. Only zip archives are guided.',
+    fix: 'No action is needed. Attach the plugin bundles as a zip archive as well.',
+    waitsFor: 'author',
+  },
+  not_archive: {
+    message: 'Only zip archives are guided.',
+    fix: 'No action is needed if this file is not a plugin build.',
+    waitsFor: 'author',
+  },
+  attestation_not_passed: {
+    message: 'The build provenance attestation of this file has not been verified.',
+    fix: 'See the attestation blocker of this version.',
+    waitsFor: 'system',
+  },
+  content_not_passed: {
+    message: 'The contents of this archive have not passed the inspection.',
+    fix: 'See the blockers of this version.',
+    waitsFor: 'system',
+  },
+  no_plugin_in_archive: {
+    message: 'No VST 3, CLAP, LV2, or Audio Unit bundle was found in this archive.',
+    fix: 'No action is needed for a source code archive.',
+    waitsFor: 'author',
+  },
+  macos_check_pending: {
+    message: 'The macOS code signing and notarization check of this archive has not finished yet.',
+    fix: 'No action is needed.',
+    waitsFor: 'system',
+  },
+  macos_not_signed: {
+    message: 'The macOS bundles are not signed.',
+    fix: 'Sign the bundles with a Developer ID certificate and notarize them in the release workflow before creating the zip.',
+    waitsFor: 'author',
+  },
+  macos_adhoc: {
+    message: 'The macOS bundles have only an ad-hoc signature.',
+    fix: 'Sign the bundles with a Developer ID certificate and notarize them in the release workflow before creating the zip.',
+    waitsFor: 'author',
+  },
+  macos_not_developer_id: {
+    message: 'The macOS bundles are signed with a certificate other than Developer ID.',
+    fix: 'Sign the bundles with a Developer ID certificate and notarize them in the release workflow before creating the zip.',
+    waitsFor: 'author',
+  },
+  macos_not_notarized: {
+    message: 'The macOS bundles are signed with a Developer ID but not notarized.',
+    fix: 'Notarize the bundles with notarytool in the release workflow before creating the zip. Users would otherwise have to bypass Gatekeeper.',
+    waitsFor: 'author',
+  },
+  macos_check_failed: {
+    message: 'The macOS bundles did not pass the code signing and notarization check.',
+    fix: 'Sign the bundles with a Developer ID certificate and notarize them in the release workflow before creating the zip.',
+    waitsFor: 'author',
+  },
+  macos_check_error: {
+    message: 'The macOS code signing and notarization check of this archive failed to run.',
+    fix: 'No action is needed.',
+    waitsFor: 'system',
+  },
+  not_declared: {
+    message: 'The declaration file exists and does not include this file.',
+    fix: 'Add the file to the declaration if it should be guided.',
+    waitsFor: 'author',
+  },
+};
+
+function parseList(text: string | null): string[] {
+  const value = parseJson<unknown>(text, []);
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+}
+
+function assetView(row: AssetRow, status: AssetForStatus) {
+  const code = notGuidedReason(status);
+  const vst2Files = parseList(row.vst2_files);
+  return {
+    name: row.name,
+    guided: code === null,
+    formats: parseList(row.formats),
+    os: status.content?.os ?? [],
+    arches: parseList(row.arches),
+    ...(vst2Files.length > 0 ? { vst2Files } : {}),
+    ...(code ? { notGuidedBecause: { code, ...NOT_GUIDED_TEXT[code] } } : {}),
+  };
+}
+
 function toChecks(row: CheckRow): ReleaseChecks {
   return {
-    legacy: row.legacy === 1,
     immutable: row.immutable === 1,
+    licenseState: row.license_state,
     diffState: row.diff_state,
     configState: row.config_state,
     reviewState: row.review_state,
@@ -308,6 +521,9 @@ const SYSTEM_WAIT_MINUTES: Partial<Record<BlockerCode, number>> = {
   scan_pending: 15,
   checks_missing: 15,
   attestation_pending: 30,
+  content_check_pending: 30,
+  macos_check_pending: 45,
+  license_pending: 15,
   config_pending: 15,
   diff_pending: 15,
   review_pending: 15,

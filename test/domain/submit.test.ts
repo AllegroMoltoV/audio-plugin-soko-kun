@@ -40,19 +40,66 @@ describe('submitPlugin', () => {
     const result = await submitPlugin(env, submitter, url);
     expect(result.ok).toBe(true);
     expect(calls[0]).toBe('repo:Bearer');
-    // 無料プランの外部呼び出しの上限 (50 件) に対し、submit は 6 件に配布物ごとの証明の確認を足した件数で済む。
-    expect(calls.length).toBeLessThanOrEqual(6 + 2);
+    // 無料プランの外部呼び出しの上限 (50 件) に対し、submit は 5 件に配布物ごとの証明の確認を足した件数で済む。
+    expect(calls.length).toBeLessThanOrEqual(5 + 2);
   });
 
-  it('不変でないリリース、exe の配布物、証明の無い配布物は登録しない', async () => {
+  it('不変でないリリース、zip の無いリリース、証明の無い配布物は登録しない', async () => {
     network.use(...githubHandlers({ immutable: false }));
     expect(await submitPlugin(env, submitter, url)).toMatchObject({ ok: false, code: 'not_immutable' });
     network.resetHandlers();
-    network.use(...githubHandlers({ installer: true }));
-    expect(await submitPlugin(env, submitter, url)).toMatchObject({ ok: false, code: 'installer_not_allowed' });
+    network.use(...githubHandlers({ noArchive: true }));
+    expect(await submitPlugin(env, submitter, url)).toMatchObject({ ok: false, code: 'no_archive' });
     network.resetHandlers();
     network.use(...githubHandlers({ attestation: false }));
     expect(await submitPlugin(env, submitter, url)).toMatchObject({ ok: false, code: 'no_attestation' });
+    expect(await env.DB.prepare('SELECT count(*) AS n FROM plugins').first('n')).toBe(0);
+  });
+
+  // インストーラーは案内しないが、証明は求める (ADR 0003)。
+  it('インストーラーを含むリリースは受け付け、インストーラーにも証明を求める', async () => {
+    network.use(...githubHandlers({ installer: true, attestation: '.exe' }));
+    expect(await submitPlugin(env, submitter, url)).toMatchObject({ ok: false, code: 'no_attestation' });
+    expect(await env.DB.prepare('SELECT count(*) AS n FROM plugins').first('n')).toBe(0);
+    network.resetHandlers();
+    network.use(...githubHandlers({ installer: true }));
+    expect(await submitPlugin(env, submitter, url)).toMatchObject({ ok: true, assetsToScan: 3 });
+    const { results } = await env.DB.prepare(
+      `SELECT a.kind, t.result AS attestation, c.result AS content FROM assets a
+       LEFT JOIN attestation_checks t ON t.github_asset_id = a.github_asset_id
+       LEFT JOIN content_checks c ON c.github_asset_id = a.github_asset_id ORDER BY a.github_asset_id`,
+    ).all();
+    expect(results).toEqual([
+      { kind: 'archive', attestation: 'pending', content: 'pending' },
+      { kind: 'other', attestation: 'pending', content: null },
+      { kind: 'installer', attestation: 'pending', content: null },
+    ]);
+  });
+
+  // ライセンスは最新のリリースのタグの時点で判定する (docs/design/scanning.md の「ライセンスの判定」)。
+  it('タグの時点のライセンスが無い・識別できない・オープンソースでないリポジトリは登録しない', async () => {
+    const cases = [
+      [null, 'no_license'],
+      ['NOASSERTION', 'license_unrecognized'],
+      ['CC-BY-NC-4.0', 'license_not_open'],
+    ] as const;
+    for (const [license, code] of cases) {
+      network.resetHandlers();
+      network.use(...githubHandlers({ license }));
+      expect(await submitPlugin(env, submitter, url)).toMatchObject({ ok: false, code });
+    }
+    expect(await env.DB.prepare('SELECT count(*) AS n FROM plugins').first('n')).toBe(0);
+  });
+
+  it('SPDX で非推奨の識別子でも、合格の集合に入れば登録し、タグの時点のライセンスを記録する', async () => {
+    const calls: string[] = [];
+    network.use(...githubHandlers({ license: 'GPL-3.0' }, calls));
+    expect((await submitPlugin(env, submitter, url)).ok).toBe(true);
+    expect(calls).toContain('license:v1.1.0');
+    const row = await env.DB.prepare(
+      'SELECT p.license_spdx AS plugin, c.license_state, c.license_spdx FROM plugins p, release_checks c',
+    ).first();
+    expect(row).toEqual({ plugin: 'GPL-3.0', license_state: 'passed', license_spdx: 'GPL-3.0' });
   });
 
   it('同じリポジトリの二重登録を拒否する', async () => {
@@ -82,11 +129,6 @@ describe('submitPlugin', () => {
   it('digest の無い配布物しかないリリースは登録しない', async () => {
     network.use(...githubHandlers({ release: 'no-digest' }));
     expect(await submitPlugin(env, submitter, url)).toMatchObject({ ok: false, code: 'no_verifiable_asset' });
-  });
-
-  it('libobs を参照しないリポジトリは OBS プラグインとして登録しない', async () => {
-    network.use(...githubHandlers({ cmake: 'project(other)\nfind_package(Qt6)\n' }));
-    expect(await submitPlugin(env, submitter, url)).toMatchObject({ ok: false, code: 'not_obs_plugin' });
   });
 
   it('1 日の登録回数を超えたら、失敗した要求も含めて拒否する', async () => {

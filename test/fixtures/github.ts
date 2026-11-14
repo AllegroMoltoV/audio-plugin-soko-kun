@@ -2,7 +2,7 @@
 import { HttpResponse, http } from 'msw';
 
 export const OWNER = 'allegromoltov';
-export const REPO = 'obs-fixture-pitchshift';
+export const REPO = 'audio-fixture-pitchshift';
 export const REPO_ID = 900001;
 export const USER_TOKEN = 'gho_fixture_user_token';
 
@@ -10,18 +10,16 @@ export interface RepoFixture {
   admin?: boolean;
   private?: boolean;
   archived?: boolean;
+  // タグの時点で GitHub が検出したライセンスの SPDX 識別子。null はライセンスのファイルが無い (404)。
   license?: string | null;
-  languages?: Record<string, number>;
-  cmake?: string | null;
   release?: 'none' | 'no-digest' | 'ok';
-  // 不変のリリースでないリリース、exe の配布物を含むリリース、証明の無い配布物を作る。
+  // 不変のリリースでないリリース、exe のインストーラーを含むリリース、zip の無いリリースを作る。
   immutable?: boolean;
   installer?: boolean;
-  attestation?: boolean;
+  noArchive?: boolean;
+  // false はすべての配布物、文字列はその拡張子で終わる配布物について、証明を返さない。
+  attestation?: boolean | string;
 }
-
-export const OBS_CMAKE =
-  'cmake_minimum_required(VERSION 3.28)\nproject(obs-fixture-pitchshift)\nfind_package(libobs REQUIRED)\n';
 
 export function githubHandlers(fixture: RepoFixture = {}, calls: string[] = []) {
   const base = `https://api.github.com/repos/${OWNER}/${REPO}`;
@@ -33,6 +31,14 @@ export function githubHandlers(fixture: RepoFixture = {}, calls: string[] = []) 
     digest,
     browser_download_url: `https://github.com/${OWNER}/${REPO}/releases/download/v1.1.0/${name}`,
   });
+  const zipDigest = `sha256:${'d1'.repeat(32)}`;
+  const sourceDigest = `sha256:${'e2'.repeat(32)}`;
+  const installerDigest = `sha256:${'f3'.repeat(32)}`;
+  const names = new Map([
+    [zipDigest, 'audio-fixture-pitchshift-1.1.0-windows-x64.zip'],
+    [sourceDigest, 'audio-fixture-pitchshift-1.1.0-source.tar.gz'],
+    [installerDigest, 'audio-fixture-pitchshift-setup.exe'],
+  ]);
   return [
     http.get(base, ({ request }) => {
       track(`repo:${request.headers.get('Authorization')?.split(' ')[0]}`);
@@ -42,25 +48,21 @@ export function githubHandlers(fixture: RepoFixture = {}, calls: string[] = []) 
         owner: { login: OWNER },
         private: fixture.private ?? false,
         archived: fixture.archived ?? false,
-        description: 'Real-time <script>alert(1)</script> pitch shift filter',
+        description: 'Real-time <script>alert(1)</script> pitch shift effect',
         default_branch: 'main',
-        license: fixture.license === null ? null : { spdx_id: fixture.license ?? 'GPL-2.0' },
+        license: { spdx_id: 'GPL-2.0' },
         permissions: { admin: fixture.admin ?? true, pull: true },
       });
     }),
-    http.get(`${base}/languages`, () => {
-      track('languages');
-      return HttpResponse.json(fixture.languages ?? { 'C++': 12000, CMake: 800 });
-    }),
-    http.get(`${base}/contents/CMakeLists.txt`, () => {
-      track('cmake');
-      if (fixture.cmake === null) return new HttpResponse(null, { status: 404 });
-      return HttpResponse.text(fixture.cmake ?? OBS_CMAKE);
+    http.get(`${base}/license`, ({ request }) => {
+      track(`license:${new URL(request.url).searchParams.get('ref')}`);
+      if (fixture.license === null) return new HttpResponse(null, { status: 404 });
+      return HttpResponse.json({ license: { spdx_id: fixture.license ?? 'GPL-3.0' } });
     }),
     http.get(`${base}/releases/latest`, () => {
       track('release');
       if (fixture.release === 'none') return new HttpResponse(null, { status: 404 });
-      const digest = fixture.release === 'no-digest' ? null : `sha256:${'d1'.repeat(32)}`;
+      const withDigest = fixture.release !== 'no-digest';
       return HttpResponse.json(
         {
           id: 7001,
@@ -72,11 +74,9 @@ export function githubHandlers(fixture: RepoFixture = {}, calls: string[] = []) 
           html_url: `https://github.com/${OWNER}/${REPO}/releases/tag/v1.1.0`,
           immutable: fixture.immutable ?? true,
           assets: [
-            asset(8001, 'obs-fixture-pitchshift-1.1.0-windows-x64.zip', digest),
-            asset(8002, 'obs-fixture-pitchshift-1.1.0-source.tar.gz', digest ? `sha256:${'e2'.repeat(32)}` : null),
-            ...(fixture.installer
-              ? [asset(8003, 'obs-fixture-pitchshift-setup.exe', `sha256:${'f3'.repeat(32)}`)]
-              : []),
+            ...(fixture.noArchive ? [] : [asset(8001, names.get(zipDigest) as string, withDigest ? zipDigest : null)]),
+            asset(8002, names.get(sourceDigest) as string, withDigest ? sourceDigest : null),
+            ...(fixture.installer ? [asset(8003, names.get(installerDigest) as string, installerDigest)] : []),
           ],
         },
         { headers: { ETag: '"etag-1"' } },
@@ -86,24 +86,29 @@ export function githubHandlers(fixture: RepoFixture = {}, calls: string[] = []) 
       track('commit');
       return HttpResponse.json({ sha: '3f2a9c1000000000000000000000000000000000' });
     }),
-    http.get(`${base}/attestations/:digest`, () => {
+    http.get(`${base}/attestations/:digest`, ({ params }) => {
       track('attestation');
-      if (fixture.attestation === false) return new HttpResponse(null, { status: 404 });
+      const name = names.get(String(params.digest)) ?? '';
+      const missing =
+        fixture.attestation === false ||
+        (typeof fixture.attestation === 'string' && name.endsWith(fixture.attestation));
+      if (missing) return new HttpResponse(null, { status: 404 });
       return HttpResponse.json({ attestations: [{ bundle: null, bundle_url: 'https://example.invalid/bundle' }] });
     }),
     http.get(`${base}/readme`, () => {
       track('readme');
-      return HttpResponse.text('# Title\n\nA pitch shift filter.\n');
+      return HttpResponse.text('# Title\n\nA pitch shift effect.\n');
     }),
   ];
 }
 
-// 新しい版の検査が読むファイル。個々のテストで上書きしなければ、どれも無いものとして 404 を返す。
+// 新しい版の検査が読むファイル。個々のテストで上書きしなければ、ライセンスは MIT、ほかはどれも無いものとして 404 を返す。
 export function releaseCheckHandlers() {
   const base = 'https://api.github.com/repos/:owner/:repo';
   const missing = () => new HttpResponse(null, { status: 404 });
   return [
     http.get(`${base}/contents/.soko-kun/config.json`, missing),
+    http.get(`${base}/license`, () => HttpResponse.json({ license: { spdx_id: 'MIT' } })),
     http.get(`${base}/git/trees/:ref`, () => HttpResponse.json({ tree: [], truncated: false })),
     http.get(`${base}/contents/:file`, missing),
     http.get(`${base}/compare/:range`, missing),

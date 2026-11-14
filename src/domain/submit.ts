@@ -5,15 +5,9 @@ import { type GitHubAsset, GitHubClient, GitHubError, type GitHubRelease, type G
 import { CRITERIA_BY_ID, referenceOf } from '../review/criteria';
 import type { Finding } from '../review/llm';
 import { type ReviewSummary, reviewView } from './author';
-import { resetAttestationStatement, resetScanStatements } from './cron';
-import {
-  type Category,
-  cmakeReferencesLibobs,
-  hasNativeSource,
-  inferCategory,
-  inferOs,
-  summarizeReadme,
-} from './metadata';
+import { resetAttestationStatement, resetContentStatements, resetScanStatements } from './cron';
+import { type LicenseFailure, licenseAtTag } from './license';
+import { assetKind, type Category, inferCategory, summarizeReadme } from './metadata';
 import {
   collectReviewFiles,
   quotaRetryAt,
@@ -31,13 +25,12 @@ export type SubmitErrorCode =
   | 'not_admin'
   | 'private_repository'
   | 'archived_repository'
-  | 'no_license'
-  | 'not_obs_plugin'
   | 'no_release'
   | 'no_verifiable_asset'
   | 'unsupported_tag'
+  | LicenseFailure
   | 'not_immutable'
-  | 'installer_not_allowed'
+  | 'no_archive'
   | 'no_attestation'
   | 'duplicate'
   | 'name_reserved'
@@ -104,17 +97,19 @@ export type ConditionCode =
   | 'not_admin'
   | 'private_repository'
   | 'archived_repository'
-  | 'no_license'
-  | 'not_obs_plugin'
   | 'no_release'
   | 'no_verifiable_asset'
   | 'unsupported_tag'
+  | LicenseFailure
   | 'not_immutable'
-  | 'installer_not_allowed'
+  | 'no_archive'
   | 'no_attestation';
 
-export interface Condition {
-  code: ConditionCode;
+// 確認のモードで、判定せずに説明だけを返す条件。配布物の取得を伴い、GitHub Actions で行うため。
+export type DeferredConditionCode = 'plugin_content' | 'macos_signing';
+
+export interface Condition<Code = ConditionCode> {
+  code: Code;
   result: 'passed' | 'failed' | 'unchecked';
   message?: string;
   fix?: string;
@@ -126,11 +121,12 @@ interface Evaluated {
   release: GitHubRelease | null;
   assets: GitHubAsset[];
   etag: string | null;
+  // タグの時点で GitHub が検出したライセンス。保存に使う。
+  licenseSpdx: string | null;
 }
 
 // 1 回の登録で証明の有無を確かめる配布物の上限。外部呼び出しの予算に収めるため。
 export const MAX_SUBMIT_ASSETS = 30;
-const INSTALLER = /\.(exe|msi)$/i;
 
 const MESSAGES: Record<ConditionCode, { message: string; fix: string }> = {
   not_admin: {
@@ -139,14 +135,6 @@ const MESSAGES: Record<ConditionCode, { message: string; fix: string }> = {
   },
   private_repository: { message: 'The repository is private.', fix: 'Make the repository public, then submit again.' },
   archived_repository: { message: 'The repository is archived.', fix: 'Unarchive the repository, then submit again.' },
-  no_license: {
-    message: 'GitHub does not detect a license for the repository.',
-    fix: 'Add a LICENSE file that GitHub can detect.',
-  },
-  not_obs_plugin: {
-    message: 'The repository does not look like an OBS Studio plugin.',
-    fix: 'The root CMakeLists.txt must reference libobs (for example find_package(libobs)), and the repository must contain C or C++ sources.',
-  },
   no_release: {
     message: 'The repository has no published release.',
     fix: 'Publish a release on GitHub with the plugin files attached.',
@@ -159,19 +147,46 @@ const MESSAGES: Record<ConditionCode, { message: string; fix: string }> = {
     message: 'The release tag contains unsupported characters.',
     fix: 'Use a tag made of letters, digits, dot, hyphen, and underscore.',
   },
+  no_license: {
+    message: 'GitHub finds no license file at the release tag.',
+    fix: 'Put a LICENSE file with an open source license at the root of the repository, then publish a new release.',
+  },
+  license_unrecognized: {
+    message: 'GitHub cannot identify the license at the release tag (NOASSERTION).',
+    fix: 'Keep only the standard license text in LICENSE. Move copyright preambles, third-party notices, and asset licenses to NOTICE or README, then publish a new release.',
+  },
+  license_not_open: {
+    message: 'The license at the release tag is neither OSI approved nor FSF free (SPDX License List).',
+    fix: 'License the plugin under an OSI approved or FSF free license, then publish a new release.',
+  },
   not_immutable: {
     message: 'The latest release is not immutable.',
     fix: `${criterionFix('immutable-release')} See ${referenceOf('immutable-release')}`,
   },
-  installer_not_allowed: {
-    message: 'The latest release includes an exe or msi installer.',
-    fix: `${criterionFix('distribution-format')} See ${referenceOf('distribution-format')}`,
+  no_archive: {
+    message: 'The latest release has no zip archive. Installers and other files are not guided.',
+    fix: 'Attach the plugin bundles as zip archives to the release.',
   },
   no_attestation: {
-    message: 'Some release files have no build provenance attestation.',
+    message: 'Some release files have no build provenance attestation. Installers need attestations too.',
     fix: `${criterionFix('attestation')} See ${referenceOf('attestation')}`,
   },
 };
+
+const DEFERRED: Condition<DeferredConditionCode>[] = [
+  {
+    code: 'plugin_content',
+    result: 'unchecked',
+    message:
+      'After registration, every zip archive is inspected for VST 3, CLAP, LV2, or Audio Unit bundles. Archives with a VST 2 entry point, or with installers or nested archives inside, block the version.',
+  },
+  {
+    code: 'macos_signing',
+    result: 'unchecked',
+    message:
+      'After registration, macOS bundles must be signed with a Developer ID and notarized by Apple. Archives that fail are not guided.',
+  },
+];
 
 function criterionFix(id: string): string {
   return CRITERIA_BY_ID.get(id)?.fix ?? '';
@@ -193,26 +208,15 @@ async function evaluateConditions(
   const done = () => stopOnFailure && conditions.some((item) => item.result === 'failed');
   // 管理権限は利用者のトークンで確かめる。permissions は認証した利用者から見た権限を表す。
   const repo = await asUser.getRepo(parsed.owner, parsed.repo);
-  const evaluated: Evaluated = { conditions, repo, release: null, assets: [], etag: null };
+  const evaluated: Evaluated = { conditions, repo, release: null, assets: [], etag: null, licenseSpdx: null };
   conditions.push(condition('not_admin', repo.permissions?.admin === true));
   if (done() || repo.permissions?.admin !== true) return evaluated;
   conditions.push(condition('private_repository', !repo.private));
   if (done()) return evaluated;
   conditions.push(condition('archived_repository', !repo.archived));
   if (done()) return evaluated;
-  const license = repo.license?.spdx_id;
-  conditions.push(condition('no_license', Boolean(license) && license !== 'NOASSERTION'));
-  if (done()) return evaluated;
-
   const owner = repo.owner.login;
   const name = repo.name;
-  const languages = await asApp.getLanguages(owner, name);
-  const cmake = await asApp.getRootFile(owner, name, 'CMakeLists.txt');
-  conditions.push(
-    condition('not_obs_plugin', hasNativeSource(languages) && cmake !== null && cmakeReferencesLibobs(cmake)),
-  );
-  if (done()) return evaluated;
-
   const latest = await asApp.getLatestRelease(owner, name);
   const release = latest?.release ?? null;
   const published = release !== null && !release.draft && Boolean(release.published_at);
@@ -224,16 +228,34 @@ async function evaluateConditions(
   evaluated.assets = assets;
   conditions.push(condition('no_verifiable_asset', assets.length > 0 && assets.length <= MAX_SUBMIT_ASSETS));
   if (done()) return evaluated;
-  conditions.push(condition('unsupported_tag', TAG.test(release.tag_name)));
+  const tagValid = TAG.test(release.tag_name);
+  conditions.push(condition('unsupported_tag', tagValid));
+  if (done()) return evaluated;
+  // ライセンスは最新のリリースのタグの時点で判定する。タグ名が規則に合わなければ取得しない。
+  if (tagValid) {
+    const license = await licenseAtTag(asApp, owner, name, release.tag_name);
+    evaluated.licenseSpdx = license.spdx;
+    conditions.push(
+      license.state === 'passed' ? { code: 'no_license', result: 'passed' } : condition(license.state, false),
+    );
+  } else {
+    conditions.push({ code: 'no_license', result: 'unchecked' });
+  }
   if (done()) return evaluated;
   conditions.push(condition('not_immutable', release.immutable === true));
   if (done()) return evaluated;
-  conditions.push(condition('installer_not_allowed', !release.assets.some((asset) => INSTALLER.test(asset.name))));
+  conditions.push(
+    condition(
+      'no_archive',
+      assets.some((asset) => assetKind(asset.name) === 'archive'),
+    ),
+  );
   if (done()) return evaluated;
   if (assets.length === 0 || assets.length > MAX_SUBMIT_ASSETS) {
     conditions.push({ code: 'no_attestation', result: 'unchecked' });
     return evaluated;
   }
+  // 証明は、案内しないインストーラーと other の配布物を含むすべての配布物に求める (ADR 0003)。
   let attested = true;
   for (const asset of assets) {
     if (!(await asApp.hasAttestation(owner, name, asset.digest as string))) {
@@ -291,8 +313,8 @@ async function validateAndStore(
     const evaluated = await evaluateConditions(asUser, asApp, parsed, true);
     const failed = evaluated.conditions.find((item) => item.result === 'failed');
     if (failed) return fail(failed.code, failed.message ?? '', failed.fix ?? '');
-    const { repo, release, assets } = evaluated;
-    if (!release) return fail('no_release', MESSAGES.no_release.message, MESSAGES.no_release.fix);
+    const { repo, release, assets, licenseSpdx } = evaluated;
+    if (!release || !licenseSpdx) return fail('no_release', MESSAGES.no_release.message, MESSAGES.no_release.fix);
 
     const duplicate = await env.DB.prepare('SELECT id FROM plugins WHERE github_repo_id = ?')
       .bind(repo.id)
@@ -317,7 +339,6 @@ async function validateAndStore(
 
     const owner = repo.owner.login;
     const name = repo.name;
-    const license = repo.license?.spdx_id as string;
     const commitSha = await asApp.getCommitSha(owner, name, release.tag_name);
     const summary = repo.description?.trim() || summarizeReadme((await asApp.getReadme(owner, name)) ?? '');
 
@@ -334,7 +355,7 @@ async function validateAndStore(
         owner,
         name,
         summary,
-        license,
+        licenseSpdx,
         category ?? inferCategory(name, summary),
         submitter.githubUserId,
         evaluated.etag,
@@ -345,27 +366,21 @@ async function validateAndStore(
       env.DB.prepare(
         'INSERT INTO releases (github_release_id, plugin_id, tag, name, commit_sha, published_at, html_url) VALUES (?, ?, ?, ?, ?, ?, ?)',
       ).bind(release.id, pluginId, release.tag_name, release.name, commitSha, release.published_at, release.html_url),
-      env.DB.prepare('INSERT INTO release_checks (github_release_id, immutable) VALUES (?, ?)').bind(
-        release.id,
-        release.immutable === true ? 1 : 0,
-      ),
+      // ライセンスは登録の判定で済ませたため、新しい版の検査では取得し直さない。
+      env.DB.prepare(
+        "INSERT INTO release_checks (github_release_id, immutable, license_state, license_spdx) VALUES (?, ?, 'passed', ?)",
+      ).bind(release.id, release.immutable === true ? 1 : 0, licenseSpdx),
     ];
     for (const asset of assets) {
+      const kind = assetKind(asset.name);
       statements.push(
         env.DB.prepare(
-          'INSERT INTO assets (github_asset_id, release_id, name, size, digest, download_url, os) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        ).bind(
-          asset.id,
-          release.id,
-          asset.name,
-          asset.size,
-          asset.digest,
-          asset.browser_download_url,
-          inferOs(asset.name),
-        ),
+          'INSERT INTO assets (github_asset_id, release_id, name, size, digest, download_url, kind) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        ).bind(asset.id, release.id, asset.name, asset.size, asset.digest, asset.browser_download_url, kind),
       );
       statements.push(...resetScanStatements(env, asset.digest as string));
       statements.push(resetAttestationStatement(env, asset.id));
+      statements.push(...resetContentStatements(env, asset.id, kind));
     }
     // 1 回の batch は D1 のクエリ 1 件として数えられ、途中で失敗しても部分的な書き込みが残らない。
     await env.DB.batch(statements);
@@ -390,7 +405,7 @@ export type CheckResult =
   | {
       ok: boolean;
       mode: 'check';
-      conditions: Condition[];
+      conditions: Condition<ConditionCode | DeferredConditionCode>[];
       review: { status: 'done' | 'failed' | 'unavailable'; message?: string; resumesAt?: string } & ReviewSummary;
     };
 
@@ -437,7 +452,7 @@ export async function checkPlugin(env: Env, submitter: Submitter, repositoryUrl:
     return {
       ok: evaluated.conditions.every((item) => item.result === 'passed'),
       mode: 'check',
-      conditions: evaluated.conditions,
+      conditions: admin ? [...evaluated.conditions, ...DEFERRED] : evaluated.conditions,
       review: {
         status: review ? 'done' : unavailable === 'quota' || unavailable === 'busy' ? 'unavailable' : 'failed',
         ...(unavailable === 'quota'

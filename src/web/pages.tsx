@@ -499,7 +499,7 @@ export const PluginDetail: FC<{ view: PluginView; t: Dict; lang: Lang; showOrigi
   }
 
   const release = view.listedRelease;
-  const primary = release.assets.find((asset) => asset.os !== null) ?? release.assets[0];
+  const primary = release.assets[0];
   return (
     <>
       {head}
@@ -527,10 +527,6 @@ export const PluginDetail: FC<{ view: PluginView; t: Dict; lang: Lang; showOrigi
           <tr>
             <th scope="row">{t.supportedOs}</th>
             <td>{view.os.length > 0 ? view.os.map((os) => t.os[os]).join(', ') : t.unknown}</td>
-          </tr>
-          <tr>
-            <th scope="row">{t.builtWithObs}</th>
-            <td>{view.listedRelease?.obsBuildVersion ?? t.unknown}</td>
           </tr>
           <tr>
             <th scope="row">{t.license}</th>

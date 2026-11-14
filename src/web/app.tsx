@@ -100,7 +100,6 @@ function softwareJsonLd(origin: string, lang: Lang, view: PluginView, descriptio
     description,
     applicationCategory: 'MultimediaApplication',
     applicationSubCategory: en.categories[view.category],
-    softwareRequirements: release?.obsBuildVersion ? `OBS Studio ${release.obsBuildVersion}` : 'OBS Studio',
     license: `https://spdx.org/licenses/${view.license}`,
     url: `${origin}${withLang(`/plugins/${view.id}`, lang)}`,
     author: { '@type': 'Person', name: view.owner, url: `https://github.com/${view.owner}` },

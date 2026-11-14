@@ -108,17 +108,14 @@ export class GitHubClient {
     return (await this.request(`${API}/repositories/${id}`)).json();
   }
 
-  async getLanguages(owner: string, repo: string): Promise<Record<string, number>> {
-    return (await this.request(`${API}/repos/${path(owner, repo)}/languages`)).json();
-  }
-
-  async getRootFile(owner: string, repo: string, file: string): Promise<string | null> {
+  // タグの時点で GitHub が検出したライセンスの SPDX 識別子。ライセンスのファイルが無い (404) ときは null。
+  async getLicenseSpdx(owner: string, repo: string, ref: string): Promise<string | null> {
     try {
-      const response = await this.request(
-        `${API}/repos/${path(owner, repo)}/contents/${path(file)}`,
-        'application/vnd.github.raw+json',
-      );
-      return await response.text();
+      const response = await this.request(`${API}/repos/${path(owner, repo)}/license?ref=${path(ref)}`);
+      const body = (await response.json()) as { license?: { spdx_id?: unknown } | null };
+      const spdx = body.license?.spdx_id;
+      // ファイルはあるが既知のライセンスとして識別できないものは、GitHub と同じく NOASSERTION として扱う。
+      return typeof spdx === 'string' && spdx.length > 0 ? spdx : 'NOASSERTION';
     } catch (error) {
       if (error instanceof GitHubError && error.kind === 'not_found') return null;
       throw error;
