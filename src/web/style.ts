@@ -237,6 +237,8 @@ footer.site { background: var(--footer); border-top: 1px solid var(--line); }
 footer.site ul { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 14px; list-style: none; margin: 0; padding: 8px 0 4px; font-size: 12px; }
 footer.site p { margin: 0; padding: 0 8px 6px; color: var(--footer-text); font-size: 11px; text-align: center; }
 footer.site p.copyright { padding-bottom: 12px; }
+/* 注記とロゴを横に並べる行は、ほかの下部の行と同じく中央にそろえる。 */
+footer.site p.trademark { justify-content: center; flex-wrap: wrap; }
 footer.site .contact-line { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px; padding: 0 8px 6px; color: var(--footer-text); font-size: 11px; }
 form.contact { display: inline-block; margin: 0; }
 form.contact button { font-size: 12px; padding: 1px 8px; }
