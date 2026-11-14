@@ -35,7 +35,8 @@ jobs:
 
           probe_bundle() {
             local sample="$1" expected="$2" variant="$3" bundle="$4"
-            local log="${out}/${sample}-${variant}-$(basename "${bundle}" | tr ' ' '_').txt"
+            local log
+            log="${out}/${sample}-${variant}-$(basename "${bundle}" | tr ' ' '_').txt"
             {
               echo "== ${sample} ${variant} ${bundle} (expected ${expected})"
               echo "-- codesign -dv --verbose=4"
