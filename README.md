@@ -29,6 +29,7 @@ Malware disguised as cracked audio plugins has been reported repeatedly, and in 
 | `docs/decisions/` | Architecture decision records |
 | `docs/design/` | Draft design documents |
 | `docs/glossary.md` | Glossary |
+| `.github/workflows/` | Verification workflows run on GitHub Actions |
 | `LICENSE` | MIT License |
 
 ### License
@@ -64,6 +65,7 @@ Steinberg Media Technologies GmbH、CLAP のプロジェクト、Apple、LV2 の
 | `docs/decisions/` | 設計判断の記録 |
 | `docs/design/` | 設計文書の下書き |
 | `docs/glossary.md` | 用語集 |
+| `.github/workflows/` | GitHub Actions で実行する検証のワークフロー |
 | `LICENSE` | MIT License |
 
 ### 使い方
