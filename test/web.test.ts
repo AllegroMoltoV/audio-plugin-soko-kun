@@ -260,10 +260,19 @@ describe('Web', () => {
     expect(detail.indexOf('VST® 3')).toBe(detail.indexOf('VST'));
   });
 
-  it('規格の選択肢に VST® 3 を出す一覧と検索結果のページは、絞り込みの隣にロゴを置き、商標の注記を出す', async () => {
+  it('規格の選択肢に VST® 3 を出す一覧と検索結果のページは、説明の文と組にしたロゴと、ロゴを伴う商標の注記を出す', async () => {
     for (const query of ['', '&format=vst3', '&q=pitch']) {
       const html = await (await SELF.fetch(`${ORIGIN}/?lang=en${query}`)).text();
-      expect(html, query).toMatch(/<select name="format">.*?VST® 3.*?<\/select><\/label><picture class="vst-logo">/s);
+      // 本文の中で、ロゴは VST® 3 のタグの条件を説明する文と同じ行にある。
+      expect(html, query).toMatch(
+        /<p class="vst-note"><picture class="vst-logo">.*?<\/picture><span>The VST® 3 tag is shown only/s,
+      );
+      // 絞り込みの隣には、説明の無いロゴを置かない。
+      expect(html, query).not.toMatch(/<\/select><\/label><picture class="vst-logo">/);
+      // 商標の注記の横にもロゴがある。
+      expect(html, query).toMatch(
+        /<p class="trademark" lang="en"><picture class="vst-logo">.*?<\/picture><span>VST is a registered trademark/s,
+      );
       expect(html, query).toContain(NOTICE);
     }
   });

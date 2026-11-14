@@ -246,8 +246,10 @@ export const Layout: FC<{ meta: PageMeta; side: Child; sideNarrow: Child; childr
               </ul>
               <p>{t.notice}</p>
               {meta.vst ? (
+                // 注記とロゴを並べ、ロゴが何を表すかを伝える。ページの本文の中のロゴに加えて置く (ADR 0004)。
                 <p class="trademark" lang="en">
-                  {VST_NOTICE}
+                  <VstLogo />
+                  <span>{VST_NOTICE}</span>
                 </p>
               ) : null}
               <div class="contact-line">

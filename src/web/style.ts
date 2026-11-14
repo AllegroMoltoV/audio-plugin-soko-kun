@@ -183,6 +183,9 @@ form.search select { font-size: 12px; max-width: 100%; background: var(--paper);
 .vst-logo { display: inline-flex; flex: none; vertical-align: middle; }
 .vst-logo img { display: block; height: 38px; width: auto; }
 .tags li.vst-logo-item { margin-left: 4px; }
+/* ロゴと文を横に並べ、縦の中央をそろえる。狭い画面では文が折り返す。 */
+.vst-note, .trademark { display: flex; align-items: center; gap: 8px; }
+.vst-note { margin: 4px 0 8px; font-size: 12px; color: var(--ink); }
 .pill.format { font-weight: bold; }
 p.formats-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
 

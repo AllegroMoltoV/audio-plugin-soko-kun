@@ -25,6 +25,7 @@ import {
   SideRelated,
   StaticPage,
   summaryFor,
+  VstListNote,
 } from './pages';
 import { STYLE_CSS } from './style';
 
@@ -241,6 +242,7 @@ app.get('/', async (c) => {
         formats={FORMAT_VALUES}
       />
       <h2 class="bar">{filtered && !keyword ? `${heading} - ${t.results(result.total)}` : heading}</h2>
+      <VstListNote t={t} />
       <PluginCards items={result.items} t={t} lang={lang} />
       {pages > 1 ? (
         <nav class="pager" aria-label="pagination">

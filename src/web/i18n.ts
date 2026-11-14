@@ -79,6 +79,8 @@ export interface Dict {
   supportedOs: string;
   formatLabel: string;
   formatAll: string;
+  // 一覧のページで、VST Compatible ロゴと組にして出す説明の文。
+  vstListNote: string;
   archLabel: string;
   macosNotGuided: string;
   attestationLabel: string;
@@ -304,6 +306,8 @@ const en: Dict = {
   sideWeeklyTitle: 'Top 5 weekly downloads',
   formatLabel: 'Format',
   formatAll: 'All',
+  vstListNote:
+    'The VST® 3 tag is shown only for plugins whose release archives were inspected and found to contain a VST 3 bundle.',
   archLabel: 'Architecture',
   macosNotGuided: 'This platform does not list the macOS files of this version. Only the files shown here are listed.',
   attestationLabel: 'Build provenance',
@@ -447,6 +451,7 @@ const ja: Dict = {
   sideWeeklyTitle: '週間 DL 数ランキング 5 件',
   formatLabel: '規格',
   formatAll: 'すべて',
+  vstListNote: 'VST® 3 のタグは、配布物の中身を検査して VST 3 のバンドルを確かめたプラグインにだけ付けています。',
   archLabel: 'アーキテクチャ',
   macosNotGuided:
     'このプラットフォームは、この版の macOS 向けの配布物を案内していません。案内するのは、ここに示した配布物だけです。',
@@ -590,6 +595,7 @@ const zhHans: Dict = {
   sideWeeklyTitle: '每周下载次数排行前 5 名',
   formatLabel: '格式',
   formatAll: '全部',
+  vstListNote: 'VST® 3 标签仅显示在经检查发布文件并确认包含 VST 3 插件包的插件上。',
   archLabel: '架构',
   macosNotGuided: '本平台未收录此版本的 macOS 发布文件。仅收录此处显示的文件。',
   attestationLabel: '构建来源证明',
@@ -726,6 +732,7 @@ const zhHant: Dict = {
   sideWeeklyTitle: '每週下載次數排行前 5 名',
   formatLabel: '格式',
   formatAll: '全部',
+  vstListNote: 'VST® 3 標籤僅顯示在經檢查發佈檔案並確認包含 VST 3 外掛套件的外掛上。',
   archLabel: '架構',
   macosNotGuided: '本平台未收錄此版本的 macOS 發行檔案。僅收錄此處顯示的檔案。',
   attestationLabel: '建置來源證明',
@@ -869,6 +876,7 @@ const ko: Dict = {
   sideWeeklyTitle: '주간 다운로드 순위 5위',
   formatLabel: '규격',
   formatAll: '전체',
+  vstListNote: 'VST® 3 태그는 배포 파일을 검사하여 VST 3 번들을 확인한 플러그인에만 표시됩니다.',
   archLabel: '아키텍처',
   macosNotGuided: '이 플랫폼은 이 버전의 macOS용 배포 파일을 안내하지 않습니다. 여기에 표시된 파일만 안내합니다.',
   attestationLabel: '빌드 출처 증명',
@@ -1012,6 +1020,8 @@ const ptBR: Dict = {
   sideWeeklyTitle: 'Top 5 de downloads semanais',
   formatLabel: 'Formato',
   formatAll: 'Todos',
+  vstListNote:
+    'A etiqueta VST® 3 aparece apenas em plugins cujos arquivos de distribuição foram inspecionados e contêm um pacote VST 3.',
   archLabel: 'Arquitetura',
   macosNotGuided:
     'Esta plataforma não lista os arquivos para macOS desta versão. Apenas os arquivos mostrados aqui são indicados.',
@@ -1158,6 +1168,8 @@ const es419: Dict = {
   sideWeeklyTitle: 'Top 5 de descargas semanales',
   formatLabel: 'Formato',
   formatAll: 'Todos',
+  vstListNote:
+    'La etiqueta VST® 3 solo aparece en plugins cuyos archivos de distribución se inspeccionaron y contienen un paquete VST 3.',
   archLabel: 'Arquitectura',
   macosNotGuided:
     'Esta plataforma no lista los archivos para macOS de esta versión. Solo se indican los archivos que se muestran aquí.',

@@ -164,6 +164,15 @@ export const PluginCards: FC<{ items: PluginView[]; t: Dict; lang: Lang }> = ({ 
     </ol>
   );
 
+// 一覧のページの VST Compatible ロゴ。規格の絞り込みに VST® 3 を出すため、ロゴが要る。
+// ロゴだけでは閲覧者に意味が伝わらないため、VST® 3 のタグを付ける条件の説明の文と組にする。
+export const VstListNote: FC<{ t: Dict }> = ({ t }) => (
+  <p class="vst-note">
+    <VstLogo />
+    <span>{t.vstListNote}</span>
+  </p>
+);
+
 export const SearchForm: FC<{
   t: Dict;
   lang: Lang;
@@ -200,7 +209,6 @@ export const SearchForm: FC<{
             ))}
           </select>
         </label>
-        <VstLogo />
       </div>
       <div class="row">
         <label>
