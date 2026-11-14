@@ -1,0 +1,39 @@
+# 文書索引
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/VST_Compatible_Logo_Steinberg_negative.png">
+  <img src="images/VST_Compatible_Logo_Steinberg.png" alt="VST Compatible" width="120">
+</picture>
+
+VST® is a registered trademark of Steinberg Media Technologies GmbH.
+
+公開する文書の索引です。docs/ には、製品の現在の設計と確定した判断を置きます。
+
+| 知りたいこと | 参照先 | 区分 |
+| --- | --- | --- |
+| プロジェクトの目的と使い方 | `README.md` (未作成) | |
+| 用語の定義 | [用語集](glossary.md) | リファレンス |
+| 構成要素と要求の流れ | [アーキテクチャ](design/architecture.md) | リファレンス |
+| テーブルと掲載状態の算出規則 | [データモデル](design/data-model.md) | リファレンス |
+| 認可の流れとスコープ | [認証と認可](design/auth.md) | リファレンス |
+| 登録・検査・同期・配布物の検証の処理と無料プランの予算 | [検査と同期](design/scanning.md) | リファレンス |
+| 新しい版を掲載する前に確かめる項目 | [審査の基準](design/review-criteria.md) | リファレンス |
+| 作者の LLM へ検査とレビューの結果を返す MCP のツール | [作者へのレビューの返し方](design/author-feedback.md) | リファレンス |
+| 対応言語と言語の判定 | [多言語対応](design/i18n.md) | リファレンス |
+| 画面の一覧と各画面の要素、VST の語の表示 | [画面構成](design/ui.md) | リファレンス |
+| 自動テストで守るラインとテストシナリオ | [テストの設計](design/testing.md) | リファレンス |
+
+用語集と設計文書は下書きです。段階 1 の検証 A1・A2 の結果と段階 2 の計画の承認を受けて確定します。
+
+## 設計判断の記録
+
+確定した設計判断と、未決定の論点を 1 件 1 ファイルで記録します。区分はいずれも解説です。
+
+| 番号 | 判断 | 状態 |
+| --- | --- | --- |
+| 0001 | [公開文書と作業記録の分担](decisions/0001-docs-and-work-records.md) | 採用 |
+| 0002 | [配信プラグイン倉庫くんの派生として独立したサービスにする](decisions/0002-independent-service-derived-from-soko-kun.md) | 採用 |
+| 0003 | [掲載の条件](decisions/0003-listing-conditions.md) | 採用 |
+| 0004 | [VST の商標の扱いと対象の規格](decisions/0004-vst-trademark.md) | 採用 |
+
+作業の記録 (調査報告、実行ログ、計画、運営者との確認事項) は公開せず、git の追跡対象外に置きます。その索引は `.prompts/INDEX.md` にあります。
