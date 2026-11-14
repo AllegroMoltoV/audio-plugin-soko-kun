@@ -7,7 +7,7 @@ import type { Finding } from '../review/llm';
 import { type ReviewSummary, reviewView } from './author';
 import { resetAttestationStatement, resetContentStatements, resetScanStatements } from './cron';
 import { type LicenseFailure, licenseAtTag } from './license';
-import { assetKind, type Category, inferCategory, summarizeReadme } from './metadata';
+import { assetKind, summarizeReadme } from './metadata';
 import {
   collectReviewFiles,
   quotaRetryAt,
@@ -69,13 +69,7 @@ async function logAttempt(env: Env, userId: number, outcome: string): Promise<vo
     .run();
 }
 
-// category は作者が選んだカテゴリ。選ばなかった場合は、リポジトリ名と概要から推定する。
-export async function submitPlugin(
-  env: Env,
-  submitter: Submitter,
-  repositoryUrl: string,
-  category?: Category,
-): Promise<SubmitResult> {
+export async function submitPlugin(env: Env, submitter: Submitter, repositoryUrl: string): Promise<SubmitResult> {
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const count = await env.DB.prepare('SELECT count(*) AS n FROM submit_log WHERE github_user_id = ? AND created_at > ?')
     .bind(submitter.githubUserId, since)
@@ -88,7 +82,7 @@ export async function submitPlugin(
     );
   }
 
-  const result = await validateAndStore(env, submitter, repositoryUrl, category);
+  const result = await validateAndStore(env, submitter, repositoryUrl);
   await logAttempt(env, submitter.githubUserId, result.ok ? 'accepted' : result.code);
   return result;
 }
@@ -299,12 +293,7 @@ const INVALID_URL = (): SubmitResult =>
     'Use the form https://github.com/<owner>/<repository>.',
   );
 
-async function validateAndStore(
-  env: Env,
-  submitter: Submitter,
-  repositoryUrl: string,
-  category?: Category,
-): Promise<SubmitResult> {
+async function validateAndStore(env: Env, submitter: Submitter, repositoryUrl: string): Promise<SubmitResult> {
   const parsed = parseRepositoryUrl(repositoryUrl);
   if (!parsed) return INVALID_URL();
   const budget = new Budget();
@@ -356,7 +345,8 @@ async function validateAndStore(
         name,
         summary,
         licenseSpdx,
-        category ?? inferCategory(name, summary),
+        // カテゴリは、中身の検査と宣言ファイルの照合を終えたときに決める (declaration.ts)。それまでは utility。
+        'utility',
         submitter.githubUserId,
         evaluated.etag,
         timestamp,

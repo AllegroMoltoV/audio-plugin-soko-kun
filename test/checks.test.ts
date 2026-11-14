@@ -1,13 +1,15 @@
-// 配布物の検証の受け口 /internal/checks/ のアクセス権限と結果の受け取り (docs/design/testing.md の P20〜P34、I01〜I04・I06〜I09)。
+// 配布物の検証の受け口 /internal/checks/ のアクセス権限と結果の受け取り (docs/design/testing.md の P20〜P34、I01〜I04・I06〜I09・C14)。
 // 本サービスのリポジトリの main の verify.yaml 以外のトークンを 401 で拒否することと、
 // 受け取った結果で掲載の条件をすり抜けられないことを確かめる (software-test スキル: 拒否の側を表で書く)。
 // P35 と I05 は /internal/macos-checks/ の経路のテストで、macOS の判定の実装で足す。
 import { env, SELF } from 'cloudflare:test';
 import { HttpResponse, http } from 'msw';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { Budget } from '../src/budget';
 import { ACTIONS_JWKS_URL, clearJwksCache, EXPECTED_REPOSITORY, VERIFY_WORKFLOW_REF } from '../src/checks/oidc';
+import { runReleaseChecks } from '../src/domain/release-checks';
 import { submitPlugin } from '../src/domain/submit';
-import { githubHandlers, OWNER, REPO, REPO_ID, USER_TOKEN } from './fixtures/github';
+import { githubHandlers, OWNER, REPO, REPO_ID, releaseCheckHandlers, USER_TOKEN } from './fixtures/github';
 import { network } from './setup';
 
 const ORIGIN = 'http://localhost:8787';
@@ -313,6 +315,8 @@ describe('配布物の検証の結果', () => {
       ],
       ['I07 vst2Files のパスが ..を含む', { result: 'vst2_detected', vst2Files: ['../Fixture.dll'] }],
       ['I09 passed で vst2Files が空でない', { ...passedWindows, vst2Files: ['x64/Fixture.dll'] }],
+      ['I06 categories の値が一覧の外', { ...passedWindows, categories: ['utility'] }],
+      ['I06 バンドルが無いのに categories がある', { result: 'no_plugin', categories: ['effect'] }],
     ];
     for (const [label, content] of invalid) {
       it(label, async () => {
@@ -342,5 +346,50 @@ describe('配布物の検証の結果', () => {
     expect((await post([{ assetId: ARCHIVE_ID, content: passedWindows }])).status).toBe(200);
     expect(await contentOf(ARCHIVE_ID)).toMatchObject({ result: 'passed', os: '["windows"]' });
     expect(await macosRows()).toEqual([]);
+  });
+
+  describe('C14 宣言ファイルの照合は、宣言の取得と中身の検査の両方を終えてから行う', () => {
+    const declaration = {
+      name: 'Fixture Pitch Shift',
+      category: 'effect',
+      assets: [{ pattern: '*-windows-x64.zip', os: 'windows', arch: ['x86_64'], formats: ['vst3', 'clap'] }],
+    };
+    const serveDeclaration = () =>
+      network.use(
+        http.get(`https://api.github.com/repos/${OWNER}/${REPO}/contents/.audio-soko-kun/config.json`, () =>
+          HttpResponse.text(JSON.stringify(declaration)),
+        ),
+        ...releaseCheckHandlers(),
+      );
+    const configOf = () => env.DB.prepare('SELECT config_state, config_fetched_at FROM release_checks').first();
+    const pluginOf = () => env.DB.prepare('SELECT display_name, declared_assets, category FROM plugins').first();
+
+    it('宣言を先に取得した版は pending のまま待ち、中身の検査の結果を受けたときに mismatch にする', async () => {
+      await register();
+      serveDeclaration();
+      await runReleaseChecks(env, new Budget());
+      expect(await configOf()).toMatchObject({ config_state: 'pending', config_fetched_at: expect.any(String) });
+      // 宣言は vst3 と clap、検出は vst3 だけ。
+      expect((await post([{ assetId: ARCHIVE_ID, content: passedWindows }])).status).toBe(200);
+      expect(await configOf()).toMatchObject({ config_state: 'mismatch' });
+      expect(await pluginOf()).toMatchObject({ display_name: null, declared_assets: null });
+    });
+
+    it('中身の検査を先に終えた版は、宣言を取得したときに判定し、ok なら表示名と配布物の宣言とカテゴリを替える', async () => {
+      await register();
+      const both = { ...passedWindows, formats: ['clap', 'vst3'], categories: ['instrument'] };
+      both.bundles = [windowsBundle, { ...windowsBundle, path: 'Fixture.clap', format: 'clap' }];
+      expect((await post([{ assetId: ARCHIVE_ID, content: both }])).status).toBe(200);
+      expect(await configOf()).toMatchObject({ config_state: 'pending', config_fetched_at: null });
+      serveDeclaration();
+      await runReleaseChecks(env, new Budget());
+      expect(await configOf()).toMatchObject({ config_state: 'ok' });
+      expect(await pluginOf()).toEqual({
+        display_name: 'Fixture Pitch Shift',
+        declared_assets: JSON.stringify(declaration.assets.map((item) => ({ ...item, formats: ['clap', 'vst3'] }))),
+        // 中身の検査の手がかりを宣言の category より優先する。
+        category: 'instrument',
+      });
+    });
   });
 });

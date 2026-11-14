@@ -1,6 +1,7 @@
 // 検索と詳細表示のためのデータ読み出し。掲載状態はここで算出し、掲載中のものだけを一覧に出す。
 import type { Env } from '../env';
 import { detectLang, type TranslationLang } from '../translate';
+import { isDeclared, parseDeclaredAssets } from './declaration';
 import { type AssetKind, type Category, OS_VALUES, type Os } from './metadata';
 import {
   type AssetForStatus,
@@ -74,7 +75,7 @@ export interface PluginView {
   internalId: string;
   // 所有者が変わり、管理者がまだ版を承認していない。作者向けの理由の算出にだけ使う (ADR 0015)。
   ownerChanged: boolean;
-  // 表示名。.soko-kun/config.json の name、無ければリポジトリ名。外部データ。
+  // 表示名。.audio-soko-kun/config.json の name、無ければリポジトリ名。外部データ。
   name: string;
   owner: string;
   repo: string;
@@ -114,7 +115,7 @@ interface PluginRow {
   removed: number;
   images_hidden: number;
   display_name: string | null;
-  declared_os: string | null;
+  declared_assets: string | null;
   owner_changed_at: string | null;
   created_at: string;
   updated_at: string;
@@ -411,8 +412,8 @@ async function loadViews(env: Env, pluginId?: string): Promise<PluginView[]> {
 
   return ((plugins?.results ?? []) as PluginRow[]).map((plugin) => {
     const pluginReleases = releasesByPlugin.get(plugin.id) ?? [];
-    // 作者が OS を宣言していれば、宣言した OS を中身の検査で検出した配布物だけを案内する。
-    const declaredOs = parseDeclaredOs(plugin.declared_os);
+    // 作者が配布物を宣言していれば、宣言の pattern に一致する配布物だけを案内する。
+    const declaredAssets = parseDeclaredAssets(plugin.declared_assets);
     const statusAssets = (release: ReleaseRow) =>
       (assetsByRelease.get(release.github_release_id) ?? []).map((asset) => {
         const content = contentByAsset.get(asset.github_asset_id);
@@ -424,7 +425,7 @@ async function loadViews(env: Env, pluginId?: string): Promise<PluginView[]> {
           attestation: attestationByAsset.get(asset.github_asset_id),
           content,
           macos: macosByAsset.get(asset.github_asset_id),
-          ...(declaredOs ? { declared: (content?.os ?? []).some((os) => declaredOs.includes(os)) } : {}),
+          ...(declaredAssets ? { declared: isDeclared(asset.name, declaredAssets) } : {}),
         };
       });
     const forStatus: ReleaseForStatus[] = pluginReleases.map((release) => ({
@@ -519,16 +520,6 @@ export function parseTeamIds(value: string | null): string[] {
     return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [value];
   } catch {
     return [value];
-  }
-}
-
-export function parseDeclaredOs(value: string | null): string[] | null {
-  if (!value) return null;
-  try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : null;
-  } catch {
-    return null;
   }
 }
 

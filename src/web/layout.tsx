@@ -173,7 +173,7 @@ export const Layout: FC<{ meta: PageMeta; side: Child; sideNarrow: Child; childr
               <li>
                 <a href={withLang('/', lang)}>{t.categoryAll}</a>
               </li>
-              {CATEGORIES.filter((c) => c !== 'other').map((c) => (
+              {CATEGORIES.map((c) => (
                 <li>
                   <a
                     href={withLang(`/?category=${c}`, lang)}

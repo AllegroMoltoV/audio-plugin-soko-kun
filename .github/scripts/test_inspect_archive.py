@@ -126,10 +126,10 @@ def elf(machine=62, exports=(), pie=False, shared=True):
     return body + sh
 
 
-def plist(audio_components=True, executable="Plugin"):
+def plist(audio_components=True, executable="Plugin", au_type="aufx"):
     data = {"CFBundleExecutable": executable, "CFBundlePackageType": "BNDL"}
     if audio_components:
-        data["AudioComponents"] = [{"type": "aufx", "subtype": "Abcd", "manufacturer": "Allg", "name": "Fixture"}]
+        data["AudioComponents"] = [{"type": au_type, "subtype": "Abcd", "manufacturer": "Allg", "name": "Fixture"}]
     import plistlib
 
     return plistlib.dumps(data)
@@ -421,9 +421,34 @@ class OutputContract(ArchiveTest):
             ia.sys.stdout = real
         body = json.loads(buffer.getvalue())
         self.assertEqual(
-            {k: body[k] for k in ("result", "reason", "formats", "os", "arches", "vst2Files")},
-            {"result": "passed", "reason": None, "formats": ["vst3"], "os": ["windows"], "arches": ["x86_64"], "vst2Files": []},
+            {k: body[k] for k in ("result", "reason", "formats", "os", "arches", "vst2Files", "categories")},
+            {
+                "result": "passed",
+                "reason": None,
+                "formats": ["vst3"],
+                "os": ["windows"],
+                "arches": ["x86_64"],
+                "vst2Files": [],
+                "categories": [],
+            },
         )
+
+    def test_categories_come_from_valid_bundles_only(self):
+        """categories は Worker の content に送る契約の値。規格のバンドルとみなさないものから読まない。
+        推定の規則そのもののテストは書かない (testing.md の「書かないテスト」のカテゴリの推定)。"""
+        moduleinfo = b'{"Classes": [{"Category": "Audio Module Class", "Sub Categories": ["Fx", "Delay"],},],}'
+        result = self.inspect(
+            [
+                VST3_WIN,
+                ("Fixture.vst3/Contents/Resources/moduleinfo.json", moduleinfo),
+                ("F.component/Contents/Info.plist", plist(au_type="aumu")),
+                ("F.component/Contents/MacOS/Plugin", macho_slice(exports=("FixtureAUFactory",))),
+                ("Old.component/Contents/Info.plist", plist(audio_components=False)),
+            ]
+        )
+        self.assertEqual(result["categories"], ["effect", "instrument"])
+        broken = self.inspect([VST3_WIN, ("Fixture.vst3/Contents/Resources/moduleinfo.json", b"{")])
+        self.assertEqual((broken["result"], broken["categories"]), ("passed", []))
 
 
 # ---------------- 検証 A1 の標本 ----------------

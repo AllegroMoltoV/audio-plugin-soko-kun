@@ -112,7 +112,7 @@ jobs:
               if [ "${kind}" = "archive" ]; then
                 if python3 -I .github/scripts/inspect_archive.py --digest "${digest}" "${file}" > "${work}/content.json"; then
                   jq -c '.diagnostics' "${work}/content.json" | sed 's/^/  diagnostics: /'
-                  content=$(jq -c '{result, reason, bundles, formats, os, arches, vst2Files}' "${work}/content.json")
+                  content=$(jq -c '{result, reason, bundles, formats, os, arches, vst2Files, categories}' "${work}/content.json")
                 else
                   content='{"result":"error","reason":"inspect_failed"}'
                 fi

@@ -233,7 +233,7 @@ async function releaseStatements(
   return statements;
 }
 
-const IMAGE_DIR = '.soko-kun';
+const IMAGE_DIR = '.audio-soko-kun';
 
 async function imageStatements(
   env: Env,

@@ -162,8 +162,8 @@ export const PAGES: Record<Lang, Record<PageKey, PageContent>> = {
         {
           heading: 'Logo and description image',
           paragraphs: [
-            'Authors can show one logo and one description image. Place the images in the .soko-kun folder of the repository.',
-            { code: '.soko-kun/logo.png\n.soko-kun/image.gif' },
+            'Authors can show one logo and one description image. Place the images in the .audio-soko-kun folder of the repository.',
+            { code: '.audio-soko-kun/logo.png\n.audio-soko-kun/image.gif' },
             {
               list: [
                 'Logo: name the file logo. Keep it within 256 KB and 1,024 px on each side.',
@@ -176,9 +176,9 @@ export const PAGES: Record<Lang, Record<PageKey, PageContent>> = {
           ],
         },
         {
-          heading: '.soko-kun/config.json',
+          heading: '.audio-soko-kun/config.json',
           paragraphs: [
-            'Authors can declare the display name and the supported OS in .soko-kun/config.json. Place the file in the same .soko-kun folder as the images.',
+            'Authors can declare the display name and the supported OS in .audio-soko-kun/config.json. Place the file in the same .audio-soko-kun folder as the images.',
             { code: '{\n  "name": "Simple Mosaic",\n  "os": ["windows", "macos"]\n}' },
             {
               list: [
@@ -206,7 +206,7 @@ export const PAGES: Record<Lang, Record<PageKey, PageContent>> = {
             'This platform follows the repository by its GitHub ID, so you do not need to do anything when you rename the repository. The listing moves to the new name within 15 minutes, and links to the old name redirect to the new one.',
             'Do not create another repository with the old name. This platform keeps the old name for the renamed plugin and does not register another repository under it.',
             'If you transfer the repository to another account or organization, the listed release stays listed, and an administrator reviews the next release before listing it.',
-            'To change the display name, change name in .soko-kun/config.json and publish a new release.',
+            'To change the display name, change name in .audio-soko-kun/config.json and publish a new release.',
           ],
         },
       ],
@@ -515,8 +515,8 @@ export const PAGES: Record<Lang, Record<PageKey, PageContent>> = {
         {
           heading: 'ロゴと説明の画像',
           paragraphs: [
-            '作者は、ロゴと説明の画像を 1 枚ずつ掲載できます。リポジトリの .soko-kun フォルダーに画像を置いてください。',
-            { code: '.soko-kun/logo.png\n.soko-kun/image.gif' },
+            '作者は、ロゴと説明の画像を 1 枚ずつ掲載できます。リポジトリの .audio-soko-kun フォルダーに画像を置いてください。',
+            { code: '.audio-soko-kun/logo.png\n.audio-soko-kun/image.gif' },
             {
               list: [
                 'ロゴ: ファイル名を logo にしてください。大きさは 256 KB 以内、縦と横は 1,024 px 以内にしてください。',
@@ -529,9 +529,9 @@ export const PAGES: Record<Lang, Record<PageKey, PageContent>> = {
           ],
         },
         {
-          heading: '.soko-kun/config.json',
+          heading: '.audio-soko-kun/config.json',
           paragraphs: [
-            '作者は .soko-kun/config.json で、表示名と対応 OS を宣言できます。画像と同じ .soko-kun フォルダーにファイルを置いてください。',
+            '作者は .audio-soko-kun/config.json で、表示名と対応 OS を宣言できます。画像と同じ .audio-soko-kun フォルダーにファイルを置いてください。',
             { code: '{\n  "name": "Simple Mosaic",\n  "os": ["windows", "macos"]\n}' },
             {
               list: [
@@ -559,7 +559,7 @@ export const PAGES: Record<Lang, Record<PageKey, PageContent>> = {
             'このプラットフォームは GitHub のリポジトリの ID でリポジトリを追うので、リポジトリの名前を変えても作業は要りません。掲載は 15 分以内に新しい名前へ移り、旧い名前へのリンクは新しい名前へ転送されます。',
             '旧い名前で別のリポジトリを作らないでください。旧い名前は、名前を変えたプラグインのためにこのプラットフォームが取っておき、その名前では別のリポジトリを登録しません。',
             'リポジトリを別のアカウントや組織へ移管すると、掲載中のリリースはそのまま掲載し、次のリリースは管理者が確かめてから掲載します。',
-            '表示名を変えるときは、.soko-kun/config.json の name を変えて新しいリリースを公開してください。',
+            '表示名を変えるときは、.audio-soko-kun/config.json の name を変えて新しいリリースを公開してください。',
           ],
         },
       ],
@@ -872,8 +872,8 @@ export const PAGES: Record<Lang, Record<PageKey, PageContent>> = {
         {
           heading: '徽标与说明图片',
           paragraphs: [
-            '作者可以各展示一张徽标和说明图片。请将图片放在仓库的 .soko-kun 文件夹中。',
-            { code: '.soko-kun/logo.png\n.soko-kun/image.gif' },
+            '作者可以各展示一张徽标和说明图片。请将图片放在仓库的 .audio-soko-kun 文件夹中。',
+            { code: '.audio-soko-kun/logo.png\n.audio-soko-kun/image.gif' },
             {
               list: [
                 '徽标：文件名为 logo。请将大小控制在 256 KB 以内，长和宽控制在 1,024 px 以内。',
@@ -886,9 +886,9 @@ export const PAGES: Record<Lang, Record<PageKey, PageContent>> = {
           ],
         },
         {
-          heading: '.soko-kun/config.json',
+          heading: '.audio-soko-kun/config.json',
           paragraphs: [
-            '作者可以在 .soko-kun/config.json 中声明显示名称和支持的操作系统。请将该文件放在与图片相同的 .soko-kun 文件夹中。',
+            '作者可以在 .audio-soko-kun/config.json 中声明显示名称和支持的操作系统。请将该文件放在与图片相同的 .audio-soko-kun 文件夹中。',
             { code: '{\n  "name": "Simple Mosaic",\n  "os": ["windows", "macos"]\n}' },
             {
               list: [
@@ -916,7 +916,7 @@ export const PAGES: Record<Lang, Record<PageKey, PageContent>> = {
             '本平台通过 GitHub 的仓库 ID 跟踪仓库，因此重命名仓库时无需任何操作。收录会在 15 分钟内转到新名称，指向旧名称的链接会重定向到新名称。',
             '请不要用旧名称创建另一个仓库。本平台会为已重命名的插件保留旧名称，不会以该名称收录其他仓库。',
             '如果将仓库转移到其他账号或组织，已收录的版本会继续收录，下一个版本由管理员确认后再收录。',
-            '要更改显示名称，请修改 .soko-kun/config.json 中的 name 并发布新版本。',
+            '要更改显示名称，请修改 .audio-soko-kun/config.json 中的 name 并发布新版本。',
           ],
         },
       ],
@@ -1205,8 +1205,8 @@ export const PAGES: Record<Lang, Record<PageKey, PageContent>> = {
         {
           heading: '標誌與說明圖片',
           paragraphs: [
-            '作者可以各展示一張標誌和說明圖片。請將圖片放在儲存庫的 .soko-kun 資料夾中。',
-            { code: '.soko-kun/logo.png\n.soko-kun/image.gif' },
+            '作者可以各展示一張標誌和說明圖片。請將圖片放在儲存庫的 .audio-soko-kun 資料夾中。',
+            { code: '.audio-soko-kun/logo.png\n.audio-soko-kun/image.gif' },
             {
               list: [
                 '標誌：檔案名稱為 logo。請將大小控制在 256 KB 以內，長和寬控制在 1,024 px 以內。',
@@ -1219,9 +1219,9 @@ export const PAGES: Record<Lang, Record<PageKey, PageContent>> = {
           ],
         },
         {
-          heading: '.soko-kun/config.json',
+          heading: '.audio-soko-kun/config.json',
           paragraphs: [
-            '作者可以在 .soko-kun/config.json 中宣告顯示名稱和支援的作業系統。請將該檔案放在與圖片相同的 .soko-kun 資料夾中。',
+            '作者可以在 .audio-soko-kun/config.json 中宣告顯示名稱和支援的作業系統。請將該檔案放在與圖片相同的 .audio-soko-kun 資料夾中。',
             { code: '{\n  "name": "Simple Mosaic",\n  "os": ["windows", "macos"]\n}' },
             {
               list: [
@@ -1249,7 +1249,7 @@ export const PAGES: Record<Lang, Record<PageKey, PageContent>> = {
             '本平台透過 GitHub 的儲存庫 ID 追蹤儲存庫，因此重新命名儲存庫時不需要任何操作。收錄會在 15 分鐘內移到新名稱，指向舊名稱的連結會轉址到新名稱。',
             '請不要用舊名稱建立另一個儲存庫。本平台會為已重新命名的外掛保留舊名稱，不會以該名稱收錄其他儲存庫。',
             '如果將儲存庫轉移到其他帳號或組織，已收錄的版本會繼續收錄，下一個版本由管理員確認後再收錄。',
-            '要變更顯示名稱，請修改 .soko-kun/config.json 中的 name 並發布新版本。',
+            '要變更顯示名稱，請修改 .audio-soko-kun/config.json 中的 name 並發布新版本。',
           ],
         },
       ],
@@ -1538,8 +1538,8 @@ export const PAGES: Record<Lang, Record<PageKey, PageContent>> = {
         {
           heading: '로고와 설명 이미지',
           paragraphs: [
-            '작성자는 로고와 설명 이미지를 한 장씩 게재할 수 있습니다. 저장소의 .soko-kun 폴더에 이미지를 넣어 주세요.',
-            { code: '.soko-kun/logo.png\n.soko-kun/image.gif' },
+            '작성자는 로고와 설명 이미지를 한 장씩 게재할 수 있습니다. 저장소의 .audio-soko-kun 폴더에 이미지를 넣어 주세요.',
+            { code: '.audio-soko-kun/logo.png\n.audio-soko-kun/image.gif' },
             {
               list: [
                 '로고: 파일 이름을 logo로 해 주세요. 크기는 256 KB 이내, 가로와 세로는 1,024 px 이내로 해 주세요.',
@@ -1552,9 +1552,9 @@ export const PAGES: Record<Lang, Record<PageKey, PageContent>> = {
           ],
         },
         {
-          heading: '.soko-kun/config.json',
+          heading: '.audio-soko-kun/config.json',
           paragraphs: [
-            '작성자는 .soko-kun/config.json에서 표시 이름과 지원 OS를 선언할 수 있습니다. 이미지와 같은 .soko-kun 폴더에 파일을 넣어 주세요.',
+            '작성자는 .audio-soko-kun/config.json에서 표시 이름과 지원 OS를 선언할 수 있습니다. 이미지와 같은 .audio-soko-kun 폴더에 파일을 넣어 주세요.',
             { code: '{\n  "name": "Simple Mosaic",\n  "os": ["windows", "macos"]\n}' },
             {
               list: [
@@ -1582,7 +1582,7 @@ export const PAGES: Record<Lang, Record<PageKey, PageContent>> = {
             '이 플랫폼은 GitHub의 저장소 ID로 저장소를 추적하므로, 저장소 이름을 바꿔도 따로 할 일은 없습니다. 게재는 15분 안에 새 이름으로 옮겨지고, 이전 이름으로 된 링크는 새 이름으로 전송됩니다.',
             '이전 이름으로 다른 저장소를 만들지 마세요. 이전 이름은 이 플랫폼이 이름을 바꾼 플러그인을 위해 남겨 두며, 그 이름으로는 다른 저장소를 등록하지 않습니다.',
             '저장소를 다른 계정이나 조직으로 이전하면, 게재 중인 릴리스는 그대로 게재하고 다음 릴리스는 관리자가 확인한 뒤 게재합니다.',
-            '표시 이름을 바꾸려면 .soko-kun/config.json의 name을 바꾸고 새 릴리스를 공개해 주세요.',
+            '표시 이름을 바꾸려면 .audio-soko-kun/config.json의 name을 바꾸고 새 릴리스를 공개해 주세요.',
           ],
         },
       ],
@@ -1886,8 +1886,8 @@ export const PAGES: Record<Lang, Record<PageKey, PageContent>> = {
         {
           heading: 'Logotipo e imagem de descrição',
           paragraphs: [
-            'Os autores podem exibir um logotipo e uma imagem de descrição. Coloque as imagens na pasta .soko-kun do repositório.',
-            { code: '.soko-kun/logo.png\n.soko-kun/image.gif' },
+            'Os autores podem exibir um logotipo e uma imagem de descrição. Coloque as imagens na pasta .audio-soko-kun do repositório.',
+            { code: '.audio-soko-kun/logo.png\n.audio-soko-kun/image.gif' },
             {
               list: [
                 'Logotipo: nomeie o arquivo como logo. Mantenha-o com até 256 KB e até 1.024 px em cada lado.',
@@ -1900,9 +1900,9 @@ export const PAGES: Record<Lang, Record<PageKey, PageContent>> = {
           ],
         },
         {
-          heading: '.soko-kun/config.json',
+          heading: '.audio-soko-kun/config.json',
           paragraphs: [
-            'Os autores podem declarar o nome de exibição e os sistemas operacionais suportados em .soko-kun/config.json. Coloque o arquivo na mesma pasta .soko-kun das imagens.',
+            'Os autores podem declarar o nome de exibição e os sistemas operacionais suportados em .audio-soko-kun/config.json. Coloque o arquivo na mesma pasta .audio-soko-kun das imagens.',
             { code: '{\n  "name": "Simple Mosaic",\n  "os": ["windows", "macos"]\n}' },
             {
               list: [
@@ -1930,7 +1930,7 @@ export const PAGES: Record<Lang, Record<PageKey, PageContent>> = {
             'Esta plataforma acompanha o repositório pelo ID do GitHub, então você não precisa fazer nada ao renomear o repositório. A listagem passa para o novo nome em até 15 minutos, e os links para o nome antigo redirecionam para o novo.',
             'Não crie outro repositório com o nome antigo. Esta plataforma reserva o nome antigo para o plugin renomeado e não registra outro repositório com ele.',
             'Se você transferir o repositório para outra conta ou organização, a versão listada continua listada, e um administrador revisa a próxima versão antes de listá-la.',
-            'Para mudar o nome de exibição, altere name em .soko-kun/config.json e publique uma nova versão.',
+            'Para mudar o nome de exibição, altere name em .audio-soko-kun/config.json e publique uma nova versão.',
           ],
         },
       ],
@@ -2245,8 +2245,8 @@ export const PAGES: Record<Lang, Record<PageKey, PageContent>> = {
         {
           heading: 'Logotipo e imagen descriptiva',
           paragraphs: [
-            'Los autores pueden mostrar un logotipo y una imagen descriptiva. Coloca las imágenes en la carpeta .soko-kun del repositorio.',
-            { code: '.soko-kun/logo.png\n.soko-kun/image.gif' },
+            'Los autores pueden mostrar un logotipo y una imagen descriptiva. Coloca las imágenes en la carpeta .audio-soko-kun del repositorio.',
+            { code: '.audio-soko-kun/logo.png\n.audio-soko-kun/image.gif' },
             {
               list: [
                 'Logotipo: nombra el archivo logo. Mantenlo en 256 KB como máximo y en 1,024 px por lado como máximo.',
@@ -2259,9 +2259,9 @@ export const PAGES: Record<Lang, Record<PageKey, PageContent>> = {
           ],
         },
         {
-          heading: '.soko-kun/config.json',
+          heading: '.audio-soko-kun/config.json',
           paragraphs: [
-            'Los autores pueden declarar el nombre visible y los sistemas operativos compatibles en .soko-kun/config.json. Coloca el archivo en la misma carpeta .soko-kun que las imágenes.',
+            'Los autores pueden declarar el nombre visible y los sistemas operativos compatibles en .audio-soko-kun/config.json. Coloca el archivo en la misma carpeta .audio-soko-kun que las imágenes.',
             { code: '{\n  "name": "Simple Mosaic",\n  "os": ["windows", "macos"]\n}' },
             {
               list: [
@@ -2289,7 +2289,7 @@ export const PAGES: Record<Lang, Record<PageKey, PageContent>> = {
             'Esta plataforma sigue el repositorio por su ID de GitHub, así que no necesitas hacer nada al cambiar el nombre del repositorio. La publicación pasa al nuevo nombre en un máximo de 15 minutos, y los enlaces al nombre anterior redirigen al nuevo.',
             'No crees otro repositorio con el nombre anterior. Esta plataforma reserva el nombre anterior para el plugin renombrado y no registra otro repositorio con ese nombre.',
             'Si transfieres el repositorio a otra cuenta u organización, la versión publicada sigue publicada, y un administrador revisa la siguiente versión antes de publicarla.',
-            'Para cambiar el nombre visible, cambia name en .soko-kun/config.json y publica una nueva versión.',
+            'Para cambiar el nombre visible, cambia name en .audio-soko-kun/config.json y publica una nueva versión.',
           ],
         },
       ],

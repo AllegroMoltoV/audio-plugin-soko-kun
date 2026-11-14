@@ -4,8 +4,9 @@
 zip の中身はメモリ上で読み、ファイルへ書き出さない。中のコードは実行しない。
 
 使い方: python3 -I inspect_archive.py [--digest sha256:<hex>] <zip のパス>
-結果を JSON で標準出力に出す。result・reason・bundles・formats・os・arches・vst2Files が
+結果を JSON で標準出力に出す。result・reason・bundles・formats・os・arches・vst2Files・categories が
 POST /internal/checks/results の content に送る値で、diagnostics はログに残すための値。
+categories は、検出したバンドルから読んだカテゴリの手がかり (scanning.md の「表示用の値の推定」)。
 """
 
 import hashlib
@@ -43,6 +44,12 @@ PE_MACHINE = {0x14C: "x86", 0x8664: "x86_64", 0xAA64: "arm64"}
 MACHO_CPU = {7: "x86", 0x01000007: "x86_64", 0x0100000C: "arm64"}
 ELF_MACHINE = {3: "x86", 62: "x86_64", 183: "arm64"}
 MH_FILETYPE = {1: "object", 2: "execute", 6: "dylib", 7: "dylinker", 8: "bundle", 9: "dylib_stub"}
+
+# カテゴリの手がかり (scanning.md の「表示用の値の推定」)。CLAP の features はバイナリを実行しないと読めないため使わない。
+AU_TYPE_CATEGORY = {"aumu": "instrument", "aufx": "effect", "aumf": "effect", "aumi": "midi"}
+# VST 3 の moduleinfo.json の Sub Categories。1 つのクラスで先に一致したものを採る。
+VST3_SUBCATEGORY = (("Instrument", "instrument"), ("Analyzer", "analyzer"), ("Fx", "effect"))
+MODULEINFO_PATHS = ("Contents/Resources/moduleinfo.json", "Contents/moduleinfo.json")
 
 # 中を調べられない入れ子のアーカイブとインストーラーの拡張子。.exe は、実行形式 (DLL でない PE) のときだけ当てる。
 NESTED_EXT = (".zip", ".7z", ".rar", ".tar", ".gz", ".tgz", ".bz2", ".xz", ".zst", ".dmg", ".pkg", ".msi")
@@ -357,8 +364,53 @@ def known_arches(bins):
     return arches
 
 
-def find_bundles(files, binaries, reader, diagnostics):
-    """規格のバンドルの根を探し、有効なバンドルと .vst のバンドルの根を返す。"""
+def au_categories(components):
+    """Audio Unit の AudioComponents の type から、カテゴリの手がかりを返す。"""
+    found = set()
+    for comp in components if isinstance(components, list) else []:
+        if isinstance(comp, dict) and comp.get("type") in AU_TYPE_CATEGORY:
+            found.add(AU_TYPE_CATEGORY[comp["type"]])
+    return found
+
+
+def parse_moduleinfo(data):
+    """moduleinfo.json を読む。VST 3 SDK の出力は末尾のコンマを含むことがあるため、それを除いてから読む。"""
+    text = data.decode("utf-8-sig", "replace")
+    return json.loads(re.sub(r",(\s*[\]}])", r"\1", text))
+
+
+def vst3_categories(root, files, reader, diagnostics):
+    """VST 3 のバンドルの moduleinfo.json の Sub Categories から、カテゴリの手がかりを返す。
+    moduleinfo.json は必須でなく、読めなくてもバンドルの判定は変えない。"""
+    found = set()
+    for rel in MODULEINFO_PATHS:
+        path = f"{root}/{rel}"
+        if path not in files:
+            continue
+        try:
+            info = parse_moduleinfo(reader.read(files[path], MAX_TEXT_READ))
+        except InspectionError:
+            raise
+        except Exception as e:
+            diagnostics["moduleinfo_errors"].append({"path": path, "error": f"{type(e).__name__}: {e}"})
+            continue
+        classes = info.get("Classes") if isinstance(info, dict) else None
+        for cls in classes if isinstance(classes, list) else []:
+            subs = cls.get("Sub Categories") if isinstance(cls, dict) else None
+            if isinstance(subs, str):
+                subs = subs.split("|")
+            if not isinstance(subs, list):
+                continue
+            match = next((cat for token, cat in VST3_SUBCATEGORY if token in subs), None)
+            if match:
+                found.add(match)
+        break
+    return found
+
+
+def find_bundles(files, binaries, reader, diagnostics, categories=None):
+    """規格のバンドルの根を探し、有効なバンドルと .vst のバンドルの根を返す。
+    categories に set を渡すと、有効なバンドルから読んだカテゴリの手がかりを加える。"""
     roots = {}  # 根のパス -> (拡張子, 根がファイルなら True)
     for n in files:
         parts = n.split("/")
@@ -382,6 +434,7 @@ def find_bundles(files, binaries, reader, diagnostics):
         fmt = FORMAT_OF_EXT[ext]
         bins = []
         problem = None
+        cats = set()
         if fmt == "vst2":
             if is_file:
                 continue  # 単一ファイルの .vst は、下のエクスポートの判定だけで扱う
@@ -395,6 +448,8 @@ def find_bundles(files, binaries, reader, diagnostics):
                 bins = exporting(cands, "GetPluginFactory")
                 if not bins:
                     problem = "no_GetPluginFactory"
+                else:
+                    cats = vst3_categories(root, files, reader, diagnostics)
         elif fmt == "clap":
             cands = [root] if is_file else under(root, r"Contents/MacOS/[^/]+")
             bins = exporting(cands, "clap_entry")
@@ -419,6 +474,7 @@ def find_bundles(files, binaries, reader, diagnostics):
                     problem = "no_bundle_executable"
                 else:
                     bins = [binaries[f"{root}/Contents/MacOS/{exe}"]]
+                    cats = au_categories(comps)
         elif fmt == "lv2":
             manifest = root + "/manifest.ttl"
             if is_file or manifest not in files:
@@ -437,14 +493,25 @@ def find_bundles(files, binaries, reader, diagnostics):
                 problem = "unsupported_arch"
             else:
                 bundles.append({"path": root, "format": fmt, "os": bins_os, "arches": arches})
+                if categories is not None:
+                    categories.update(cats)
         if problem:
             diagnostics["invalid_bundles"].append({"path": root, "format": fmt, "problem": problem})
     return bundles, vst2_roots
 
 
 def inspect(path, limits=DEFAULT_LIMITS, digest=None):
-    diagnostics = {"rejected": [], "undetermined": [], "invalid_bundles": [], "error": None}
-    out = {"result": "error", "reason": None, "bundles": [], "formats": [], "os": [], "arches": [], "vst2Files": []}
+    diagnostics = {"rejected": [], "undetermined": [], "invalid_bundles": [], "moduleinfo_errors": [], "error": None}
+    out = {
+        "result": "error",
+        "reason": None,
+        "bundles": [],
+        "formats": [],
+        "os": [],
+        "arches": [],
+        "vst2Files": [],
+        "categories": [],
+    }
     try:
         if digest is not None and sha256_of(path) != digest.lower():
             # 取得した配布物が記録した digest と違えば、中身を検査しない
@@ -459,6 +526,7 @@ def inspect(path, limits=DEFAULT_LIMITS, digest=None):
     except InspectionError as e:
         out.update({"result": "error", "reason": e.code, "bundles": [], "formats": [], "os": [], "arches": []})
         out["vst2Files"] = []
+        out["categories"] = []
         diagnostics["error"] = str(e)
     out["diagnostics"] = diagnostics
     return out
@@ -507,7 +575,8 @@ def _inspect_zip(zf, limits, out, diagnostics):
         if b is not None:
             binaries[name] = b
 
-    bundles, vst2_roots = find_bundles(files, binaries, reader, diagnostics)
+    categories = set()
+    bundles, vst2_roots = find_bundles(files, binaries, reader, diagnostics, categories)
     if len(bundles) > MAX_BUNDLES:
         raise InspectionError("too_many_bundles", f"{len(bundles)} > {MAX_BUNDLES}")
 
@@ -529,6 +598,7 @@ def _inspect_zip(zf, limits, out, diagnostics):
     out["os"] = sorted({o for b in bundles for o in b["os"]})
     out["arches"] = sorted({a for b in bundles for a in b["arches"]})
     out["vst2Files"] = vst2[:MAX_VST2_FILES]
+    out["categories"] = sorted(categories)
     # 判定の順: VST 2 の検出は確定の結果として最初に採る。解析の失敗と判定不能は passed にしない
     if vst2:
         return "vst2_detected"

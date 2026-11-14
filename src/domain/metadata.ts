@@ -1,13 +1,6 @@
-// GitHub の情報から、表示と検索に使う値を推定する。カテゴリは推定できなければ other にする。
-export const CATEGORIES = [
-  'audio-filter',
-  'video-filter',
-  'source',
-  'transition',
-  'dock-ui',
-  'output',
-  'other',
-] as const;
+// GitHub の情報から、表示と検索に使う値を推定する。
+// カテゴリの値 (docs/design/scanning.md の「表示用の値の推定」)。推定と宣言の規則は declaration.ts に置く。
+export const CATEGORIES = ['instrument', 'effect', 'analyzer', 'midi', 'utility'] as const;
 export type Category = (typeof CATEGORIES)[number];
 
 export const OS_VALUES = ['windows', 'macos', 'linux'] as const;
@@ -20,24 +13,6 @@ export function assetKind(assetName: string): AssetKind {
   const name = assetName.toLowerCase();
   if (name.endsWith('.zip')) return 'archive';
   if (/\.(exe|msi|pkg|dmg)$/.test(name)) return 'installer';
-  return 'other';
-}
-
-// 先に並べた区分ほど優先する。監視や計測のように専用の画面を足すものはドック・パネルを先に判定する。
-const CATEGORY_KEYWORDS: Array<[Category, RegExp]> = [
-  ['transition', /transition/],
-  ['dock-ui', /dock|panel|(^|[^a-z])ui([^a-z]|$)|monitor|meter|hotkey|overlay editor/],
-  ['audio-filter', /audio|pitch|loudness|sound|voice|vocal|mic|compressor|limiter|reverb|equali[sz]er|noise|volume/],
-  ['video-filter', /shadow|blur|shader|chroma|mask|color|colour|lut|sharpen|crop|video filter|effect/],
-  ['output', /stream|output|record|rtmp|srt|ndi|multistream|encoder/],
-  ['source', /source|capture|browser|camera|text|timer|clock/],
-];
-
-export function inferCategory(...texts: Array<string | null | undefined>): Category {
-  const haystack = texts.filter(Boolean).join(' ').toLowerCase().replace(/[-_]/g, ' ');
-  for (const [category, pattern] of CATEGORY_KEYWORDS) {
-    if (pattern.test(haystack)) return category;
-  }
   return 'other';
 }
 

@@ -107,7 +107,7 @@ export function releaseCheckHandlers() {
   const base = 'https://api.github.com/repos/:owner/:repo';
   const missing = () => new HttpResponse(null, { status: 404 });
   return [
-    http.get(`${base}/contents/.soko-kun/config.json`, missing),
+    http.get(`${base}/contents/.audio-soko-kun/config.json`, missing),
     http.get(`${base}/license`, () => HttpResponse.json({ license: { spdx_id: 'MIT' } })),
     http.get(`${base}/git/trees/:ref`, () => HttpResponse.json({ tree: [], truncated: false })),
     http.get(`${base}/contents/:file`, missing),
@@ -115,9 +115,9 @@ export function releaseCheckHandlers() {
   ];
 }
 
-// リポジトリの .soko-kun/ に置いた画像。files を渡さなければ、画像の無いリポジトリとして 404 を返す。
+// リポジトリの .audio-soko-kun/ に置いた画像。files を渡さなければ、画像の無いリポジトリとして 404 を返す。
 export function imageHandlers(files?: Record<string, Uint8Array>, calls: string[] = []) {
-  const contents = 'https://api.github.com/repos/:owner/:repo/contents/.soko-kun';
+  const contents = 'https://api.github.com/repos/:owner/:repo/contents/.audio-soko-kun';
   return [
     http.get(contents, () => {
       calls.push('images:list');

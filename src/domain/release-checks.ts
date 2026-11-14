@@ -8,8 +8,8 @@ import { type ChangedFile, checkDiff, type DiffHit, tooLargeHits } from '../revi
 import { type Finding, runReview } from '../review/llm';
 import { clean, computeFacts, judgeByRules, llmFiles, mergeFindings, type RepositorySnapshot } from '../review/rules';
 import { getPluginViewByInternalId } from './catalog';
+import { readDeclaration, settleDeclarations } from './declaration';
 import { licenseAtTag } from './license';
-import { OS_VALUES } from './metadata';
 import { MAX_REVIEW_ATTEMPTS } from './status';
 
 // ルートのビルド系のファイル (docs/design/scanning.md の「定期処理で行う検査」の順序 5)。
@@ -24,7 +24,6 @@ export const RELEASE_CHECK_COST = 5 + REVIEW_FILES_COST;
 const MAX_DIFF_CHARS = 24_000;
 const MAX_FILE_BYTES = 32 * 1024;
 const MAX_TOTAL_CHARS = 60_000;
-const MAX_CONFIG_BYTES = 16 * 1024;
 
 interface PendingRow {
   github_release_id: number;
@@ -35,69 +34,20 @@ interface PendingRow {
   diff_state: string;
   license_state: string;
   config_state: string;
+  config_fetched_at: string | null;
   review_state: string;
   review_attempts: number;
 }
 
-export type ConfigResult =
-  | { state: 'missing' }
-  | { state: 'invalid' }
-  | { state: 'no_declared_assets' }
-  | { state: 'ok'; name: string | null; os: string[] | null };
-
-// .soko-kun/config.json の判定。assetOs は、その版の配布物の OS (ソースの配布物は null)。
-export function parseConfig(text: string | 'too_large' | null, assetOs: Array<string | null>): ConfigResult {
-  if (text === null) return { state: 'missing' };
-  if (text === 'too_large') return { state: 'invalid' };
-  let body: unknown;
-  try {
-    body = JSON.parse(text);
-  } catch {
-    return { state: 'invalid' };
-  }
-  if (typeof body !== 'object' || body === null || Array.isArray(body)) return { state: 'invalid' };
-  const { name, os } = body as { name?: unknown; os?: unknown };
-  if (name !== undefined && (typeof name !== 'string' || name.trim().length === 0 || name.length > 60)) {
-    return { state: 'invalid' };
-  }
-  if (os !== undefined) {
-    const values = OS_VALUES as readonly string[];
-    if (
-      !Array.isArray(os) ||
-      os.length === 0 ||
-      !os.every((value) => typeof value === 'string' && values.includes(value))
-    ) {
-      return { state: 'invalid' };
-    }
-    if (!assetOs.some((value) => value !== null && os.includes(value))) return { state: 'no_declared_assets' };
-  }
-  return {
-    state: 'ok',
-    name: typeof name === 'string' ? name.trim() : null,
-    os: Array.isArray(os) ? [...new Set(os as string[])].sort() : null,
-  };
-}
-
-// content_checks の os の JSON の配列。中身の検査が済んでいないアーカイブは null を 1 つ返す。
-function parseOsList(value: string | null): Array<string | null> {
-  if (!value) return [null];
-  try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [null];
-  } catch {
-    return [null];
-  }
-}
-
 export async function runReleaseChecks(env: Env, budget: Budget): Promise<number> {
-  if (!budget.canFetch(RELEASE_CHECK_COST) || !budget.canQuery(4)) return 0;
+  if (!budget.canFetch(RELEASE_CHECK_COST) || !budget.canQuery(6)) return 0;
   budget.takeD1Query();
   const row = await env.DB.prepare(
     `SELECT c.github_release_id, r.plugin_id, p.owner, p.repo, r.tag, c.diff_state, c.license_state, c.config_state,
-       c.review_state, c.review_attempts
+       c.config_fetched_at, c.review_state, c.review_attempts
      FROM release_checks c JOIN releases r ON r.github_release_id = c.github_release_id JOIN plugins p ON p.id = r.plugin_id
      WHERE p.removed = 0 AND c.review_attempts < ? AND (c.diff_state = 'pending'
-       OR c.license_state = 'pending' OR c.config_state = 'pending'
+       OR c.license_state = 'pending' OR (c.config_state = 'pending' AND c.config_fetched_at IS NULL)
        OR (c.review_state IN ('pending', 'failed') AND (c.review_wait_until IS NULL OR c.review_wait_until <= ?)))
      ORDER BY r.published_at LIMIT 1`,
   )
@@ -136,29 +86,21 @@ async function checkOne(env: Env, budget: Budget, github: GitHubClient, row: Pen
       ),
     );
 
-  // 宣言ファイル。宣言した OS は、アーカイブの中身の検査で検出した OS と照合する。
-  if (row.config_state === 'pending') {
-    budget.takeD1Query();
-    const assets = await env.DB.prepare(
-      `SELECT c.os FROM assets a LEFT JOIN content_checks c ON c.github_asset_id = a.github_asset_id
-       WHERE a.release_id = ? AND a.kind = 'archive'`,
-    )
-      .bind(row.github_release_id)
-      .all<{ os: string | null }>();
-    const text = await github.getTextFile(row.owner, row.repo, '.soko-kun', 'config.json', row.tag, MAX_CONFIG_BYTES);
-    const config = parseConfig(
-      text,
-      assets.results.flatMap((asset) => parseOsList(asset.os)),
-    );
-    update('config_state = ?', config.state);
-    if (config.state === 'ok') {
-      statements.push(
-        env.DB.prepare('UPDATE plugins SET display_name = ?, declared_os = ? WHERE id = ?').bind(
-          config.name,
-          config.os ? JSON.stringify(config.os) : null,
-          row.plugin_id,
-        ),
+  // 宣言ファイル。形の誤りはその場で invalid にし、それ以外は取得の結果を保存する。
+  // 宣言と中身の検査の結果の照合は、中身の検査が終わってから settleDeclarations が行う。
+  let declarationFetched = false;
+  if (row.config_state === 'pending' && row.config_fetched_at === null) {
+    const parsed = await readDeclaration(github, row.owner, row.repo, row.tag);
+    const fetchedAt = new Date().toISOString();
+    if (parsed.state === 'invalid') {
+      update("config_state = 'invalid', config_fetched_at = ?", fetchedAt);
+    } else {
+      update(
+        'config_fetched_at = ?, config_json = ?',
+        fetchedAt,
+        parsed.state === 'parsed' ? JSON.stringify(parsed.declaration) : null,
       );
+      declarationFetched = true;
     }
   }
 
@@ -228,6 +170,7 @@ async function checkOne(env: Env, budget: Budget, github: GitHubClient, row: Pen
     budget.takeD1Query();
     await env.DB.batch(statements);
   }
+  if (declarationFetched) await settleDeclarations(env, [row.github_release_id], budget);
 }
 
 // 変更されたファイルの一覧。レート制限は呼び出し側へ投げ、それ以外の失敗は一覧を取り切れなかったものとして扱う。

@@ -1,5 +1,6 @@
 // 配布物の検証の受け口 (docs/design/scanning.md の「Worker の経路」)。
 // GitHub Actions の verify.yaml に、証明の検証と中身の検査を待つ配布物を渡し、結果を受け取る。どちらも OIDC のトークンを求める。
+import { INFERABLE_CATEGORIES, settleDeclarations } from '../domain/declaration';
 import { MAX_CHECK_ATTEMPTS } from '../domain/status';
 import type { Env } from '../env';
 import { VERIFY_WORKFLOW_REF, verifyActionsToken } from './oidc';
@@ -21,6 +22,7 @@ type ContentResult = (typeof CONTENT_RESULTS)[number];
 type Format = (typeof FORMATS)[number];
 type OsValue = (typeof OS_VALUES)[number];
 type Arch = (typeof ARCHES)[number];
+type InferableCategory = (typeof INFERABLE_CATEGORIES)[number];
 
 // 検証を待つ配布物の条件。GET /internal/checks/pending と、定期処理からの verify.yaml の起動で同じ条件を使う。
 // 結合する別名は、配布物 a・リリース r・プラグイン p・証明の検証 t・中身の検査 c。bind には試行の上限を 2 回渡す。
@@ -67,6 +69,7 @@ interface ContentInput {
   os: OsValue[];
   arches: Arch[];
   vst2Files: string[];
+  categories: InferableCategory[];
 }
 
 interface ResultInput {
@@ -140,7 +143,10 @@ function parseContent(raw: unknown): ContentInput | null | undefined {
   const formats = enumArray(entry.formats ?? [], FORMATS);
   const os = enumArray(entry.os ?? [], OS_VALUES);
   const arches = enumArray(entry.arches ?? [], ARCHES);
-  if (!formats || !os || !arches) return undefined;
+  // カテゴリの手がかりは、検出したバンドルから読んだものだけ。バンドルが無ければ空でなければならない。
+  const categories = enumArray(entry.categories ?? [], INFERABLE_CATEGORIES);
+  if (!formats || !os || !arches || !categories) return undefined;
+  if (bundles.length === 0 && categories.length > 0) return undefined;
   if (!sameSet(formats, new Set(bundles.map((bundle) => bundle.format)))) return undefined;
   if (!sameSet(os, new Set(bundles.flatMap((bundle) => bundle.os)))) return undefined;
   if (!sameSet(arches, new Set(bundles.flatMap((bundle) => bundle.arches)))) return undefined;
@@ -153,7 +159,7 @@ function parseContent(raw: unknown): ContentInput | null | undefined {
   if (result === 'passed' && (vst2Files.length > 0 || bundles.length === 0)) return undefined;
   if (result === 'vst2_detected' && vst2Files.length === 0) return undefined;
   if (result === 'no_plugin' && (bundles.length > 0 || vst2Files.length > 0)) return undefined;
-  return { result, reason, bundles, formats, os, arches, vst2Files };
+  return { result, reason, bundles, formats, os, arches, vst2Files, categories };
 }
 
 function parseResults(body: unknown): ResultInput[] | null {
@@ -204,6 +210,7 @@ async function listPending(env: Env): Promise<Response> {
 
 interface KnownAsset {
   github_asset_id: number;
+  release_id: number;
   plugin_id: string;
   release_workflow: string | null;
   attestation: string | null;
@@ -225,7 +232,7 @@ async function saveResults(request: Request, env: Env): Promise<Response> {
 
   const ids = results.map((result) => result.assetId);
   const { results: rows } = await env.DB.prepare(
-    `SELECT a.github_asset_id, p.id AS plugin_id, p.release_workflow, t.result AS attestation, c.result AS content
+    `SELECT a.github_asset_id, a.release_id, p.id AS plugin_id, p.release_workflow, t.result AS attestation, c.result AS content
      FROM assets a JOIN releases r ON r.github_release_id = a.release_id JOIN plugins p ON p.id = r.plugin_id
      LEFT JOIN attestation_checks t ON t.github_asset_id = a.github_asset_id
      LEFT JOIN content_checks c ON c.github_asset_id = a.github_asset_id
@@ -238,6 +245,8 @@ async function saveResults(request: Request, env: Env): Promise<Response> {
   const statements: D1PreparedStatement[] = [];
   // 同じ呼び出しの中で初めて記録するワークフローも、以降の配布物の照合に使う。
   const workflows = new Map<string, string | null>();
+  // 中身の検査の結果を書いた版。宣言ファイルとの照合が残っていれば、書いたあとで行う。
+  const contentReleases = new Set<number>();
   for (const input of results) {
     const row = known.get(input.assetId);
     if (!row) continue;
@@ -276,7 +285,7 @@ async function saveResults(request: Request, env: Env): Promise<Response> {
       statements.push(
         env.DB.prepare(
           `UPDATE content_checks SET result = ?, bundles = ?, formats = ?, os = ?, arches = ?, vst2_files = ?, reason = ?,
-             attempts = attempts + 1, checked_at = ?
+             categories = ?, attempts = attempts + 1, checked_at = ?
            WHERE github_asset_id = ? AND result IN ('pending', 'error')`,
         ).bind(
           content.result,
@@ -286,10 +295,12 @@ async function saveResults(request: Request, env: Env): Promise<Response> {
           JSON.stringify(content.arches),
           JSON.stringify(content.vst2Files),
           content.reason,
+          JSON.stringify(content.categories),
           timestamp,
           input.assetId,
         ),
       );
+      contentReleases.add(row.release_id);
       // macOS 向けのバンドルを検出した配布物は、署名と公証の判定を待つ。
       if (content.os.includes('macos')) {
         statements.push(
@@ -302,6 +313,7 @@ async function saveResults(request: Request, env: Env): Promise<Response> {
     }
   }
   if (statements.length > 0) await env.DB.batch(statements);
+  await settleDeclarations(env, [...contentReleases]);
   return Response.json({ updated: statements.length });
 }
 

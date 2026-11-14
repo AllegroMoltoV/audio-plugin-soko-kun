@@ -164,7 +164,7 @@ export function buildMcpServer(env: Env, user?: SignedInUser): McpServer {
           .enum(CATEGORIES)
           .optional()
           .describe(
-            'Return only plugins in this category: audio-filter, video-filter, source (adds video or audio to the scene), transition, dock-ui (adds docks or panels to the OBS window), output (streaming and recording), other. If omitted, all categories are included.',
+            'Return only plugins in this category: instrument (makes sound from MIDI input), effect (processes audio input), analyzer (analyzers and meters), midi (processes MIDI), utility (anything else). If omitted, all categories are included.',
           ),
       },
     },
@@ -227,15 +227,9 @@ export function buildMcpServer(env: Env, user?: SignedInUser): McpServer {
             .describe(
               'URL of a public GitHub repository that you administer, in the form https://github.com/<owner>/<repository>.',
             ),
-          category: z
-            .enum(CATEGORIES)
-            .optional()
-            .describe(
-              'Plugin type chosen by the author: audio-filter, video-filter, source (adds video or audio to the scene), transition, dock-ui (adds docks or panels to the OBS window), output (streaming and recording), other. If omitted, it is guessed from the name and summary.',
-            ),
         },
       },
-      async ({ mode, repositoryUrl, category }) => {
+      async ({ mode, repositoryUrl }) => {
         if (mode === 'check') {
           const checked = await checkPlugin(
             env,
@@ -248,7 +242,6 @@ export function buildMcpServer(env: Env, user?: SignedInUser): McpServer {
           env,
           { githubUserId: user.githubUserId, githubToken: user.githubToken },
           repositoryUrl,
-          category,
         );
         return result.ok ? json(result) : { ...json(result), isError: true };
       },

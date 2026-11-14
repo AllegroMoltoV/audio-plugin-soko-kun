@@ -1,8 +1,7 @@
-// LLM の応答の解釈と宣言ファイルの判定の境界。危険側 (LLM の出力やリポジトリの内容で、重大な指摘が消える・
-// 判定しない項目が混ざる・宣言の誤りが通る) に倒れる経路を確かめる。
+// LLM の応答の解釈の境界。危険側 (LLM の出力やリポジトリの内容で、重大な指摘が消える・
+// 判定しない項目が混ざる) に倒れる経路を確かめる。
 import { describe, expect, it } from 'vitest';
 import { reviewView } from '../../src/domain/author';
-import { parseConfig } from '../../src/domain/release-checks';
 import { evidencePaths, parseReview, reviewInstructions, reviewPrompt } from '../../src/review/llm';
 
 const README = new Set(['README.md']);
@@ -125,28 +124,5 @@ describe('reviewView', () => {
       unreadFiles: [],
     });
     expect(view.findings.map((finding) => finding.id)).toEqual(['ci-hardening']);
-  });
-});
-
-describe('parseConfig', () => {
-  it('宣言した OS の配布物が無ければ掲載しない形にする', () => {
-    expect(parseConfig('{"os": ["macos"]}', ['windows', null])).toEqual({ state: 'no_declared_assets' });
-  });
-
-  it('形の誤りは invalid にする', () => {
-    expect(parseConfig('{"os": "windows"}', ['windows'])).toEqual({ state: 'invalid' });
-    expect(parseConfig('{"os": ["windows", "android"]}', ['windows'])).toEqual({ state: 'invalid' });
-    expect(parseConfig('{"name": ""}', ['windows'])).toEqual({ state: 'invalid' });
-    expect(parseConfig('not json', ['windows'])).toEqual({ state: 'invalid' });
-    expect(parseConfig('too_large', ['windows'])).toEqual({ state: 'invalid' });
-  });
-
-  it('ファイルが無ければ宣言なしとし、あれば名前と OS を返す', () => {
-    expect(parseConfig(null, ['windows'])).toEqual({ state: 'missing' });
-    expect(parseConfig('{"name": " Simple Mosaic ", "os": ["windows"]}', ['windows', 'linux'])).toEqual({
-      state: 'ok',
-      name: 'Simple Mosaic',
-      os: ['windows'],
-    });
   });
 });

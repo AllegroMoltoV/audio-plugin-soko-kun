@@ -18,7 +18,7 @@ const EXTENSIONS: Record<string, ImageType> = {
   webp: 'image/webp',
 };
 
-// .soko-kun/ の中のファイル名が、その種類の画像の名前に当たれば、拡張子から想定する形式を返す。
+// .audio-soko-kun/ の中のファイル名が、その種類の画像の名前に当たれば、拡張子から想定する形式を返す。
 export function expectedType(kind: ImageKind, fileName: string): ImageType | null {
   const match = /^(logo|image)\.([a-z]+)$/i.exec(fileName);
   if (!match || match[1]?.toLowerCase() !== kind) return null;

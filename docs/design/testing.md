@@ -251,6 +251,8 @@ I06 は、`os` の値の取り違えで macOS の判定を省かれる経路を�
 | C10 | MalwareBazaar が `ok` と `hash_not_found` 以外の `query_status` を返す | `error`。`not_found` にしない |
 | C11 | GitHub のリリースの API の応答に `immutable` が無い | `immutable` を 0 にする |
 | C12 | 30 件のプラグインと検査待ちの検査結果がある状態で 1 回起動する | 外部呼び出しと D1 のクエリがそれぞれ 45 件以下。MalwareBazaar への照会が 10 件以下 |
+| C13 | 宣言の `os`・`arch`・`formats` のいずれかが、`pattern` に一致したアーカイブの中身の検査の結果と食い違う。規格のバンドルを検出しなかったアーカイブに規格を宣言した場合を含む。どのアーカイブもどの `pattern` にも一致しない場合も確かめる | `mismatch`。後者は `no_declared_assets`。対照として、並びの違う集合と fat binary のアーキテクチャをすべて並べた宣言は `ok` |
+| C14 | 宣言の取得と中身の検査の結果の受け取りを、両方の順で行う | 先に終えた側では `pending` のまま待ち、後に終えた側で判定する。`ok` では `plugins` の表示名・配布物の宣言・カテゴリを替える |
 
 ### 外部データの無害化
 
@@ -398,7 +400,7 @@ A06 は、配信プラグイン倉庫くんに無いテストです。攻撃者�
 | `domain/status.test.ts` | `legacy` の列と `installer_not_allowed` を持たない。中身の検査・VST 2・macOS の判定・宣言した配布物の条件を足し、S01 から S24 として作り直す |
 | `domain/submit.test.ts` の不変・exe・証明の条件 | インストーラーを含むリリースを受け付けるため、exe の拒否を S10 と R01 の案内しないことの確認に替える。インストーラーにも証明を求めることを S26 で確かめる。アーカイブの無いリリースの `no_archive` を足す |
 | `domain/submit.test.ts` の利用者のトークンと OAuth App の認証の使い分け | 呼び出しの記録の照合は実装の写しになる。GitHub API のモックが利用者のトークンにだけ `permissions` を返す形にし、P07 で確かめる |
-| `review/llm.test.ts` の `parseConfig` | 宣言ファイルの形が、OS の配列から配布物ごとの `pattern`・`os`・`arch`・`formats` に変わる。X08・X09・S14・S15 として作り直す |
+| `review/llm.test.ts` の `parseConfig` | 宣言ファイルの形が、OS の配列から配布物ごとの `pattern`・`os`・`arch`・`formats` に変わる。`domain/declaration.test.ts` と `checks.test.ts` で X08・X09・S14・C13・C14 として作り直す。S15 は `domain/status.test.ts` で確かめる |
 | `review/quota.test.ts` | 無料枠の待ちの規則は安全側のため書かない。代わりに、どの例外でもレビューを `done` にしない A07 を書く |
 | `review/diff-rules.test.ts` の切り詰めた差分 | 派生元は、差分が上限を超えた版をすべて確認待ちにしていた。変更されたファイルの一覧の事実で決める形に替わるため、新しい版の検査の通しの `review/diff-too-large.test.ts` で A11・A12・A13 として作り直す |
 

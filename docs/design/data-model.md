@@ -46,7 +46,7 @@ OAuth のクライアント・認可・トークンの情報は D1 ではなく 
 | `repo` | TEXT | NOT NULL | GitHub のリポジトリ名 |
 | `summary` | TEXT | | 概要。外部データ |
 | `license_spdx` | TEXT | NOT NULL | 登録のときに、最新のリリースのタグの時点で判定したライセンスの SPDX 識別子。画面と MCP に示すライセンスは、掲載対象バージョンの `release_checks` の `license_spdx` を使う |
-| `category` | TEXT | NOT NULL、既定値 `utility` | カテゴリ。`instrument`・`effect`・`analyzer`・`midi`・`utility` のいずれか。推定の規則は [検査と同期](scanning.md) に記載する |
+| `category` | TEXT | NOT NULL | カテゴリ。`instrument`・`effect`・`analyzer`・`midi`・`utility` のいずれか。登録のときは `utility` を書き、宣言ファイルとの照合を終えたときに推定した値へ替える。推定の規則は [検査と同期](scanning.md) に記載する。スキーマの既定値は派生元の `other` のまま残している。`plugins` を作り直すと参照する表の行が連鎖削除されるためで、登録の処理が常に値を書く |
 | `admin_suspended` | INTEGER | NOT NULL、既定値 0 | 1 のとき管理停止 |
 | `suspended_reason` | TEXT | | 管理停止の理由 |
 | `removed` | INTEGER | NOT NULL、既定値 0 | 1 のとき、GitHub でリポジトリが削除または非公開になった |
@@ -161,6 +161,8 @@ OAuth のクライアント・認可・トークンの情報は D1 ではなく 
 | `license_state` | TEXT | NOT NULL、既定値 `pending` | 版のタグの時点のライセンスの判定。`pending`・`passed`・`no_license`・`license_unrecognized`・`license_not_open` のいずれか。規則は [検査と同期](scanning.md) の「ライセンスの判定」に記載する |
 | `license_spdx` | TEXT | | 版のタグの時点で GitHub が検出したライセンスの SPDX 識別子。ライセンスが無いときは NULL |
 | `config_state` | TEXT | NOT NULL、既定値 `pending` | 宣言ファイルの判定。`pending`・`ok`・`missing`・`invalid`・`no_declared_assets`・`mismatch` のいずれか。`mismatch` は、宣言と中身の検査の結果が食い違うとき |
+| `config_fetched_at` | TEXT | | 版のタグの時点の宣言ファイルを取得した日時。NULL は未取得 |
+| `config_json` | TEXT | | 取得して検証した宣言を正規化した JSON。ファイルが無いときと未取得のときは NULL。中身の検査を終えてから照合するために持つ |
 | `review_state` | TEXT | NOT NULL、既定値 `pending` | `pending`・`done`・`failed` のいずれか |
 | `review_attempts` | INTEGER | NOT NULL、既定値 0 | レビューを試みた回数。Workers AI の無料枠の不足と混雑は数えない |
 | `review_wait_until` | TEXT | | Workers AI の無料枠を使い切ったとき、次にレビューを試す日時。不足を受けた 1 時間後 |
@@ -197,6 +199,7 @@ OAuth のクライアント・認可・トークンの情報は D1 ではなく 
 | `os` | TEXT | | 検出した OS の JSON の配列。`windows`・`macos`・`linux` のいずれか |
 | `arches` | TEXT | | 検出したアーキテクチャの JSON の配列。`x86_64`・`x86`・`arm64` のいずれか。fat binary はスライスごとの値をすべて含める |
 | `vst2_files` | TEXT | | VST 2 のエントリーポイントを検出したバイナリのパスの JSON の配列。外部データ |
+| `categories` | TEXT | | 検出したバンドルから読んだカテゴリの手がかりの JSON の配列。`instrument`・`effect`・`analyzer`・`midi` のいずれか |
 | `reason` | TEXT | | `error` の理由のコード |
 | `attempts` | INTEGER | NOT NULL、既定値 0 | 検査を試みた回数 |
 | `checked_at` | TEXT | | 最後に検査した日時 |

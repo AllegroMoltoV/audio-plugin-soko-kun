@@ -6,7 +6,8 @@ import { GitHubClient, GitHubError } from '../github';
 import { CRITERIA_BY_ID, referenceOf } from '../review/criteria';
 import type { DiffHit } from '../review/diff-rules';
 import type { Finding } from '../review/llm';
-import { getPluginViewByInternalId, parseDeclaredOs, parseOs, parseTeamIds } from './catalog';
+import { getPluginViewByInternalId, parseOs, parseTeamIds } from './catalog';
+import { CONFIG_DIR, type DeclaredAsset, isDeclared, parseDeclaredAssets } from './declaration';
 import type { AssetKind } from './metadata';
 import {
   type AssetForStatus,
@@ -151,22 +152,25 @@ const BLOCKER_TEXT: Record<BlockerCode, { message: string; fix: string; criterio
     fix: 'License the plugin under an OSI approved or FSF free license, then publish a new release.',
   },
   declaration_mismatch: {
-    message: 'The declaration file does not match the inspected contents of the zip archives.',
-    fix: 'Correct the declaration, then publish a new release.',
+    message: `${CONFIG_DIR}/config.json does not match the inspected contents of the zip archives. "os" must equal the detected OS, and "arch" and "formats" must list exactly the detected architectures and formats.`,
+    fix: 'Correct the declaration to match the archives, or omit "assets", then publish a new release.',
   },
   macos_team_id_mismatch: {
     message:
       'The macOS bundles are signed with different Team IDs, so an administrator reviews this version before listing.',
     fix: 'No action is needed if this is intended. An administrator reviews it before listing.',
   },
-  config_pending: { message: 'The .soko-kun/config.json check has not run yet.', fix: 'No action is needed.' },
+  config_pending: {
+    message: `The ${CONFIG_DIR}/config.json check has not finished yet. It is checked against the inspected contents of the zip archives.`,
+    fix: 'No action is needed.',
+  },
   config_invalid: {
-    message: '.soko-kun/config.json is not valid.',
-    fix: 'Write {"name": "<display name, 1-60 characters>", "os": ["windows" | "macos" | "linux"]} and publish a new release. Both fields are optional.',
+    message: `${CONFIG_DIR}/config.json is not valid.`,
+    fix: 'Write {"name": "<display name, 1-60 characters>", "category": "instrument" | "effect" | "analyzer" | "midi" | "utility", "assets": [{"pattern": "<file name, * matches any text>", "os": "windows" | "macos" | "linux", "arch": ["x86_64" | "x86" | "arm64"], "formats": ["vst3" | "clap" | "lv2" | "au"]}]} and publish a new release. Every top-level field is optional.',
   },
   config_no_declared_assets: {
-    message: 'The release has no files for the OS declared in .soko-kun/config.json.',
-    fix: 'Attach files for the declared OS, or change "os" in .soko-kun/config.json, then publish a new release.',
+    message: `No zip archive in the release matches a "pattern" in ${CONFIG_DIR}/config.json.`,
+    fix: `Attach the declared zip archives, or change "pattern" in ${CONFIG_DIR}/config.json, then publish a new release.`,
   },
   diff_pending: {
     message: 'The change since the listed version has not been checked yet.',
@@ -265,15 +269,15 @@ export async function authorReport(env: Env, internalId: string, includeOlder: b
        WHERE r.plugin_id = ?`,
     ).bind(internalId),
     env.DB.prepare('SELECT github_release_id FROM release_suspensions WHERE plugin_id = ?').bind(internalId),
-    env.DB.prepare('SELECT declared_os FROM plugins WHERE id = ?').bind(internalId),
+    env.DB.prepare('SELECT declared_assets FROM plugins WHERE id = ?').bind(internalId),
   ]);
   const checkById = new Map(((checks?.results ?? []) as CheckRow[]).map((row) => [row.github_release_id, row]));
-  const declaredOs = parseDeclaredOs(
-    ((declared?.results ?? []) as Array<{ declared_os: string | null }>)[0]?.declared_os ?? null,
+  const declaredAssets = parseDeclaredAssets(
+    ((declared?.results ?? []) as Array<{ declared_assets: string | null }>)[0]?.declared_assets ?? null,
   );
   const assetRows = ((assets?.results ?? []) as AssetRow[]).map((row) => ({
     row,
-    status: toStatusAsset(row, declaredOs),
+    status: toStatusAsset(row, declaredAssets),
   }));
   const suspendedIds = new Set(
     ((suspended?.results ?? []) as Array<{ github_release_id: number }>).map((row) => row.github_release_id),
@@ -386,7 +390,7 @@ interface AssetRow {
   scan: ScanResult | null;
 }
 
-function toStatusAsset(row: AssetRow, declaredOs: string[] | null): AssetForStatus {
+function toStatusAsset(row: AssetRow, declaredAssets: DeclaredAsset[] | null): AssetForStatus {
   const os = parseOs(row.os);
   return {
     name: row.name,
@@ -404,7 +408,7 @@ function toStatusAsset(row: AssetRow, declaredOs: string[] | null): AssetForStat
           },
         }
       : {}),
-    ...(declaredOs ? { declared: os.some((value) => declaredOs.includes(value)) } : {}),
+    ...(declaredAssets ? { declared: isDeclared(row.name, declaredAssets) } : {}),
   };
 }
 

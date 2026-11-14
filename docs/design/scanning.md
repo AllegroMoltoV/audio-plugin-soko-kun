@@ -125,9 +125,11 @@ VST® is a registered trademark of Steinberg Media Technologies GmbH.
 | 手がかり | 規則 |
 | --- | --- |
 | Audio Unit の `Info.plist` の `AudioComponents` の `type` | `aumu` は `instrument`、`aufx` と `aumf` は `effect`、`aumi` は `midi` |
-| VST 3 の `moduleinfo.json` の `Sub Categories` | `Instrument` を含めば `instrument`、`Analyzer` を含めば `analyzer`、`Fx` を含めば `effect` |
+| VST 3 の `moduleinfo.json` の `Sub Categories` | クラスごとに、`Instrument` を含めば `instrument`、`Analyzer` を含めば `analyzer`、`Fx` を含めば `effect`。この順に先に当たったものを採る |
 
-CLAP の features はバイナリを実行しないと読めないため、手がかりにしません。`moduleinfo.json` は clap-wrapper の出力に含まれないため、推定できない VST 3 もあります。
+CLAP の features はバイナリを実行しないと読めないため、手がかりにしません。`moduleinfo.json` は clap-wrapper の出力に含まれないため、推定できない VST 3 もあります。`moduleinfo.json` は、バンドルの `Contents/Resources/` と `Contents/` の順に探します。読めない `moduleinfo.json` は手がかりにせず、バンドルの判定も変えません。
+
+中身の検査は、規格のバンドルとみなしたものから読んだ手がかりを `content_checks` の `categories` に保存します。カテゴリを決めるのは、宣言ファイルとの照合を終えたときです。中身の検査に通り、宣言ファイルに配布物の宣言があればそれに一致するアーカイブの手がかりを使います。手がかりが複数のカテゴリを示すときは、`instrument`・`midi`・`analyzer`・`effect` の順に先のものを採ります。音源の多くはエフェクトの手がかりも持ち、`midi` と `analyzer` は `effect` より狭い区分のためです。
 
 検索では、キーワードを空白で区切り、すべての語を含むプラグインを返します。照合の前に、キーワードと照合対象の両方から文字と数字以外を除きます。照合対象は所有者名・リポジトリ名・表示名・概要の原文・概要の機械翻訳・カテゴリの値です。照合は部分一致で、意味の近さによる検索はしません。絞り込みには、規格・OS・カテゴリを使います。アーキテクチャでの絞り込みは設けません。規格と OS の絞り込みは、掲載対象バージョンの案内する配布物の `content_checks` の結果で判定します。VST 3 での絞り込みに出すのは、VST 3 のバンドルを検出したプラグインだけです ([ADR 0004](../decisions/0004-vst-trademark.md))。
 
@@ -293,7 +295,15 @@ Cron の定期処理は、`release_checks` のうち未完了の行を、1 回�
 
 `assets` の宣言がある場合は、宣言に一致したアーカイブだけを案内します。配信プラグイン倉庫くんで、作者が動作を確かめていない OS の配布物をテンプレートの CI が出していた件に対応するための規則で、同じ考え方を引き継ぎます。
 
-`mismatch` の判定は、宣言の取得と中身の検査の両方を終えてから行います。`os` は値の一致で、`arch` と `formats` は集合の一致で照合します。fat binary の配布物で検出したアーキテクチャが `x86_64` と `arm64` なら、`arch` は `["x86_64", "arm64"]` のとき一致します。
+`mismatch` の判定は、宣言の取得と中身の検査の両方を終えてから行います。`os` は値の一致で、`arch` と `formats` は集合の一致で照合します。fat binary の配布物で検出したアーキテクチャが `x86_64` と `arm64` なら、`arch` は `["x86_64", "arm64"]` のとき一致します。1 つのアーカイブが複数の `pattern` に一致するときは、先に書いた宣言と照合します。規格のバンドルを検出しなかったアーカイブも照合の対象で、宣言に規格を書いていれば `mismatch` になります。
+
+判定は次の順に進みます。
+
+1. 定期処理の順序 1 で宣言ファイルを取得する。形の誤りは、その場で `invalid` にする。それ以外は、取得した日時を `config_fetched_at` に、検証して正規化した宣言を `config_json` に書く。ファイルが無ければ `config_json` を NULL にする
+2. 版のすべてのアーカイブの中身の検査が `pending` と `error` でなくなった時点で、`missing`・`no_declared_assets`・`mismatch`・`ok` のいずれかに決める。宣言の取得の後に中身の検査が終われば `POST /internal/checks/results` が、中身の検査の後に宣言を取得すれば定期処理が判定する
+3. `ok` と `missing` では、`plugins` の `display_name`・`declared_assets`・`category` をその版の値に替える。`missing` では `display_name` と `declared_assets` を NULL に戻す。作者が宣言ファイルを消した後も、古い宣言で配布物を絞り込まないためです
+
+試行の上限に達した `error` のアーカイブを含む版は、管理者がやり直すまで `pending` のまま残ります。その版は `check_retries_exhausted` で掲載を止めているため、判定を待っても掲載の可否は変わりません。
 
 ## 配布物の検証のワークフロー
 
@@ -349,7 +359,7 @@ sequenceDiagram
 | 経路 | 内容 |
 | --- | --- |
 | `GET /internal/checks/pending` | `attestation_checks` か `content_checks` の結果が `pending` か、`error` で試行が 3 回未満の配布物を、最大 50 件返す。各件に、配布物の ID・`kind`・ダウンロード URL・`digest`・リポジトリ・リポジトリ ID・旧い名前の一覧・タグ・タグのコミット・記録したリリースのワークフローを含める |
-| `POST /internal/checks/results` | 配布物ごとの証明の検証の結果と、アーカイブの中身の検査の結果を受け取り、`attestation_checks` と `content_checks` に書く。中身の検査で macOS 向けのバンドルを検出した配布物には、`macos_signing_checks` の行を `pending` で作る。宣言ファイルとの照合が残っていれば行う |
+| `POST /internal/checks/results` | 配布物ごとの証明の検証の結果と、アーカイブの中身の検査の結果を受け取り、`attestation_checks` と `content_checks` に書く。中身の検査の結果には、カテゴリの手がかり `categories` を含む。中身の検査で macOS 向けのバンドルを検出した配布物には、`macos_signing_checks` の行を `pending` で作る。宣言ファイルとの照合が残っていれば行う |
 | `GET /internal/macos-checks/pending` | `macos_signing_checks` の結果が `pending` か、`error` で試行が 3 回未満の配布物を、最大 50 件返す。各件に、配布物の ID・ダウンロード URL・`digest`・macOS 向けのバンドルのアーカイブの中のパスを含める |
 | `POST /internal/macos-checks/results` | 配布物ごとの署名と公証の判定の結果を受け取り、`macos_signing_checks` に書く |
 
