@@ -503,20 +503,19 @@ export const PluginDetail: FC<{ view: PluginView; t: Dict; lang: Lang; showOrigi
           <CategoryTag category={view.category} t={t} lang={lang} />
         </li>
         {view.status === 'listed'
-          ? view.formats.map((format) =>
-              // 見出しのタグがページの中の VST の語の初出になる。
-              format === 'vst3' ? (
-                <li class="vst">
-                  <span class="pill format">{formatName(format, true)}</span>
-                  <VstLogo />
-                </li>
-              ) : (
-                <li>
-                  <span class="pill format">{formatName(format)}</span>
-                </li>
-              ),
-            )
+          ? view.formats.map((format) => (
+              <li>
+                {/* 見出しのタグがページの中の VST の語の初出になる。 */}
+                <span class="pill format">{formatName(format, format === 'vst3')}</span>
+              </li>
+            ))
           : null}
+        {/* VST Compatible ロゴはタグの間に挟まず、同じ行の最後に置く。タグの高さをそろえて並べるため。 */}
+        {view.status === 'listed' && view.formats.includes('vst3') ? (
+          <li class="vst-logo-item">
+            <VstLogo />
+          </li>
+        ) : null}
         {view.status !== 'listed' ? (
           <li>
             <StatusBadge view={view} t={t} />

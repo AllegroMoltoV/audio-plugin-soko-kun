@@ -250,11 +250,12 @@ describe('Web', () => {
     expect(detail).not.toContain(LOGO);
   });
 
-  it('VST 3 のバンドルを検出したプラグインの詳細ページは、VST® 3 の隣にロゴを置き、商標の注記を出す', async () => {
+  it('VST 3 のバンドルを検出したプラグインの詳細ページは、VST® 3 のタグと同じ行にロゴを置き、商標の注記を出す', async () => {
     await register();
     await markListable(env.DB);
     const detail = await (await SELF.fetch(`${ORIGIN}/plugins/${OWNER}/${REPO}?lang=ja`)).text();
-    expect(detail).toMatch(/VST® 3<\/span><picture class="vst-logo">/);
+    // 同じタグの並び (ul.tags) の中に、VST® 3 のタグとロゴの両方がある。
+    expect(detail).toMatch(/<ul class="tags">(?:(?!<\/ul>).)*VST® 3(?:(?!<\/ul>).)*<picture class="vst-logo">/s);
     expect(detail).toContain(NOTICE);
     expect(detail.indexOf('VST® 3')).toBe(detail.indexOf('VST'));
   });

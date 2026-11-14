@@ -165,7 +165,7 @@ main { min-width: 0; background: var(--paper); border: 1px solid var(--line); pa
 
 h1 { font-size: 17px; margin: 0 0 6px; line-height: 1.35; color: var(--heading); }
 h2.bar { font-size: 13px; margin: 14px 0 6px; padding: 3px 8px; color: var(--bar-text); background: var(--bar-bg); border: 1px solid var(--sub-dark); border-left: 5px solid var(--primary); }
-.tags { display: flex; flex-wrap: wrap; gap: 4px; padding: 0; margin: 4px 0; list-style: none; }
+.tags { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 0; margin: 4px 0; list-style: none; }
 .tag { display: inline-block; padding: 0 6px; font-size: 11px; text-decoration: none; color: var(--on-primary); background: var(--primary); border: 1px solid var(--primary-dark); }
 .tag:visited, .tag:hover { color: var(--on-primary); }
 .pill { display: inline-block; padding: 0 5px; border: 1px solid var(--line); background: var(--surface); font-size: 11px; color: var(--ink); }
@@ -179,10 +179,10 @@ form.search .row:first-of-type { flex-wrap: nowrap; }
 form.search input[type=search] { flex: 1 1 auto; width: 0; min-width: 0; height: var(--control-height); padding: 0 4px; font-size: 13px; border: 1px solid var(--line); background: var(--paper); color: var(--ink); }
 form.search button { height: var(--control-height); }
 form.search select { font-size: 12px; max-width: 100%; background: var(--paper); color: var(--ink); border: 1px solid var(--line); }
-/* VST Compatible ロゴは縦横の比を保ったまま、高さ 36 px で表示する。 */
+/* VST Compatible ロゴは縦横の比を保ったまま、高さ 38 px で表示する。ガイドラインの最小サイズの高さ 10 mm を、96 dpi で換算した値。 */
 .vst-logo { display: inline-flex; flex: none; vertical-align: middle; }
-.vst-logo img { display: block; height: 36px; width: auto; }
-.tags li.vst { display: flex; align-items: center; gap: 4px; }
+.vst-logo img { display: block; height: 38px; width: auto; }
+.tags li.vst-logo-item { margin-left: 4px; }
 .pill.format { font-weight: bold; }
 p.formats-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
 

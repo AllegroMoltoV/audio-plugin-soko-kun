@@ -88,7 +88,7 @@ export const VST_NOTICE = 'VST is a registered trademark of Steinberg Media Tech
 export const VstLogo: FC = () => (
   <picture class="vst-logo">
     <source media="(prefers-color-scheme: dark)" srcset="/images/vst-compatible-negative.png" />
-    <img src="/images/vst-compatible.png" width={56} height={36} alt="VST Compatible" />
+    <img src="/images/vst-compatible.png" width={59} height={38} alt="VST Compatible" />
   </picture>
 );
 
