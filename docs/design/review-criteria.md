@@ -9,7 +9,7 @@ VST® is a registered trademark of Steinberg Media Technologies GmbH.
 
 新しい版を掲載する前に確かめる項目の一覧です。本文書が審査の基準の正本です。MCP で作者に返す固定の文言 (英語) は、本サービスのリポジトリに項目の ID ごとに持ち、本文書の ID と一致することをテストで確かめる予定です。作者への返し方は [作者へのレビューの返し方](author-feedback.md) に記載します。
 
-本書は下書きです。段階 1 の検証 A1・A2 の結果と段階 2 の計画の承認を受けて確定します。配信プラグイン倉庫くんの [審査の基準](https://github.com/AllegroMoltoV/plugin-soko-kun/blob/main/docs/design/review-criteria.md) を引き継ぎ、OBS Studio に固有の項目をオーディオプラグインの項目に置き換えています。
+配信プラグイン倉庫くんの [審査の基準](https://github.com/AllegroMoltoV/plugin-soko-kun/blob/main/docs/design/review-criteria.md) を引き継ぎ、OBS Studio に固有の項目をオーディオプラグインの項目に置き換えています。
 
 ## 基準の出典
 
@@ -43,17 +43,18 @@ VST® is a registered trademark of Steinberg Media Technologies GmbH.
 
 ## 掲載の条件
 
-[ADR 0003](../decisions/0003-listing-conditions.md) と [ADR 0004](../decisions/0004-vst-trademark.md) の条件です。
+[ADR 0003](../decisions/0003-listing-conditions.md) と [ADR 0004](../decisions/0004-vst-trademark.md) の条件と、掲載の対象をオープンソースのプラグインに限る条件です。
 
 | ID | 内容 | 判定の観点 | 満たさないとき | 出典 |
 | --- | --- | --- | --- | --- |
 | `immutable-release` | リリースが不変 (immutable) である | GitHub のリリースの API の `immutable` が true | 版を掲載しない | obs-backgroundremoval Issue 775 |
-| `distribution-format` | 案内する配布物はアーカイブである | 配布物のファイル名の拡張子。インストーラー (`.exe`・`.msi`・`.pkg`・`.dmg`) は案内しない。アーカイブが無い版は掲載しない | アーカイブが無ければ版を掲載しない。インストーラーは案内しないだけ | ADR 0003、Qiita のコメント、obs-backgroundremoval Issue 832 |
-| `attestation` | すべてのアーカイブに、build provenance の証明がある | 証明の署名を検証し、ソースのリポジトリがこのリポジトリ、ソースの参照が `refs/tags/<タグ>`、ソースのコミットがタグのコミット、署名したワークフローが記録したリリースのワークフローに一致する | 版を掲載しない | ADR 0003、スライド 16 枚目、Qiita のコメント、obs-backgroundremoval Issue 775 |
-| `plugin-content` | アーカイブに、VST 3・CLAP・LV2・Audio Unit のいずれかのバンドルがある | 中身の検査で規格のバンドルを 1 つ以上検出する。判定の方法は検証 A1 で確定する | バンドルの無いアーカイブは案内しない。案内するアーカイブが無ければ版を掲載しない | ADR 0004 |
-| `no-vst2` | 配布物に VST 2 のプラグインが無い | 中身の検査で、アーカイブの中のバイナリに VST 2 のエントリーポイント (`VSTPluginMain`、`main`) のエクスポートを検出しない。判定の方法は検証 A1 で確定する | 版を掲載しない | ADR 0004 |
-| `macos-signing` | macOS 向けのバンドルに、Developer ID の署名と Apple の公証がある | 署名と公証の判定。判定の方法は検証 A2 で確定する | その配布物を案内しない。macOS の配布物だけの版は掲載しない | ADR 0003、obs-backgroundremoval Issue 971 |
-| `declaration` | 宣言ファイルがあれば、形が正しく、中身の検査の結果と食い違わない | [検査と同期](scanning.md) の「宣言ファイル」の規則 | 版を掲載しない | 配信プラグイン倉庫くんの宣言ファイル |
+| `distribution-format` | 案内する配布物は zip のアーカイブである | 配布物のファイル名の拡張子。インストーラー (`.exe`・`.msi`・`.pkg`・`.dmg`) と zip 以外のファイルは案内しない。アーカイブが無い版は掲載しない | アーカイブが無ければ版を掲載しない。インストーラーは案内しないだけ | ADR 0003、Qiita のコメント、obs-backgroundremoval Issue 832 |
+| `attestation` | リリースのすべての配布物に、build provenance の証明がある。案内しないインストーラーと zip 以外のファイルも含む | 証明の署名を検証し、ソースのリポジトリがこのリポジトリ、ソースの参照が `refs/tags/<タグ>`、ソースのコミットがタグのコミット、署名したワークフローが記録したリリースのワークフローに一致する | 版を掲載しない | ADR 0003、スライド 16 枚目、Qiita のコメント、obs-backgroundremoval Issue 775 |
+| `plugin-content` | アーカイブに、VST 3・CLAP・LV2・Audio Unit のいずれかのバンドルがある | 中身の検査で規格のバンドルを 1 つ以上検出する。規則は [検査と同期](scanning.md) の「中身の検査」に記載する | バンドルの無いアーカイブは案内しない。案内するアーカイブが無ければ版を掲載しない | ADR 0004 |
+| `no-vst2` | 配布物に VST 2 のプラグインが無い | 中身の検査で、`.vst` のバンドルと、VST 2 のエントリーポイント (`VSTPluginMain`、`main_macho`、共有ライブラリの `main`) をエクスポートするバイナリを検出しない。中を調べられないものを含む判定不能のアーカイブは合格にしない | 版を掲載しない | ADR 0004 |
+| `macos-signing` | macOS 向けのバンドルに、Developer ID の署名と Apple の公証がある | 署名と公証の判定。規則は [検査と同期](scanning.md) の「署名と公証の判定」に記載する | その配布物を案内しない。macOS の配布物だけの版は掲載しない | ADR 0003、obs-backgroundremoval Issue 971 |
+| `declaration` | 宣言ファイルがあれば、形が正しく、中身の検査の結果と食い違わない。宣言ファイルは任意 | [検査と同期](scanning.md) の「宣言ファイル」の規則 | 版を掲載しない | 配信プラグイン倉庫くんの宣言ファイル |
+| `open-source-license` | 版のタグの時点のライセンスが、OSI の承認か FSF の自由なライセンスの認定を持つ | GitHub の `/license?ref=<タグ>` の SPDX 識別子を、本サービスのリポジトリに固定して置く SPDX License List の JSON の `isOsiApproved` と `isFsfLibre` で判定する。LLM では判定しない。規則は [検査と同期](scanning.md) の「ライセンスの判定」に記載する | 版を掲載しない | 運営者の方針 |
 
 署名したワークフローは、初めて証明を検証できた版のものを記録します。以後の版で違うワークフローが署名していれば、証明の検証を失敗とします。
 
@@ -68,14 +69,17 @@ Windows の署名は条件にしません。日本の個人の作者が Windows 
 | ID | 内容 |
 | --- | --- |
 | `diff-workflow-changed` | `.github/workflows/`・`.github/actions/`・`.github/scripts/` 配下のファイルが変わった |
-| `diff-binary-added` | バイナリのファイルが追加または変更された |
+| `diff-binary-added` | バイナリのファイルが追加または変更された。削除は当たらない |
 | `diff-external-link` | このリポジトリ・本サービス・許可するホスト以外のホストへのリンクやダウンロードが追加された |
 | `diff-too-large` | 差分が 24,000 文字を超えた |
 | `owner-changed` | リポジトリの所有者が、登録したときから別のアカウントか組織に変わった。差分ではなく同期で判定し、管理者が版を承認するまで、変更のあとの新しい版に当てる |
+| `team-id-mismatch` | 版の macOS 向けのバンドルの署名の Team ID が、バンドルによって食い違う。差分ではなく署名と公証の判定の結果で判定する |
 
-`diff-external-link` で許可するホストは未決定です。配信プラグイン倉庫くんは `obsproject.com` を許可していました。本サービスの候補は、VST 3 の文書と VST Compatible ロゴの規則の `steinbergmedia.github.io`、CLAP の `cleveraudio.org`、LV2 の `lv2plug.in`、Audio Unit の `developer.apple.com` です。README で SDK の文書へリンクする作者が多いと考えて候補にしています。段階 2 の計画で決めます。
+`diff-external-link` で許可するホストは、VST 3 の文書と VST Compatible ロゴの規則の `steinbergmedia.github.io`、CLAP の `cleveraudio.org`、LV2 の `lv2plug.in`、Audio Unit の `developer.apple.com` です。README で SDK の文書へリンクする作者が多いと考えて許可しています。配信プラグイン倉庫くんが許可していた `obsproject.com` は許可しません。
 
-`diff-binary-added` は、オーディオプラグインでは音声のサンプル・インパルス応答・プリセットの追加でも当たります。正当な変更でも管理者の確認待ちになることを、作者向けの文言で知らせます。
+`diff-binary-added` は、差分の追加の側だけで判定し、削除の行を数えません。オーディオプラグインでは音声のサンプル・インパルス応答・プリセットの追加でも当たります。正当な変更でも管理者の確認待ちになることを、作者向けの文言で知らせます。
+
+`diff-too-large` に当たった版の扱いは未決定です。決まるまでは、ほかの乗っ取りの兆候と同じく管理者の確認待ちにします。案は、変更されたファイルの一覧から `.github/` 配下の変更・ビルドのスクリプトの変更・バイナリの追加・一覧を取り切れなかったことの 4 つの事実をルールで計算し、どれかに当たるときだけ確認待ちにするものです。LLM はこの事実と差分の先頭を受け取って指摘を足すだけにし、確認待ちを外す判断には使いません。
 
 初めて登録する版には、差分の判定を当てません。
 
@@ -83,7 +87,7 @@ Windows の署名は条件にしません。日本の個人の作者が Windows 
 
 `no-security-bypass` と `no-terminal-paste` は、README と導入の手順の文字列に正規表現を当てるルールで判定します。案内の書き方の型がはっきりしていて、判定を揺らさずに済み、Workers AI の無料枠も使わないためです。ほかの項目は LLM で判定します。
 
-LLM は、新しい版のタグの時点の `.github/workflows/`、ビルド系のファイル、README と、乗っ取りの兆候の判定に使った差分を読んで判定します。あわせて、GitHub が検出したリポジトリのライセンスを渡します。ビルド系のファイルの一覧は未決定で、[検査と同期](scanning.md) に候補を記載しています。
+LLM は、新しい版のタグの時点の `.github/workflows/`、ビルド系のファイル、README と、乗っ取りの兆候の判定に使った差分を読んで判定します。あわせて、GitHub が検出した版のタグの時点のライセンスを渡します。ビルド系のファイルの一覧は [検査と同期](scanning.md) に記載しています。
 
 | ID | 内容 | 判定の観点 | 重大とする場合 | 出典 |
 | --- | --- | --- | --- | --- |
@@ -120,7 +124,7 @@ LLM は、新しい版のタグの時点の `.github/workflows/`、ビルド系�
 | `diagnostic-logging` | 失敗の原因を特定できるログを出す | LLM | スライド 11 枚目 |
 | `security-policy` | SECURITY.md で報告の窓口と、対応する版を示す | ルール (将来) | live-backgroundremoval-lite の SECURITY.md |
 
-「ルール (将来)」の項目は、配布物の中身やリポジトリの設定を読む仕組みが要るため、初めは判定せず、作者にも返しません。`plugin-name` は、表示名とリポジトリ名に、単語としての `VST` が含まれるときに当たります。大文字と小文字は区別しません。判定の詳細は段階 2 の計画で決めます。
+「ルール (将来)」の項目は、配布物の中身やリポジトリの設定を読む仕組みが要るため、初めは判定せず、作者にも返しません。`plugin-name` は、表示名とリポジトリ名に、単語としての `VST` が含まれるときに当たります。大文字と小文字は区別しません。推奨のため、当たっても掲載は止めません。
 
 配信プラグイン倉庫くんの推奨のうち、次のものは外しています。
 
@@ -145,8 +149,4 @@ LLM は、新しい版のタグの時点の `.github/workflows/`、ビルド系�
 
 | 事項 | 節 | 決める時点 |
 | --- | --- | --- |
-| `plugin-content` と `no-vst2` の判定の方法 | 掲載の条件 | 検証 A1 |
-| `macos-signing` の判定の方法 | 掲載の条件 | 検証 A2 |
-| `diff-external-link` で許可するホスト | 乗っ取りの兆候 | 段階 2 の計画 |
-| LLM に渡すビルド系のファイルの一覧 | 審査の基準 | 段階 2 の計画 |
-| `plugin-name` の判定の詳細 | 推奨 | 段階 2 の計画 |
+| `diff-too-large` に当たった版の扱い。決まるまでは管理者の確認待ち | 乗っ取りの兆候 | 運営者の判断 |

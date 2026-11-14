@@ -9,7 +9,7 @@ VST® is a registered trademark of Steinberg Media Technologies GmbH.
 
 プラグインの作者の LLM へ、新しい版の検査とレビューの結果を MCP で返す仕組みの仕様です。審査の項目は [審査の基準](review-criteria.md) に記載します。MCP のツールの説明と応答は英語に固定します。
 
-本書は下書きです。段階 1 の検証 A1・A2 の結果と段階 2 の計画の承認を受けて確定します。仕組みは配信プラグイン倉庫くんの [作者へのレビューの返し方](https://github.com/AllegroMoltoV/plugin-soko-kun/blob/main/docs/design/author-feedback.md) と同じで、検査の項目と理由コードを本サービスの掲載の条件に合わせています。
+仕組みは配信プラグイン倉庫くんの [作者へのレビューの返し方](https://github.com/AllegroMoltoV/plugin-soko-kun/blob/main/docs/design/author-feedback.md) と同じで、検査の項目と理由コードを本サービスの掲載の条件に合わせています。
 
 ## 前提
 
@@ -54,10 +54,10 @@ sequenceDiagram
 
 作者の LLM に `list_my_plugins` を呼ばせるきっかけは、次の 2 つです。
 
-1. MCP の initialize の instructions に、次の趣旨を書く: 「プラグインの作者がリリースを出したら、時間をおいて `list_my_plugins` で掲載の状態を確かめ、指摘があれば作者に伝えて直し方を提案する」。時間の目安は、検証 A2 で macOS のランナーの処理時間を測ってから決める
+1. MCP の initialize の instructions に、次の趣旨を書く: 「プラグインの作者がリリースを出したら、時間をおいて `list_my_plugins` で掲載の状態を確かめ、指摘があれば作者に伝えて直し方を提案する」。時間の目安は、シードのプラグインの最初の掲載で結果が出るまでの時間を測ってから記載する
 2. 作者向けのスキルのリリースの手順の最後に、同じ確認を入れる。instructions と登録の方法のページ (`/submit`) では、このスキルの導入の方法を案内する
 
-作者向けのスキルは、配信プラグイン倉庫くんの streaming-plugin-dev を雛形にします。証明付きのリリースと不変のリリースの章は引き継ぎ、雛形・検証・導入先の章をオーディオプラグイン向けに作り直します。スキルの名前と構成は未決定で、段階 2 の計画で決めます。シードのプラグイン simple-pitchshift-audio のリリースで、スキルの手順を確かめる予定です。
+作者向けのスキルは、配信プラグイン倉庫くんの streaming-plugin-dev を雛形にします。証明付きのリリースと不変のリリースの章は引き継ぎ、雛形・検証・導入先の章をオーディオプラグイン向けに作り直します。スキルは登録サービスの実装の範囲に含めず、名前と構成は登録サービスの公開の後に計画します。シードのプラグイン simple-pitchshift-audio のリリースで、スキルの手順を確かめる予定です。
 
 結果がまだ出ていない版には、`state: "checking"` と、確かめ直す目安の時刻を返します。
 
@@ -76,16 +76,16 @@ sequenceDiagram
 
 ### 応答の構造
 
-次の例は、Windows の zip と macOS の zip を出した版で、macOS の zip に公証が無い場合です。Windows の zip は案内し、macOS の zip は案内しません。
+次の例は、架空のプラグイン example-delay が Windows の zip と macOS の zip を出した版で、macOS の zip に公証が無い場合です。Windows の zip は案内し、macOS の zip は案内しません。
 
 ```json
 {
   "plugins": [
     {
-      "id": "allegromoltov/simple-pitchshift-audio",
-      "name": "Simple Pitch Shift",
-      "githubUrl": "https://github.com/AllegroMoltoV/simple-pitchshift-audio",
-      "detailUrl": "https://audio-soko-kun.allegromoltov.jp/plugins/allegromoltov/simple-pitchshift-audio",
+      "id": "example-owner/example-delay",
+      "name": "Example Delay",
+      "githubUrl": "https://github.com/example-owner/example-delay",
+      "detailUrl": "https://audio-soko-kun.allegromoltov.jp/plugins/example-owner/example-delay",
       "publicStatus": "listed",
       "listedVersion": "v1.1.0",
       "versions": [
@@ -97,18 +97,18 @@ sequenceDiagram
           "blockers": [],
           "assets": [
             {
-              "name": "simple-pitchshift-1.1.0-windows-x64.zip",
+              "name": "example-delay-1.1.0-windows-x64.zip",
               "guided": true,
               "formats": ["vst3", "clap"],
               "os": ["windows"],
-              "arches": ["x64"]
+              "arches": ["x86_64"]
             },
             {
-              "name": "simple-pitchshift-1.1.0-macos-universal.zip",
+              "name": "example-delay-1.1.0-macos.zip",
               "guided": false,
               "formats": ["vst3", "clap"],
               "os": ["macos"],
-              "arches": ["universal"],
+              "arches": ["x86_64", "arm64"],
               "notGuidedBecause": {
                 "code": "macos_not_notarized",
                 "message": "The macOS bundles are signed with a Developer ID but not notarized.",
@@ -123,6 +123,7 @@ sequenceDiagram
             "attestation": { "result": "passed" },
             "pluginContent": { "result": "passed" },
             "noVst2": { "result": "passed" },
+            "openSourceLicense": { "result": "passed", "spdx": "MIT" },
             "macosSigning": { "result": "failed" },
             "declaration": { "result": "missing" },
             "malwarebazaar": { "result": "passed" },
@@ -144,7 +145,7 @@ sequenceDiagram
                 "evidence": [{ "file": ".github/workflows/build.yaml", "lines": "1-90" }],
                 "explanation": "The workflow builds the plugin but runs no validator on the built bundles.",
                 "fix": "Add a CI step that runs pluginval or clap-validator on the built plugin.",
-                "references": ["<本サービスのリポジトリ>/blob/main/docs/design/review-criteria.md#審査の基準"]
+                "references": ["https://github.com/AllegroMoltoV/audio-plugin-soko-kun/blob/main/docs/design/review-criteria.md#審査の基準"]
               }
             ]
           }
@@ -159,7 +160,7 @@ sequenceDiagram
 }
 ```
 
-応答の項目名は案です。macOS の判定の理由コード (`macos_not_notarized` など) の一覧は、検証 A2 で確定します。
+応答の項目名は、配信プラグイン倉庫くんの `list_my_plugins` の項目名を引き継ぎ、オーディオで足す検査の項目を加えたものです。
 
 ### 項目の意味
 
@@ -186,13 +187,19 @@ sequenceDiagram
 | --- | --- | --- | --- |
 | `no_archive` | 版 | アーカイブの配布物が無い | `author` |
 | `no_plugin_detected` | 版 | どのアーカイブにも規格のバンドルを検出しなかった | `author` |
-| `vst2_detected` | 版 | いずれかのアーカイブに VST 2 のエントリーポイントを検出した。ファイルのパスを添える | `author` |
+| `vst2_detected` | 版 | いずれかのアーカイブに VST 2 のバンドルかエントリーポイントを検出した。ファイルのパスを添える | `author` |
+| `content_undetermined` | 版 | いずれかのアーカイブに、インストーラーや入れ子のアーカイブのように中を調べられないものがある。VST 2 を含まないことを確かめられない | `author` |
+| `no_license` | 版 | 版のタグの時点で、GitHub がライセンスのファイルを見つけない。リポジトリの直下に LICENSE を置くよう返す | `author` |
+| `license_unrecognized` | 版 | GitHub がライセンスを識別できない (`NOASSERTION`)。LICENSE に標準の本文だけを置き、前置きや第三者の表示を別のファイルへ移すよう返す | `author` |
+| `license_not_open` | 版 | ライセンスが OSI の承認と FSF の自由なライセンスの認定のどちらも持たない | `author` |
 | `declaration_mismatch` | 版 | 宣言ファイルの宣言と中身の検査の結果が食い違う | `author` |
 | `content_check_pending` | 版 | 中身の検査が終わっていない | `system` |
 | `macos_check_pending` | 版 | macOS の署名と公証の判定が終わっていない | `system` |
+| `macos_team_id_mismatch` | 版 | macOS 向けのバンドルの署名の Team ID が、バンドルによって食い違う | `admin` |
+| `check_retries_exhausted` | 版 | 証明の検証・中身の検査・macOS の判定のいずれかが 3 回続けて失敗した | `admin` |
 | `installer_not_guided` | 配布物 | インストーラーのため案内しない | `author` |
 | `no_plugin_in_archive` | 配布物 | このアーカイブに規格のバンドルを検出しなかった。ソースコードのアーカイブでは対応は要らない | `author` |
-| `macos_not_signed`・`macos_not_notarized` など | 配布物 | macOS の署名と公証の判定に通らなかった。一覧は検証 A2 で確定する | `author` |
+| `macos_not_signed`・`macos_adhoc`・`macos_not_developer_id`・`macos_not_notarized` | 配布物 | macOS の署名と公証の判定に通らなかった。順に、署名が無い、アドホックの署名だけがある、Developer ID 以外の証明書で署名されている、公証が無い | `author` |
 | `not_declared` | 配布物 | 宣言ファイルがあり、この配布物が宣言に含まれない | `author` |
 
 配信プラグイン倉庫くんの `not_obs_plugin` と `installer_not_allowed` は使いません。
@@ -224,14 +231,14 @@ sequenceDiagram
   "mode": "check",
   "conditions": [
     { "code": "immutable_release", "result": "failed", "message": "Immutable releases are not enabled.", "fix": "Enable immutable releases in the repository settings, then publish a new release." },
-    { "code": "distribution_format", "result": "passed", "installers": ["simple-pitchshift-1.0.0-setup.exe"], "message": "Installers are not guided. Only archives are guided." },
-    { "code": "attestation", "result": "failed", "message": "Archives have no build provenance attestation.", "fix": "Add actions/attest-build-provenance to the release job." }
+    { "code": "distribution_format", "result": "passed", "installers": ["example-delay-1.0.0-setup.exe"], "message": "Installers are not guided. Only archives are guided." },
+    { "code": "attestation", "result": "failed", "message": "Release assets have no build provenance attestation. Installers need attestations too.", "fix": "Add actions/attest-build-provenance to the release job for every release asset." }
   ],
   "review": { "status": "done", "summary": { "serious": 0, "notMet": 2, "recommendations": 3 }, "findings": [] }
 }
 ```
 
-条件は最新のリリースで判定し、レビューは既定のブランチの最新のコミットのファイルで行います。中身の検査と macOS の署名と公証の判定は、確認のモードでは行えません。どちらも GitHub Actions で配布物を取得して行うためです。確認のモードでこれらの結果を返す方法は未決定で、段階 2 の計画で決めます。
+条件は最新のリリースで判定し、レビューは既定のブランチの最新のコミットのファイルで行います。中身の検査と macOS の署名と公証の判定は、確認のモードでは行わず、それぞれの条件の説明だけを返します。どちらも GitHub Actions で配布物を取得して行うためです。また、確認のモードを使う公開前のリリースには、まだ配布物がありません。
 
 Workers AI の無料枠の不足か混雑でレビューできなかったときは、`review` の `status` を `unavailable` にし、理由と、無料枠の不足なら再開の時刻 `resumesAt` を返します。この要求は回数に数えません。確認のモードは 1 人あたり 1 日 5 回までにします。
 
@@ -243,8 +250,4 @@ Workers AI の無料枠の不足か混雑でレビューできなかったとき
 
 | 事項 | 節 | 決める時点 |
 | --- | --- | --- |
-| `list_my_plugins` を呼ぶまでの時間の目安と、`resumesAt` の目安 | 経路 | 検証 A2 |
-| 作者向けのスキルの名前と構成 | 経路 | 段階 2 の計画 |
-| 応答の項目名 | 応答の構造 | 段階 2 の計画 |
-| macOS の判定の理由コードの一覧 | 理由コード | 検証 A2 |
-| 確認のモードで中身の検査と macOS の判定の結果を返す方法 | submit_plugin の確認のモード | 段階 2 の計画 |
+| 作者向けのスキルの名前と構成 | 経路 | 登録サービスの公開の後 |

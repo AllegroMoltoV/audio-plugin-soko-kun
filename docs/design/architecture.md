@@ -9,15 +9,13 @@ VST® is a registered trademark of Steinberg Media Technologies GmbH.
 
 音のプラグイン倉庫くんの構成要素と、要求の流れの仕様です。各要素の詳細は、本文中で示す設計文書に記載します。
 
-本書は下書きです。段階 1 の検証 A1・A2 の結果と段階 2 の計画の承認を受けて確定します。
-
 ## 全体像
 
 本サービスは、GitHub Releases で公開されたオープンソースのオーディオプラグインを検査して掲載する、非公式のレジストリです。対象の規格は VST 3・CLAP・LV2・Audio Unit です。配布物は預からず、作者が公開したファイルへ案内します。配信プラグイン倉庫くんの派生として作り、OBS に依存しない設計と判断を引き継ぎます ([ADR 0002](../decisions/0002-independent-service-derived-from-soko-kun.md))。
 
 本サービスは、Cloudflare Workers の無料プラン上の 1 つの Worker で動作します。Worker は、MCP エンドポイント・OAuth の認可サーバー・Web カタログ・定期処理・配布物の検証の受け口を兼ねます。永続データは D1 に置き、OAuth の状態は KV に置きます。Workers AI は、プラグインの概要の機械翻訳と、新しい版の開発の実践の LLM によるレビューに使います。
 
-配布物を取得して行う処理は、Worker の外で行います。対象は、証明の署名の検証・中身の検査・macOS の署名と公証の判定の 3 つです。Worker の CPU 時間は 1 回の起動あたり 10 ms で、配布物の取得と展開は収まりません。そのため、本サービスのリポジトリの GitHub Actions のワークフロー `verify.yaml` が配布物を取得して処理し、結果を Worker へ送ります。配信プラグイン倉庫くんの `verify.yaml` は、証明の検証のために配布物を最大 1 GiB まで取得しています。本サービスでは、同じジョブで中身の検査も行います。macOS の署名と公証の判定は、macOS のランナーの別のジョブで行う方針です。具体的な判定の方法は、中身の検査が検証 A1、macOS の判定が検証 A2 で確定します。
+配布物を取得して行う処理は、Worker の外で行います。対象は、証明の署名の検証・中身の検査・macOS の署名と公証の判定の 3 つです。Worker の CPU 時間は 1 回の起動あたり 10 ms で、配布物の取得と展開は収まりません。そのため、本サービスのリポジトリの GitHub Actions のワークフロー `verify.yaml` が配布物を取得して証明の署名を検証し、アーカイブの中身を検査して、結果を Worker へ送ります。配布物は 1 件ずつ最大 2 GiB まで取得し、処理を終えるたびに削除します。macOS の署名と公証の判定は、macOS のランナーで動作する別のワークフロー `macos-verify.yaml` が行います。判定の方法は [検査と同期](scanning.md) に記載します。
 
 単一の Worker にまとめるのは、構成要素と運用の手間を最小にするためです。MCP と Web は共通のドメインロジックを使います。そのため、検索の条件や掲載状態の算出が経路によって食い違うことはありません。
 
@@ -28,7 +26,8 @@ flowchart LR
   agent[MCP クライアント] -->|/mcp| router
   browser[ブラウザー] -->|/ と /plugins/...| router
   cron[Cron Trigger 15 分ごと] --> scheduled
-  verify[GitHub Actions verify.yaml] -->|/internal/... OIDC のトークン付き| router
+  verify[GitHub Actions verify.yaml] -->|/internal/checks/... OIDC のトークン付き| router
+  macos[GitHub Actions macos-verify.yaml] -->|/internal/macos-checks/... OIDC のトークン付き| router
   subgraph worker[Worker]
     router[ルーター]
     router -->|未認証の要求| mcpPublic[MCP ハンドラ 認証なし]
@@ -54,6 +53,8 @@ flowchart LR
   domain -->|digest の照会| scanners[MalwareBazaar]
   domain -->|翻訳と LLM のレビュー| ai[Workers AI]
   verify -->|配布物と証明の取得| ghApi
+  verify -->|workflow_run| macos
+  macos -->|配布物の取得| ghApi
 ```
 
 ## 要求の流れ
@@ -78,15 +79,15 @@ Cron Trigger は 15 分ごとに Worker の定期処理を起動します。定�
 
 ### 配布物の検証
 
-定期処理は、毎回の最後に、検証を待つ配布物の有無を D1 で確かめます。あれば `verify.yaml` を workflow_dispatch で起動します。ワークフローは、GitHub Actions の OIDC のトークンを添えて Worker から検証を待つ配布物の一覧を受け取ります。配布物を取得して証明の署名を検証し、中身を検査し、結果を同じくトークンを添えて Worker へ送ります。macOS 向けのバンドルを含む配布物は、macOS のランナーのジョブが署名と公証を判定し、結果を同じ方法で送ります。
+定期処理は、毎回の最後に、検証を待つ配布物の有無を D1 で確かめます。あれば `verify.yaml` を workflow_dispatch で起動します。ワークフローは、GitHub Actions の OIDC のトークンを添えて Worker から検証を待つ配布物の一覧を受け取ります。配布物を取得して証明の署名を検証し、アーカイブの中身を検査し、結果を同じくトークンを添えて Worker へ送ります。`verify.yaml` の完了の後、`macos-verify.yaml` が workflow_run で起動し、macOS 向けのバンドルを含むアーカイブの署名と公証を判定して、結果を同じ方法で送ります。
 
-Worker は、GitHub が公開する鍵でトークンの署名とクレームを確かめてから一覧を返し、結果を D1 に書きます。受け付けるのは本サービスのリポジトリの main で動作する `verify.yaml` のトークンだけです。経路とトークンの条件は [検査と同期](scanning.md) に記載します。
+Worker は、GitHub が公開する鍵でトークンの署名とクレームを確かめてから一覧を返し、結果を D1 に書きます。受け付けるのは、本サービスのリポジトリの main で動作するワークフローのトークンだけです。証明と中身の検査の経路は `verify.yaml` のトークンだけを、macOS の判定の経路は `macos-verify.yaml` のトークンだけを受け付けます。経路とトークンの条件は [検査と同期](scanning.md) に記載します。
 
 ## 外部データの扱い
 
 GitHub と配布物から取得した文字列は、外部データとして扱います。アーカイブの中のファイル名、`Info.plist`・`manifest.ttl`・`moduleinfo.json` の内容も外部データです。MCP の応答では外部データを専用のフィールドに入れ、ツールの説明で指示として扱わないことを明記します。Web では、テンプレートの自動エスケープで無害化します。Workers AI に渡すリポジトリの内容も外部データであり、指示には中の指示に従わないことを書きます。
 
-`verify.yaml` は、取得した配布物を展開して読むだけで、中のコードを実行しません。展開では、絶対パス・親のフォルダーを指すパス・リンクを含む項目を書き出さず、展開後の合計の大きさと項目の数に上限を設けます。上限の値は未決定で、検証 A1 で標本の大きさを測ってから決めます。
+`verify.yaml` と `macos-verify.yaml` は、取得した配布物を読むだけで、中のコードを実行しません。`verify.yaml` は、アーカイブをファイルへ展開せず、メモリ上で読みます。絶対パス・親のフォルダーを指すパス・シンボリックリンクの項目は読みません。項目の数と展開後の大きさには上限を設けます。上限の値は [検査と同期](scanning.md) に記載します。`macos-verify.yaml` は、署名と公証の判定のためにバンドルを `ditto` でファイルへ展開します。
 
 ドメインロジックは、外部への要求を `api.github.com`・`mb-api.abuse.ch`・`token.actions.githubusercontent.com` の固定のホストにだけ送ります。利用者が入力した URL からは owner と repo だけを取り出し、その URL へは要求を送りません。これにより、SSRF を防ぎます。
 
@@ -113,14 +114,14 @@ GitHub と配布物から取得した文字列は、外部データとして扱�
 | 証明の署名の検証を GitHub Actions で行う | [ADR 0014](https://github.com/AllegroMoltoV/plugin-soko-kun/blob/main/docs/decisions/0014-attestation-verification-in-actions.md) |
 | リポジトリの名前の変更と移管を ID で追う | [ADR 0015](https://github.com/AllegroMoltoV/plugin-soko-kun/blob/main/docs/decisions/0015-repository-rename-and-transfer.md) |
 
-派生元の ADR 0013 のうち、署名を条件にしない判断は、macOS についてだけ本サービスの [ADR 0003](../decisions/0003-listing-conditions.md) で改めています。exe と msi を含むリリースを掲載しない判断は、同じ ADR でインストーラーを案内しない形に改めています。
+派生元の ADR 0013 のうち、署名を条件にしない判断は、macOS についてだけ本サービスの [ADR 0003](../decisions/0003-listing-conditions.md) で改めています。exe と msi を含むリリースを掲載しない判断は、同じ ADR でインストーラーを案内しない形に改めています。案内しないインストーラーにも、証明は求めます。
 
 ## 未決定の事項
 
 | 事項 | 決める時点 |
 | --- | --- |
-| 中身の検査の判定の方法と、展開の上限の値 | 検証 A1 |
-| macOS の署名と公証の判定のランナー・コマンド・合格の条件 | 検証 A2 |
+| 展開の上限・ジョブの時間の上限・1 回に処理する件数の確定。現在は仮の値 | 大きな配布物の計測の後。[検査と同期](scanning.md) を参照 |
+| `macos-verify.yaml` の `ditto` による展開の安全の確かめ方 | macOS の追加の検証の後。[検査と同期](scanning.md) を参照 |
 
 ## 関連文書
 

@@ -23,7 +23,7 @@ VST® is a registered trademark of Steinberg Media Technologies GmbH.
 | 画面の一覧と各画面の要素、VST の語の表示 | [画面構成](design/ui.md) | リファレンス |
 | 自動テストで守るラインとテストシナリオ | [テストの設計](design/testing.md) | リファレンス |
 
-用語集と設計文書は下書きです。段階 1 の検証 A1・A2 の結果と段階 2 の計画の承認を受けて確定します。
+残りの論点は、設計文書の「未決定の事項」の節に、決める時点とあわせて記載しています。
 
 ## 設計判断の記録
 

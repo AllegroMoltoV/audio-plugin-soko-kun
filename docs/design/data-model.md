@@ -9,7 +9,7 @@ VST® is a registered trademark of Steinberg Media Technologies GmbH.
 
 D1 のテーブルと、掲載状態の算出規則の仕様です。スキーマの正は、本サービスのリポジトリの `migrations/` 配下の SQL ファイルになる予定です。
 
-本書は下書きです。段階 1 の検証 A1・A2 の結果と段階 2 の計画の承認を受けて確定します。配信プラグイン倉庫くんのテーブルを引き継ぎ、オーディオプラグインの配布物の判定に要る列と表を足しています。本サービスは新しく作るため、配信プラグイン倉庫くんの `legacy` の列のような移行のための列は持ちません。
+配信プラグイン倉庫くんのテーブルを引き継ぎ、オーディオプラグインの配布物の判定に要る列と表を足しています。本サービスは新しく作るため、配信プラグイン倉庫くんの `legacy` の列のような移行のための列は持ちません。
 
 ## テーブルの一覧
 
@@ -45,8 +45,8 @@ OAuth のクライアント・認可・トークンの情報は D1 ではなく 
 | `owner` | TEXT | NOT NULL | GitHub のリポジトリの所有者名 |
 | `repo` | TEXT | NOT NULL | GitHub のリポジトリ名 |
 | `summary` | TEXT | | 概要。外部データ |
-| `license_spdx` | TEXT | NOT NULL | ライセンスの SPDX 識別子 |
-| `category` | TEXT | NOT NULL、既定値 `other` | カテゴリ。値の一覧は未決定。案は [検査と同期](scanning.md) に記載する |
+| `license_spdx` | TEXT | NOT NULL | 登録のときに、最新のリリースのタグの時点で判定したライセンスの SPDX 識別子。画面と MCP に示すライセンスは、掲載対象バージョンの `release_checks` の `license_spdx` を使う |
+| `category` | TEXT | NOT NULL、既定値 `utility` | カテゴリ。`instrument`・`effect`・`analyzer`・`midi`・`utility` のいずれか。推定の規則は [検査と同期](scanning.md) に記載する |
 | `admin_suspended` | INTEGER | NOT NULL、既定値 0 | 1 のとき管理停止 |
 | `suspended_reason` | TEXT | | 管理停止の理由 |
 | `removed` | INTEGER | NOT NULL、既定値 0 | 1 のとき、GitHub でリポジトリが削除または非公開になった |
@@ -78,7 +78,7 @@ OAuth のクライアント・認可・トークンの情報は D1 ではなく 
 
 索引: `releases_plugin (plugin_id, published_at)`
 
-配信プラグイン倉庫くんの `obs_build_version` は持ちません。ビルドに使った SDK の版の記録と表示の要否は未決定です。VST 3 の `moduleinfo.json` に SDK の版が含まれることがありますが、clap-wrapper の出力には `moduleinfo.json` が含まれません。検証 A1 の結果を見て、段階 2 の計画で決めます。
+配信プラグイン倉庫くんの `obs_build_version` は持ちません。ビルドに使った SDK の版も記録しません。配布物から SDK の版を読み取る方法が確かめられていないためです。
 
 ## assets
 
@@ -158,6 +158,8 @@ OAuth のクライアント・認可・トークンの情報は D1 ではなく 
 | `base_release_id` | INTEGER | | 差分の起点にした掲載中のリリース。初めて登録した版では NULL |
 | `diff_state` | TEXT | NOT NULL、既定値 `pending` | `pending`・`passed`・`held`・`skipped`・`error` のいずれか。`skipped` は起点が無いとき |
 | `diff_hits` | TEXT | | 当たった乗っ取りの兆候の ID とファイルの JSON |
+| `license_state` | TEXT | NOT NULL、既定値 `pending` | 版のタグの時点のライセンスの判定。`pending`・`passed`・`no_license`・`license_unrecognized`・`license_not_open` のいずれか。規則は [検査と同期](scanning.md) の「ライセンスの判定」に記載する |
+| `license_spdx` | TEXT | | 版のタグの時点で GitHub が検出したライセンスの SPDX 識別子。ライセンスが無いときは NULL |
 | `config_state` | TEXT | NOT NULL、既定値 `pending` | 宣言ファイルの判定。`pending`・`ok`・`missing`・`invalid`・`no_declared_assets`・`mismatch` のいずれか。`mismatch` は、宣言と中身の検査の結果が食い違うとき |
 | `review_state` | TEXT | NOT NULL、既定値 `pending` | `pending`・`done`・`failed` のいずれか |
 | `review_attempts` | INTEGER | NOT NULL、既定値 0 | レビューを試みた回数。Workers AI の無料枠の不足と混雑は数えない |
@@ -167,7 +169,7 @@ OAuth のクライアント・認可・トークンの情報は D1 ではなく 
 | `reviewed_at` | TEXT | | レビューした日時 |
 | `admin_approved_at` | TEXT | | 管理者が確認待ちを承認した日時。NULL は未承認 |
 
-宣言ファイルが無い場合の扱いは未決定です。中身の検査で規格・OS・アーキテクチャをすべて判定できれば、宣言ファイルは任意にし、`missing` を通します。判定できない項目が残れば、宣言ファイルを必須にし、`missing` を掲載の条件の不合格にします。検証 A1 の結果を受けて、段階 2 の計画で決めます。
+宣言ファイルは任意です。`missing` は掲載を止めません。規格・OS・アーキテクチャは中身の検査の検出を正とするためです。
 
 ## attestation_checks
 
@@ -180,20 +182,20 @@ OAuth のクライアント・認可・トークンの情報は D1 ではなく 
 | `attempts` | INTEGER | NOT NULL、既定値 0 | 検証を試みた回数 |
 | `checked_at` | TEXT | | 最後に検証した日時 |
 
-行を作るのは `kind` が `archive` の配布物だけです。インストーラーと `other` の配布物は案内しないため、証明を求めません ([ADR 0003](../decisions/0003-listing-conditions.md) の「案内するすべての配布物」)。
+行は、`kind` にかかわらず、リリースのすべての配布物について作ります。案内しないインストーラーと `other` の配布物にも証明を求めます ([ADR 0003](../decisions/0003-listing-conditions.md))。
 
 ## content_checks
 
-中身の検査の結果を保存します。行を作るのは `kind` が `archive` の配布物だけです。判定の方法は [検査と同期](scanning.md) に記載し、検証 A1 で確定します。
+中身の検査の結果を保存します。行を作るのは `kind` が `archive` の配布物だけです。判定の規則は [検査と同期](scanning.md) に記載します。
 
 | 列 | 型 | 制約 | 内容 |
 | --- | --- | --- | --- |
 | `github_asset_id` | INTEGER | 主キー、`assets.github_asset_id` を参照、親の削除で連鎖削除 | 配布物の ID |
-| `result` | TEXT | NOT NULL、既定値 `pending` | `pending`・`passed`・`no_plugin`・`vst2_detected`・`error` のいずれか |
+| `result` | TEXT | NOT NULL、既定値 `pending` | `pending`・`passed`・`no_plugin`・`vst2_detected`・`undetermined`・`error` のいずれか |
 | `bundles` | TEXT | | 検出したバンドルの JSON。バンドルごとに、アーカイブの中のパス・規格・OS・アーキテクチャの配列を持つ。パスは外部データ |
 | `formats` | TEXT | | 検出した規格の JSON の配列。`vst3`・`clap`・`lv2`・`au` のいずれか |
 | `os` | TEXT | | 検出した OS の JSON の配列。`windows`・`macos`・`linux` のいずれか |
-| `arches` | TEXT | | 検出したアーキテクチャの JSON の配列 |
+| `arches` | TEXT | | 検出したアーキテクチャの JSON の配列。`x86_64`・`x86`・`arm64` のいずれか。fat binary はスライスごとの値をすべて含める |
 | `vst2_files` | TEXT | | VST 2 のエントリーポイントを検出したバイナリのパスの JSON の配列。外部データ |
 | `reason` | TEXT | | `error` の理由のコード |
 | `attempts` | INTEGER | NOT NULL、既定値 0 | 検査を試みた回数 |
@@ -204,19 +206,20 @@ OAuth のクライアント・認可・トークンの情報は D1 ではなく 
 | `pending` | 検査していない |
 | `passed` | 規格のバンドルを 1 つ以上検出し、VST 2 のエントリーポイントを検出しなかった |
 | `no_plugin` | 規格のバンドルを検出しなかった。ソースコードや文書だけのアーカイブが当たる |
-| `vst2_detected` | いずれかのバイナリに VST 2 のエントリーポイントを検出した |
+| `vst2_detected` | `.vst` のバンドルか、VST 2 のエントリーポイントをエクスポートするバイナリを検出した |
+| `undetermined` | アーカイブの中のインストーラーや入れ子のアーカイブのように、中を調べられないものを含む。VST 2 を含まないことを確かめられない |
 | `error` | 取得・展開・解析に失敗した。展開の上限を超えた場合を含む |
 
 ## macos_signing_checks
 
-署名と公証の判定の結果を保存します。行を作るのは、`content_checks` の `os` に `macos` を含む配布物だけです。判定の方法は検証 A2 で確定します。
+署名と公証の判定の結果を保存します。行を作るのは、`content_checks` の `os` に `macos` を含む配布物だけです。判定の規則は [検査と同期](scanning.md) に記載します。
 
 | 列 | 型 | 制約 | 内容 |
 | --- | --- | --- | --- |
 | `github_asset_id` | INTEGER | 主キー、`assets.github_asset_id` を参照、親の削除で連鎖削除 | 配布物の ID |
 | `result` | TEXT | NOT NULL、既定値 `pending` | `pending`・`passed`・`failed`・`error` のいずれか。`passed` は、macOS 向けのすべてのバンドルに Developer ID の署名と Apple の公証があるとき |
-| `team_id` | TEXT | | 署名の Team ID。複数のバンドルで食い違う場合の扱いは未決定で、検証 A2 で決める |
-| `reason` | TEXT | | `failed` と `error` の理由のコード。値の一覧は検証 A2 で確定する |
+| `team_id` | TEXT | | 署名の Team ID。複数のバンドルで食い違う場合は、すべての値を JSON の配列で記録する |
+| `reason` | TEXT | | `failed` と `error` の理由のコード。`not_signed`・`adhoc`・`not_developer_id`・`not_notarized`・`check_error` のいずれか |
 | `attempts` | INTEGER | NOT NULL、既定値 0 | 判定を試みた回数 |
 | `checked_at` | TEXT | | 最後に判定した日時 |
 
@@ -290,7 +293,7 @@ OAuth のクライアント・認可・トークンの情報は D1 ではなく 
 - `content_checks` の `os` に `macos` を含む場合は、`macos_signing_checks` の結果が `passed` である。
 - 宣言ファイルの配布物の宣言がある場合は、その宣言に含まれる。
 
-macOS の判定に通らない配布物は、案内しないだけで、版の掲載を止めません。同じ版の Windows や Linux の配布物は、条件を満たせば案内します。macOS の配布物だけを持つ版は、案内する配布物が無くなるため掲載しません。インストーラーと案内しない配布物は、画面と MCP のダウンロード先に出しません。
+`undetermined` のアーカイブは、`passed` でないため案内しません。macOS の判定に通らない配布物は、案内しないだけで、版の掲載を止めません。同じ版の Windows や Linux の配布物は、条件を満たせば案内します。macOS の配布物だけを持つ版は、案内する配布物が無くなるため掲載しません。インストーラーと案内しない配布物は、画面と MCP のダウンロード先に出しません。
 
 ### 検査済みのリリース
 
@@ -298,20 +301,24 @@ macOS の判定に通らない配布物は、案内しないだけで、版の�
 
 - 案内する配布物を 1 件以上持つ。
 - すべての配布物について、MalwareBazaar の結果が確定である。インストーラーと案内しない配布物も含む。
-- すべてのアーカイブの `content_checks` の結果が `pending` と `error` でない。また、`vst2_detected` のアーカイブが無い。
+- すべてのアーカイブの `content_checks` の結果が `pending` と `error` でない。また、`vst2_detected` と `undetermined` のアーカイブが無い。
 - macOS 向けのバンドルを含むすべてのアーカイブの `macos_signing_checks` の結果が `pending` と `error` でない。
-- すべてのアーカイブの `attestation_checks` の結果が `passed` である。案内しないアーカイブも含む。
+- すべての配布物の `attestation_checks` の結果が `passed` である。インストーラーと案内しない配布物も含む。
+- `license_state` が `passed` である。
 - `release_suspensions` に記録されていない。
 - `immutable` が 1 である。
-- `config_state` が `ok` か `missing` である。`missing` を通す扱いは未決定で、上の `release_checks` に記載する。
+- `config_state` が `ok` か `missing` である。
 - `diff_state` が `passed` か `skipped` である。または `admin_approved_at` がある。
 - `review_state` が `done` で `review_serious` が 0 である。または `admin_approved_at` がある。
+- `macos_signing_checks` の `team_id` が、版のすべてのアーカイブで 1 つの値にそろう。または `admin_approved_at` がある。
 
-すべてのアーカイブの判定を終えてから掲載するのは、判定の途中で案内する配布物の組が変わることを避けるためです。`error` の判定は、試行の上限に達した後の扱いを未決定とします。上限と扱いは、段階 2 の計画で決めます。
+すべてのアーカイブの判定を終えてから掲載するのは、判定の途中で案内する配布物の組が変わることを避けるためです。証明の検証・中身の検査・macOS の判定の `error` は、3 回まで試行します。3 回目も `error` の配布物は自動ではやり直さず、その版は管理者が原因を確かめるまで掲載しません。`admin_approved_at` だけでは、`error` の配布物を含む版を掲載しません。
 
-証明の無いアーカイブ、あるいは証明の検証に失敗したアーカイブを 1 件でも含む版は、ほかのアーカイブが条件を満たしても掲載しません。乗っ取ったアカウントで手作業でビルドして上げたアーカイブが、同じ版に紛れている兆候になるためです。
+Team ID が食い違う版を確認待ちにするのは、乗っ取ったアカウントで別の証明書を使った兆候になりうるためです。
 
-VST 2 のエントリーポイントを 1 件でも検出した版は、ほかのアーカイブが条件を満たしても掲載しません。VST 2 は、2018 年 10 月より前に Steinberg と契約した開発者でなければ新たに配布できず、同じ版で VST 2 を配るリリースへ案内することになるためです ([ADR 0004](../decisions/0004-vst-trademark.md))。
+証明の無い配布物、あるいは証明の検証に失敗した配布物を 1 件でも含む版は、ほかのアーカイブが条件を満たしても掲載しません。案内しないインストーラーと `other` の配布物も同じです。乗っ取ったアカウントで手作業でビルドして上げた配布物が、同じ版に紛れている兆候になるためです。
+
+VST 2 のエントリーポイントを 1 件でも検出した版は、ほかのアーカイブが条件を満たしても掲載しません。VST 2 は、2018 年 10 月より前に Steinberg と契約した開発者でなければ新たに配布できず、同じ版で VST 2 を配るリリースへ案内することになるためです ([ADR 0004](../decisions/0004-vst-trademark.md))。`undetermined` のアーカイブを含む版も、VST 2 を含まないことを確かめられないため掲載しません。
 
 ### 掲載対象バージョン
 
@@ -394,13 +401,3 @@ VST 2 のエントリーポイントを 1 件でも検出した版は、ほか�
 | `day` | TEXT | 主キーの一部 | 記録した日 (UTC)。`YYYY-MM-DD` の形 |
 | `total` | INTEGER | NOT NULL | 新しい順に最大 100 件のリリースのうち、下書きを除くものの配布物の `download_count` の合計 |
 
-## 未決定の事項
-
-| 事項 | 節 | 決める時点 |
-| --- | --- | --- |
-| カテゴリの値の一覧 | plugins | 段階 2 の計画 |
-| ビルドに使った SDK の版の記録と表示の要否 | releases | 検証 A1 の結果を受けて段階 2 の計画 |
-| 宣言ファイルが無い場合の扱い | release_checks、検査済みのリリース | 検証 A1 の結果を受けて段階 2 の計画 |
-| アーキテクチャの値の集合 | content_checks | 検証 A1 |
-| `macos_signing_checks` の理由のコードと Team ID の食い違いの扱い | macos_signing_checks | 検証 A2 |
-| 中身の検査と macOS の判定の `error` の試行の上限と、上限に達した後の扱い | 検査済みのリリース | 段階 2 の計画 |
