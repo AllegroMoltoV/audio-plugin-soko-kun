@@ -6,7 +6,7 @@ import { LOGO_VERSION } from './logo';
 import { STYLE_VERSION } from './style';
 
 // public/og.png の SHA-256 の先頭 8 桁。URL のクエリに付け、画像が変わったときに閲覧者のキャッシュを使わせない。
-const OG_VERSION = '0ac36b70';
+const OG_VERSION = '5a89d266';
 
 export interface PageMeta {
   lang: Lang;
