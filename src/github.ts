@@ -4,7 +4,7 @@ import { type Budget, budgetedFetch } from './budget';
 import type { ChangedFile } from './review/diff-rules';
 
 const API = 'https://api.github.com';
-// ファイルの一覧の応答の上限。無料プランの CPU 時間の内で JSON を解析できる大きさに抑える。
+// ファイルの一覧の応答の上限。大きな応答を読まずに打ち切る (読み込みの上限)。
 const MAX_TREE_BYTES = 1024 * 1024;
 // 変更されたファイルの一覧の応答の上限。理由はファイルの一覧と同じ。
 const MAX_COMPARE_BYTES = 1024 * 1024;

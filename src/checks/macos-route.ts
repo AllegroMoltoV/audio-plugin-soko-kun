@@ -121,8 +121,8 @@ async function saveResults(request: Request, env: Env): Promise<Response> {
   if (!results) return new Response('bad request', { status: 400 });
   if (results.length === 0) return Response.json({ updated: 0 });
   const timestamp = new Date().toISOString();
-  // 行の無い配布物には書かない。結果が確定した行と、試行の上限に達した error の行も書き換えない。
-  // 上限に達した行は、管理者が retry-checks で pending に戻すまで管理者の確認を待つ。
+  // 行の無い配布物には書かない。結果が確定した行は書き換えない (共通の土台の受け口の決まり 5)。
+  // 試行の上限に達した error の行には、遅れて届いた結果を受け入れる。OIDC で本サービスのワークフローからと確かめた結果のため。
   const statements = results.map((input) =>
     env.DB.prepare(
       `UPDATE macos_signing_checks SET result = ?, reason = ?, team_id = ?, attempts = attempts + 1, checked_at = ?

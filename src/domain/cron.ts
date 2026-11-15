@@ -1,4 +1,4 @@
-// 15 分ごとの定期処理。無料プランの 1 回の上限に収めるため、予算を使い切ったら次回へ持ち越す。
+// 15 分ごとの定期処理。1 回の起動の予算 (src/budget.ts) を使い切ったら次回へ持ち越す。
 
 import { Budget, BudgetExceededError, budgetedFetch } from '../budget';
 import { PENDING_MACOS_BINDINGS, PENDING_MACOS_FROM } from '../checks/macos-route';
