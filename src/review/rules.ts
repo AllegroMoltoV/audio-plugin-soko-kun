@@ -66,7 +66,8 @@ function unreadWorkflows(snapshot: RepositorySnapshot): boolean {
 function ciHardening(snapshot: RepositorySnapshot): Finding {
   const id = 'ci-hardening';
   const flows = workflows(snapshot);
-  if (snapshot.truncated) return finding(id, 'unclear', 'The repository file list was too large to read in full.');
+  if (snapshot.truncated)
+    return finding(id, 'unclear', 'Checked by rules: the repository file list was too large to read in full.');
   if (flows.length === 0 && !unreadWorkflows(snapshot))
     return finding(id, 'not_applicable', 'The repository has no GitHub Actions workflows.');
   const problems: Evidence[] = [];
@@ -99,7 +100,11 @@ function ciHardening(snapshot: RepositorySnapshot): Finding {
     reasons.add('Dependabot is not configured');
   if (reasons.size > 0) return finding(id, 'not_met', `Checked by rules: ${[...reasons].join('; ')}.`, problems);
   if (unreadWorkflows(snapshot))
-    return finding(id, 'unclear', 'The workflows that were read meet the rules, but some workflows were not read.');
+    return finding(
+      id,
+      'unclear',
+      'Checked by rules: the workflows that were read meet the rules, but some workflows were not read.',
+    );
   return finding(
     id,
     'met',
@@ -154,7 +159,8 @@ function dependencyPinning(snapshot: RepositorySnapshot): Finding {
     reasons.add('vcpkg.json has no builtin-baseline');
   }
   if (reasons.size > 0) return finding(id, 'not_met', `Checked by rules: ${[...reasons].join('; ')}.`, problems);
-  if (snapshot.truncated) return finding(id, 'unclear', 'The repository file list was too large to read in full.');
+  if (snapshot.truncated)
+    return finding(id, 'unclear', 'Checked by rules: the repository file list was too large to read in full.');
   return finding(id, 'met', 'Checked by rules: no committed binaries and no unpinned downloads were found.');
 }
 
@@ -168,7 +174,11 @@ function buildHardening(snapshot: RepositorySnapshot): Finding {
         'not_applicable',
         'Checked by rules: the build is a Rust (Cargo) build without CMake or Meson.',
       );
-    return finding(id, 'unclear', 'No CMakeLists.txt or meson.build was read at the repository root.');
+    return finding(
+      id,
+      'unclear',
+      'Checked by rules: no CMakeLists.txt or meson.build was read at the repository root.',
+    );
   }
   const sanitizer = builds.flatMap((build) =>
     matchingLines(build.content, /[-/]fsanitize|b_sanitize/i).map(({ line }) => at(build.path, line)),
@@ -199,7 +209,11 @@ function cpuCompatibility(snapshot: RepositorySnapshot): Finding {
   const id = 'cpu-compatibility';
   const sources = [...buildFiles(snapshot), ...workflows(snapshot)];
   if (buildFiles(snapshot).length === 0)
-    return finding(id, 'unclear', 'No CMakeLists.txt, meson.build, or Cargo.toml was read at the repository root.');
+    return finding(
+      id,
+      'unclear',
+      'Checked by rules: no CMakeLists.txt, meson.build, or Cargo.toml was read at the repository root.',
+    );
   const forced = sources.flatMap((source) =>
     matchingLines(source.content, /\/arch:AVX(2|512)|-mavx(2|512)|-march=native|target-cpu=native/i).map(({ line }) =>
       at(source.path, line),
@@ -257,7 +271,7 @@ function contributionCompliance(snapshot: RepositorySnapshot): Finding {
   );
   if (hits.length > 0) return finding(id, 'met', 'Checked by rules: contributors are asked for a DCO sign-off.', hits);
   if (docs.length === 0 && snapshot.truncated)
-    return finding(id, 'unclear', 'The repository file list was too large to read in full.');
+    return finding(id, 'unclear', 'Checked by rules: the repository file list was too large to read in full.');
   return finding(
     id,
     'not_met',
@@ -271,7 +285,8 @@ function contributionCompliance(snapshot: RepositorySnapshot): Finding {
 function hermeticBuild(snapshot: RepositorySnapshot): Finding {
   const id = 'hermetic-build';
   const flows = workflows(snapshot);
-  if (snapshot.truncated) return finding(id, 'unclear', 'The repository file list was too large to read in full.');
+  if (snapshot.truncated)
+    return finding(id, 'unclear', 'Checked by rules: the repository file list was too large to read in full.');
   if (flows.length === 0 && !unreadWorkflows(snapshot))
     return finding(id, 'not_applicable', 'The repository has no GitHub Actions workflows.');
   const latest = flows.flatMap((flow) =>
@@ -298,7 +313,8 @@ const RULE_TYPES = (rules: RulesetSnapshot['items'][number]['rules']) => new Set
 function repositoryProtection(snapshot: RepositorySnapshot): Finding {
   const id = 'repository-protection';
   const rulesets = snapshot.rulesets;
-  if (!rulesets?.readable) return finding(id, 'unclear', 'The repository rulesets could not be read.');
+  if (!rulesets?.readable)
+    return finding(id, 'unclear', 'Checked by rules: the repository rulesets could not be read.');
   // 既定のブランチの名前は入力に無いため、名前を直接指定した ruleset は数えない。
   const branch = rulesets.items.some((item) => {
     if (item.target !== 'branch') return false;
@@ -320,7 +336,7 @@ function repositoryProtection(snapshot: RepositorySnapshot): Finding {
       `Checked by rules: a branch ruleset protects the default branch and requires a reviewed pull request, and a tag ruleset restricts creating, updating, and deleting tags. ${note}`,
     );
   if (rulesets.truncated)
-    return finding(id, 'unclear', 'The repository has more active rulesets than the catalog reads.');
+    return finding(id, 'unclear', 'Checked by rules: the repository has more active rulesets than the catalog reads.');
   const missing = [
     branch
       ? ''
@@ -366,11 +382,19 @@ function readmePattern(
 ): Finding {
   const doc = readme(snapshot);
   if (!doc) {
-    if (snapshot.truncated) return finding(id, 'unclear', 'The repository file list was too large to read in full.');
-    // README.md が大きいか、読む量の上限を先に使い切って読めなかったときは、無いものとして met にしない。
-    // met にすると、README を大きくするだけで重大の判定を逃れられるため (2026-11-15 に配信プラグイン倉庫くんが見つけた)。
-    if (snapshot.unreadFiles.includes('README.md'))
-      return finding(id, 'unclear', 'README.md was too large to read, so this was not checked.');
+    // 読めなかった README を、無い README と同じに扱わない。大きな README で照合を逃れられないようにするため。
+    if (snapshot.unreadFiles.includes('README.md')) {
+      return {
+        ...finding(
+          id,
+          'not_met',
+          'Checked by rules: README.md is larger than 128 KB or could not be read, so the rules could not check it.',
+        ),
+        serious: true,
+      };
+    }
+    if (snapshot.truncated)
+      return finding(id, 'unclear', 'Checked by rules: the repository file list was too large to read in full.');
     return finding(id, 'met', 'Checked by rules: the repository has no README.md.');
   }
   const hits = doc.content
@@ -437,9 +461,21 @@ export function judgeByRules(snapshot: RepositorySnapshot, names: string[] = [])
 }
 
 // LLM に渡すファイル。ルールだけが読むビルドの設定、vcpkg.json、.gitmodules、CONTRIBUTING は渡さない。
+// README は規則が全文を照合するために大きな上限で読むため、LLM には先頭の MAX_LLM_README_CHARS 文字だけを渡す。
 export function llmFiles(files: RepositorySnapshot['files']): RepositorySnapshot['files'] {
-  return files.filter((entry) => entry.path === 'README.md' || WORKFLOW.test(entry.path));
+  return files
+    .filter((entry) => entry.path === 'README.md' || WORKFLOW.test(entry.path))
+    .map((entry) =>
+      entry.path === 'README.md' && entry.content.length > MAX_LLM_README_CHARS
+        ? {
+            path: entry.path,
+            content: `${entry.content.slice(0, MAX_LLM_README_CHARS)}\n[The rest of README.md is not provided because of the size limits.]`,
+          }
+        : entry,
+    );
 }
+
+export const MAX_LLM_README_CHARS = 32 * 1024;
 
 // リポジトリから取った文字列を、事実の 1 行に収まる短い文字列にする。
 export function clean(text: string): string {

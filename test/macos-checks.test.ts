@@ -193,7 +193,7 @@ describe('macOS の判定の結果', () => {
     expect(await macosRow()).toBeNull();
   });
 
-  it('I10 error は 3 回まで一覧に載せ、3 回目の後は書き換えず、管理者の確認を待つ', async () => {
+  it('I10 error は 3 回まで一覧に載せ、3 回目の後は管理者の確認を待つ。遅れて届いた結果は受け入れる', async () => {
     await registerWithContent([MAC_VST3]);
     const notNotarized = { ...PASSED, result: 'error', reason: 'not_notarized' };
     for (let attempt = 1; attempt <= 3; attempt += 1) {
@@ -202,10 +202,13 @@ describe('macOS の判定の結果', () => {
     }
     expect(await macosRow()).toMatchObject({ result: 'error', reason: 'not_notarized', attempts: 3 });
     expect(await pending()).toEqual([]);
-    // 試行を使い切った行は、遅れて届いた結果でも書き換えない。管理コマンド retry-checks で pending に戻す。
-    expect(await (await post([PASSED])).json()).toEqual({ updated: 0 });
-    expect(await macosRow()).toMatchObject({ result: 'error', attempts: 3 });
-    expect((await view())?.status).toBe('pending');
+    // 試行を使い切った行にも、遅れて届いた結果は受け入れる。OIDC で本サービスのワークフローからと確かめた結果で、
+    // 管理者の確認待ちが人手なしで解けるため (/internal/checks/ と配信プラグイン倉庫くんの受け口と同じ扱い)。
+    expect(await (await post([PASSED])).json()).toEqual({ updated: 1 });
+    expect(await macosRow()).toMatchObject({ result: 'passed' });
+    // 確定した行は、遅れて届いた結果で書き換えない (共通の土台の受け口の決まり 5)。
+    expect(await (await post([{ ...PASSED, result: 'failed', reason: 'adhoc' }])).json()).toEqual({ updated: 0 });
+    expect(await macosRow()).toMatchObject({ result: 'passed' });
   });
 
   describe('I11・I12 形の合わない結果と、同じ配布物の結果を 2 つ含む要求は 400 で拒否し、どの行も書かない', () => {

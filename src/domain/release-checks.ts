@@ -12,6 +12,7 @@ import {
   computeFacts,
   judgeByRules,
   llmFiles,
+  MAX_LLM_README_CHARS,
   mergeFindings,
   networkFiles,
   type RepositorySnapshot,
@@ -34,6 +35,10 @@ export const REVIEW_FILES_COST = 1 + MAX_WORKFLOWS + 1 + BUILD_FILES.length + 1 
 export const RELEASE_CHECK_COST = 6 + REVIEW_FILES_COST;
 const MAX_DIFF_CHARS = 24_000;
 const MAX_FILE_BYTES = 32 * 1024;
+// README は no-security-bypass と no-terminal-paste が全文を照合するため、大きな上限で読む。LLM には先頭だけを渡す
+// (MAX_LLM_README_CHARS)。この上限を超える README は読めなかったものとし、規則が重大の指摘にする。
+const MAX_README_BYTES = 128 * 1024;
+// LLM に渡すファイルの合計の上限。README は LLM に渡す分だけを数える。
 const MAX_TOTAL_CHARS = 60_000;
 
 interface PendingRow {
@@ -260,6 +265,7 @@ export async function collectReviewFiles(
   const unreadFiles: string[] = [];
   let total = 0;
   const fetch = async (path: string) => {
+    const readme = path === 'README.md';
     const slash = path.lastIndexOf('/');
     let text: string | 'too_large' | null;
     try {
@@ -269,7 +275,7 @@ export async function collectReviewFiles(
         slash < 0 ? '' : path.slice(0, slash),
         path.slice(slash + 1),
         ref,
-        MAX_FILE_BYTES,
+        readme ? MAX_README_BYTES : MAX_FILE_BYTES,
       );
     } catch (error) {
       // 取得の関数が受け付けない文字を含むパスは、読まずに未読として記録する。予算の超過は未読として記録しない。
@@ -278,11 +284,12 @@ export async function collectReviewFiles(
       return;
     }
     if (text === null) return;
-    if (text === 'too_large' || total + text.length > MAX_TOTAL_CHARS) {
+    const counted = text === 'too_large' ? 0 : readme ? Math.min(text.length, MAX_LLM_README_CHARS) : text.length;
+    if (text === 'too_large' || total + counted > MAX_TOTAL_CHARS) {
       unreadFiles.push(path);
       return;
     }
-    total += text.length;
+    total += counted;
     files.push({ path, content: text });
   };
   const plan = reviewFilePlan(paths);
@@ -304,9 +311,10 @@ export function reviewFilePlan(paths: string[]): { fetch: string[]; skipped: str
   const sorted = [...paths].sort();
   const workflows = sorted.filter((path) => /^\.github\/workflows\/[^/]+\.ya?ml$/i.test(path));
   const first = (candidates: string[]) => candidates.filter((path) => paths.includes(path)).slice(0, 1);
+  // README を最初に読む。先に読むファイルで合計の上限を使い切られ、README の照合を逃れられないようにするため。
   const fetch = [
-    ...workflows.slice(0, MAX_WORKFLOWS),
     ...first(['README.md']),
+    ...workflows.slice(0, MAX_WORKFLOWS),
     ...BUILD_FILES.filter((path) => paths.includes(path)),
     ...first(['CONTRIBUTING.md', '.github/CONTRIBUTING.md']),
     ...first(['.github/PULL_REQUEST_TEMPLATE.md', '.github/pull_request_template.md']),

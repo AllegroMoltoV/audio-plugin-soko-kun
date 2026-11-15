@@ -126,8 +126,8 @@ async function saveResults(request: Request, env: Env): Promise<Response> {
   const statements = results.map((input) =>
     env.DB.prepare(
       `UPDATE macos_signing_checks SET result = ?, reason = ?, team_id = ?, attempts = attempts + 1, checked_at = ?
-       WHERE github_asset_id = ? AND (result = 'pending' OR (result = 'error' AND attempts < ?))`,
-    ).bind(input.result, input.reason, teamIdValue(input.teamIds), timestamp, input.assetId, MAX_CHECK_ATTEMPTS),
+       WHERE github_asset_id = ? AND result IN ('pending', 'error')`,
+    ).bind(input.result, input.reason, teamIdValue(input.teamIds), timestamp, input.assetId),
   );
   const outcomes = await env.DB.batch(statements);
   const updated = outcomes.reduce((sum, outcome) => sum + (outcome.meta?.changes ?? 0), 0);

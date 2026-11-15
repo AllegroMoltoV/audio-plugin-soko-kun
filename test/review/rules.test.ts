@@ -4,7 +4,14 @@ import { describe, expect, it } from 'vitest';
 import { REVIEW_FILES_COST, reviewFilePlan } from '../../src/domain/release-checks';
 import { LLM_CRITERIA } from '../../src/review/criteria';
 import type { Finding } from '../../src/review/llm';
-import { computeFacts, judgeByRules, llmFiles, mergeFindings, type RepositorySnapshot } from '../../src/review/rules';
+import {
+  computeFacts,
+  judgeByRules,
+  llmFiles,
+  MAX_LLM_README_CHARS,
+  mergeFindings,
+  type RepositorySnapshot,
+} from '../../src/review/rules';
 
 const SHA = 'a'.repeat(40);
 const goodWorkflow = [
@@ -58,12 +65,14 @@ describe('judgeByRules', () => {
     expect(result(findings, 'no-security-bypass')).toBe('unclear');
   });
 
-  it('README.md が大きくて読めなかったら、README の案内の型の判定を met にせず unclear にする', () => {
-    // README を大きくするだけで重大の判定を逃れられないことを確かめる。
+  it('README.md が大きくて読めなかったら、README の案内の型の判定を重大の not_met にする', () => {
+    // README を大きくするだけで重大の判定を逃れられないことを確かめる (配信プラグイン倉庫くん 0.2.7 と同じ実装)。
     const unread: RepositorySnapshot = { ...snapshot({}, ['README.md']), unreadFiles: ['README.md'] };
-    const findings = judgeByRules(unread);
-    expect(result(findings, 'no-security-bypass')).toBe('unclear');
-    expect(result(findings, 'no-terminal-paste')).toBe('unclear');
+    for (const id of ['no-security-bypass', 'no-terminal-paste']) {
+      const finding = judgeByRules(unread).find((entry) => entry.id === id);
+      expect(finding).toMatchObject({ result: 'not_met', serious: true });
+      expect(finding?.explanation.startsWith('Checked by rules: ')).toBe(true);
+    }
     // README が本当に無いときは、従来どおり met。
     expect(result(judgeByRules(snapshot({})), 'no-security-bypass')).toBe('met');
   });
@@ -280,9 +289,10 @@ describe('reviewFilePlan', () => {
       '.github/ISSUE_TEMPLATE/bug.yml',
       'CONTRIBUTING.md',
     ]);
+    // README を最初に読む。先に読むファイルで合計の上限を使い切られ、README の照合を逃れられないようにするため。
     expect(plan.fetch).toEqual([
-      ...Array.from({ length: 6 }, (_, i) => `.github/workflows/w${i}.yaml`),
       'README.md',
+      ...Array.from({ length: 6 }, (_, i) => `.github/workflows/w${i}.yaml`),
       'CMakeLists.txt',
       '.gitmodules',
       'meson.build',
@@ -290,6 +300,26 @@ describe('reviewFilePlan', () => {
     ]);
     expect(plan.skipped).toEqual(['.github/workflows/w6.yaml']);
     expect(plan.fetch.length + 1).toBeLessThanOrEqual(REVIEW_FILES_COST);
+  });
+});
+
+describe('llmFiles', () => {
+  it('README は先頭の MAX_LLM_README_CHARS 文字だけを LLM に渡し、残りを渡していないことを書く', () => {
+    const long = 'a'.repeat(MAX_LLM_README_CHARS + 10);
+    const entry = llmFiles([{ path: 'README.md', content: long }])[0];
+    if (!entry) throw new Error('README.md was dropped');
+    expect(entry.content.startsWith('a'.repeat(MAX_LLM_README_CHARS))).toBe(true);
+    expect(entry.content.endsWith('[The rest of README.md is not provided because of the size limits.]')).toBe(true);
+    expect(llmFiles([{ path: 'README.md', content: 'short' }])[0]?.content).toBe('short');
+  });
+});
+
+describe('ルールの unclear の説明', () => {
+  it('すべて Checked by rules で始め、作者向けの案内で LLM の指摘と見分けられるようにする', () => {
+    const findings = judgeByRules(snapshot({}, [], true));
+    const unclear = findings.filter((entry) => entry.result === 'unclear');
+    expect(unclear.length).toBeGreaterThan(0);
+    for (const entry of unclear) expect(entry.explanation.startsWith('Checked by rules: ')).toBe(true);
   });
 });
 

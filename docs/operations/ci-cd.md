@@ -42,7 +42,7 @@ GitHub Actions のワークフローの目的と権限、依存の更新、本�
 
 `verify.yaml` は、検証を待つ配布物の一覧を Worker の `/internal/checks/pending` から受け取り、配布物ごとに SHA-256 の照合・証明の検証・アーカイブの中身の検査を行います。結果は `/internal/checks/results` へ送ります。どちらの要求にも、`aud` を `audio-soko-kun` にした GitHub Actions の OIDC のトークンを添えます。Worker は、このリポジトリの `main` で動作する `verify.yaml` のトークンだけを受け付けます。そのため、ジョブは `main` で起動したときだけ実行します。
 
-送り先は、ワークフローの `env` の `SOKO_KUN_ORIGIN` にある本番の URL `https://audio-soko-kun.allegromoltov.jp` です。配布物は 1 件ずつ最大 2 GiB まで取得し、処理を終えるたびに削除します。ジョブの最初にランナーの空き容量を確かめ、3 GiB に満たなければその回の処理を行いません。ジョブの時間の上限は 20 分です。同時に 1 つだけ実行し、実行中の検証を取り消しません。検査の規則は [検査と同期](../design/scanning.md) に記載しています。
+送り先は、ワークフローの `env` の `SOKO_KUN_ORIGIN` にある本番の URL `https://audio-soko-kun.allegromoltov.jp` です。配布物は 1 件ずつ最大 2 GiB まで取得し、処理を終えるたびに削除します。ジョブの最初にランナーの空き容量を確かめ、3 GiB に満たなければその回の処理を行いません。ジョブの時間の上限は 40 分です。ジョブの開始から 25 分を過ぎたら、新しい配布物と通信の検出のソースを取得せず、次の回に回します。同時に 1 つだけ実行し、実行中の検証を取り消しません。検査の規則は [検査と同期](../design/scanning.md) に記載しています。
 
 Worker の定期処理は、15 分ごとの起動の最後に、検証を待つ配布物があるときだけ `verify.yaml` を起動します。起動には、後述の `GITHUB_DISPATCH_TOKEN` を使います。
 
