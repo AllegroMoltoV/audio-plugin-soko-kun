@@ -61,6 +61,9 @@ OAuth のクライアント・認可・トークンの情報は D1 ではなく 
 | `declared_assets` | TEXT | | 宣言ファイルの配布物の宣言を JSON で保存した値。NULL のときは宣言が無い |
 | `release_workflow` | TEXT | | 初めて証明を検証できた版の、署名したワークフローのパス |
 | `owner_changed_at` | TEXT | | 同期で所有者の変更を検出した日時。値がある間は、まだ掲載していない新しい版を管理者の確認待ちにする |
+| `readme_state` | TEXT | | 掲載の後の既定のブランチの README の照合の基準。案内の型に当たった行の本文の SHA-256 (16 進) の JSON の配列か、README が上限を超えたことを示す `too_large`。NULL は未照合。本文は保存しない |
+| `readme_hits` | TEXT | | 最後の照合で当たった行の JSON (`[{line, rule, text}]`、`text` は 200 文字まで) か、照合に失敗した理由 (`{error}`)。管理者の確認にだけ使う |
+| `readme_held` | INTEGER | NOT NULL、既定値 0 | 基準に無い当たった行が現れた、README が新たに上限を超えた、または照合に失敗した。1 の間は、管理者が解くまでどの版も掲載しない |
 
 配信プラグイン倉庫くんの `declared_os` は、`declared_assets` に置き換えます。宣言の形は [検査と同期](scanning.md) に記載します。
 
@@ -328,6 +331,7 @@ OAuth のクライアント・認可・トークンの情報は D1 ではなく 
 - `review_state` が `done` で `review_serious` が 0 である。または `admin_approved_at` がある。
 - `macos_signing_checks` の `team_id` が、版のすべてのアーカイブで 1 つの値にそろう。または `admin_approved_at` がある。
 - `notes_held` が 0 である。または `admin_approved_at` がある。
+- `plugins` の `readme_held` が 0 である。`admin_approved_at` では解けず、プラグインのどの版にも適用する。
 
 すべてのアーカイブの判定を終えてから掲載するのは、判定の途中で案内する配布物の組が変わることを避けるためです。証明の検証・中身の検査・macOS の判定の `error` は、3 回まで試行します。3 回目も `error` の配布物は自動ではやり直さず、その版は管理者が原因を確かめるまで掲載しません。`admin_approved_at` だけでは、`error` の配布物を含む版を掲載しません。
 

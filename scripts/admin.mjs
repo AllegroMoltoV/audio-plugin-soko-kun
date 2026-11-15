@@ -8,6 +8,7 @@
 //   npm run admin -- show-images <owner/repo> [--remote]
 //   npm run admin -- pending [--remote]
 //   npm run admin -- approve-release <owner/repo> <tag> [--remote]
+//   npm run admin -- approve-readme <owner/repo> [--remote]
 //   npm run admin -- suspend-release <owner/repo> <tag> "<告知の文>" [--remote]
 //   npm run admin -- retry-checks <owner/repo> <tag> [--remote]
 //   npm run admin -- retry-declaration <owner/repo> <tag> [--remote]
@@ -36,6 +37,7 @@ const USAGE =
   'usage: admin <suspend|resume|show|set-category|hide-images|show-images> <owner/repo> [reason|category] [--remote]\n' +
   '       admin pending [--remote]\n' +
   '       admin approve-release <owner/repo> <tag> [--remote]\n' +
+  '       admin approve-readme <owner/repo> [--remote]\n' +
   '       admin suspend-release <owner/repo> <tag> "<note>" [--remote]\n' +
   '       admin retry-checks <owner/repo> <tag> [--remote]\n' +
   '       admin retry-declaration <owner/repo> <tag> [--remote]';
@@ -109,7 +111,8 @@ if (command === 'suspend') {
            AND (c.notes_held = 1
              OR NOT EXISTS (SELECT 1 FROM listing_periods l WHERE l.github_release_id = r.github_release_id))
            AND NOT EXISTS (SELECT 1 FROM release_suspensions s WHERE s.github_release_id = r.github_release_id)
-         ORDER BY r.published_at;`;
+         ORDER BY r.published_at;
+         SELECT p.owner || '/' || p.repo AS plugin, p.readme_hits FROM plugins p WHERE p.readme_held = 1 AND p.removed = 0;`;
 } else if (command === 'approve-release') {
   // 乗っ取りの兆候とレビューの指摘による確認待ちだけを解く。証明・不変・配布の形の条件は解けない。
   if (!reason || !TAG.test(reason)) fail('a release tag is required');
@@ -118,6 +121,11 @@ if (command === 'suspend') {
          UPDATE plugins SET owner_changed_at = NULL WHERE id = ${PID} AND ${releaseOf(reason)} IS NOT NULL;
          SELECT r.tag, c.admin_approved_at FROM release_checks c JOIN releases r ON r.github_release_id = c.github_release_id
            WHERE c.github_release_id = ${releaseOf(reason)};`;
+} else if (command === 'approve-readme') {
+  // 既定のブランチの README の照合による確認待ち (plugins.readme_held) を解く。最後に照合した README が次の基準になる。
+  // pending の readme_hits で当たった行を確かめてから使う。
+  sql = `UPDATE plugins SET readme_held = 0, updated_at = ${quote(now)} WHERE id = ${PID};
+         SELECT id, readme_held, readme_hits FROM plugins WHERE id = ${PID};`;
 } else if (command === 'suspend-release') {
   // 版を止め、告知の文とともに記録する。同じ版にもう一度実行すると、告知の文を書き換える。告知の文は公開される。
   if (!reason || !TAG.test(reason)) fail('a release tag is required');

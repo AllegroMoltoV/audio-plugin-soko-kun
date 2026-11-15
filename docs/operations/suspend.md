@@ -1,6 +1,6 @@
 # 管理コマンドと掲載停止
 
-管理者がプラグインや版の掲載を止める手順、止めた掲載を再開する手順、確認待ちの版を承認する手順です。管理画面はありません。管理用スクリプト `scripts/admin.mjs` が `wrangler d1 execute` で D1 を直接更新します。
+管理者がプラグインや版の掲載を止める手順、止めた掲載を再開する手順、確認待ちの版を承認する手順、README の照合による確認待ちを解く手順です。管理画面はありません。管理用スクリプト `scripts/admin.mjs` が `wrangler d1 execute` で D1 を直接更新します。
 
 プラグインを停止すると、プラグインは Web の一覧と `search_plugins` から外れます。詳細ページと `get_plugin` は、状態と理由だけを示し、ダウンロードの案内を出しません。版を停止すると、その版は掲載されなくなり、告知ページ `/notices` とそのプラグインの詳細ページと `get_plugin` に警告が出ます。
 
@@ -22,6 +22,7 @@
 | 画像の再表示 | `npm run admin -- show-images <owner/repo>` |
 | 確認待ちの版の一覧 | `npm run admin -- pending` |
 | 確認待ちの版の承認 | `npm run admin -- approve-release <owner/repo> <tag>` |
+| README の照合による確認待ちの解除 | `npm run admin -- approve-readme <owner/repo>` |
 | 版の停止 | `npm run admin -- suspend-release <owner/repo> <tag> "<告知の文>"` |
 | 試行を使い切った検査のやり直し | `npm run admin -- retry-checks <owner/repo> <tag>` |
 | 宣言ファイルの判定のやり直し | `npm run admin -- retry-declaration <owner/repo> <tag>`。本サービスの判定の不具合を直した後に、誤って `invalid` や `mismatch` にした版を戻す。次の定期処理で、タグの時点の宣言ファイルを取得し直して照合し直す |
@@ -66,6 +67,10 @@
 | `attestations_failed` | 証明の検証に失敗した配布物の件数 |
 
 `approve-release` は、乗っ取りの兆候・LLM のレビューの指摘・レビューの失敗・macOS の署名の Team ID の食い違い・リリースノートの編集 (`notes_held`) による確認待ちを解きます。承認の後にリリースノートが編集され、新しい本文が型に当たると、承認は取り消されます。あわせて、同期で所有者の変更を検出したことによる確認待ちも解きます。証明・不変・配布の形・中身の検査・ライセンス・宣言ファイルの条件は解けません。証明の検証・中身の検査・macOS の判定が 3 回 `error` で終わった配布物を含む版も、承認だけでは掲載されません。原因を確かめてから `retry-checks` で検査し直します。確認待ちの理由と算出規則は [データモデル](../design/data-model.md) と [審査の基準](../design/review-criteria.md) に記載しています。
+
+`pending` は、版の一覧に続けて、掲載の後に既定のブランチの README へ案内が足されたプラグイン (`readme_held` が 1) を、プラグイン ID と当たった行 (`readme_hits`) とともに表示します。`readme_hits` は、行番号・項目・行の文字列の配列です。`{error}` の形のときは、README の照合に失敗しています。このプラグインは、管理者が解くまでどの版も掲載しません。`approve-release` では解けません。
+
+`approve-readme` は、README の照合による確認待ち (`readme_held`) を解きます。最後に照合した README が次の照合の基準になります。照合の仕組みは [検査と同期](../design/scanning.md) に記載しています。
 
 `suspend-release` は版を止め、告知の文とともに `release_suspensions` に記録します。同じ版にもう一度実行すると、告知の文を書き換えます。指定したタグのリリースが無いときは何も記録せず、出力の行が空になります。侵害が疑われるときの手順は [侵害の対応](incident-response.md) に記載しています。
 
@@ -132,6 +137,27 @@
 4. 出力の `admin_approved_at` に日時が入っていることを確認します。
 
 承認した版は、ほかの条件をすべて満たしていれば、次の算出から掲載されます。問題があると判断した版は、後述の版の停止で止めます。
+
+## README の照合による確認待ちの解除
+
+掲載の後に既定のブランチの README へ新しい案内が足されると、プラグインのどの版も掲載しなくなります。管理者が README を確かめ、問題が無ければ確認待ちを解きます。
+
+1. 確認待ちのプラグインと当たった行を表示します。
+
+   ```sh
+   npm run admin -- pending --remote
+   ```
+
+2. 出力の後半の `readme_hits` に示された行を、GitHub のリポジトリの既定のブランチの README で確かめます。`{error}` の形のときは、`error` の値で照合に失敗した理由を確かめます。
+3. 問題が無いと判断したら、確認待ちを解きます。
+
+   ```sh
+   npm run admin -- approve-readme <owner/repo> --remote
+   ```
+
+4. 出力の `readme_held` が 0 になっていることを確認します。
+
+解いた時点の README が、次の照合の基準になります。案内が利用者を危険にさらすものなら、解かずに作者へ連絡します。あるいは、前述のプラグインの停止で止めます。
 
 ## 版の停止
 

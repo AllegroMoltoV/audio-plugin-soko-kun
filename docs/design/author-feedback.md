@@ -187,6 +187,7 @@ sequenceDiagram
 | `macos_check_pending` | 90 分 | `macos-verify.yaml` は、中身の検査で macOS のバンドルを見つけた後の回に動く。中身の検査の上限に、1 回分の周期と余裕を足す |
 | `review_pending` | 6 時間 30 分 | レビューは通信の検出の結果を版の公開から最大 6 時間待つ |
 
+`"admin"` の `blockers` のうち、掲載の後に既定のブランチの README へ新しい案内が足されたときの理由 `readme_held` は、プラグインのすべての版に付きます。管理者が確かめるまで、どの版も掲載しません。
 
 `checks.diffRules.hits` と `diff_held` の `hits` は、当たった乗っ取りの兆候の `rule` と `file` です。`diff-too-large` では、当たった事実を `fact` に入れます。値は `github-changed`・`build-script-changed`・`binary-added`・`list-incomplete` です。
 
