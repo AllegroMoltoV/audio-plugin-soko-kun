@@ -44,8 +44,9 @@ VST® is a registered trademark of Steinberg Media Technologies GmbH.
 | 番号 | 判断 | 状態 |
 | --- | --- | --- |
 | 0001 | [公開文書と作業記録の分担](decisions/0001-docs-and-work-records.md) | 採用 |
-| 0002 | [配信プラグイン倉庫くんの派生として独立したサービスにする](decisions/0002-independent-service-derived-from-soko-kun.md) | 採用 |
+| 0002 | [配信プラグイン倉庫くんの派生として独立したサービスにする](decisions/0002-independent-service-derived-from-soko-kun.md) | 採用。一部を 0005 で置き換え |
 | 0003 | [掲載の条件](decisions/0003-listing-conditions.md) | 採用 |
 | 0004 | [VST の商標の扱いと対象の規格](decisions/0004-vst-trademark.md) | 採用 |
+| 0005 | [共通の土台を配信プラグイン倉庫くんと同じ内容に保つ](decisions/0005-shared-foundation-with-soko-kun.md) | 採用 |
 
 作業の記録 (調査報告、実行ログ、計画、運営者との確認事項) は公開せず、git の追跡対象外に置きます。その索引は `.prompts/INDEX.md` にあります。

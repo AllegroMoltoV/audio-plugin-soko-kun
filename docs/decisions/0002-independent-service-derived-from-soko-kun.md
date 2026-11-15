@@ -7,7 +7,7 @@
 
 VST® is a registered trademark of Steinberg Media Technologies GmbH.
 
-- 状態: 採用 (2026-11-14)
+- 状態: 採用 (2026-11-14)。コードを独立に保守する判断の一部を [ADR 0005](0005-shared-foundation-with-soko-kun.md) で置き換えた
 
 ## 背景
 
