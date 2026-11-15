@@ -1,8 +1,12 @@
 name: macOS signing probe
 
-# Verification A2: can the Developer ID signature and Apple notarization of plugin bundles inside zip archives
+# Verification A2 and V2: can the Developer ID signature and Apple notarization of plugin bundles inside zip archives
 # be told apart on a macOS runner? Samples are downloaded from their authors' releases and checked by SHA-256.
 # Nothing in the samples is executed.
+# V2 adds: (U26) unstapled copies are assessed before the originals, so a ticket cached from the original cannot help;
+# (U28) the unstapled copies are assessed again with Apple's ticket lookup blocked, to tell a failed lookup from a rejection;
+# (U53) LV2 bundles and the binaries inside them are assessed; (U54) ditto -x -k is run on crafted zips with a symlink
+# and with ../ paths, and the result is listed.
 on:
   workflow_dispatch:
 
@@ -12,7 +16,7 @@ permissions:
 jobs:
   probe:
     runs-on: macos-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Probe samples
         run: |
@@ -74,19 +78,73 @@ jobs:
               continue
             fi
             ditto -x -k "${dir}/sample.zip" "${dir}/x"
-            find "${dir}/x" -type d \( -name '*.vst3' -o -name '*.clap' -o -name '*.component' \) -prune -print \
+            find "${dir}/x" -type d \( -name '*.vst3' -o -name '*.clap' -o -name '*.component' -o -name '*.lv2' \) -prune -print \
               | while read -r bundle; do
-                  probe_bundle "${name}" "${expected}" original "${bundle}"
                   # The stapled ticket lives in Contents/CodeResources, outside the signature's seal.
                   # Removing it from a copy shows whether notarization can be told by the online check alone.
+                  # The copy is assessed first (U26), so a ticket fetched for the original is not reused.
                   if [ -f "${bundle}/Contents/CodeResources" ]; then
                     copy="${dir}/unstapled/$(basename "${bundle}")"
                     mkdir -p "${dir}/unstapled"
                     ditto "${bundle}" "${copy}"
                     rm "${copy}/Contents/CodeResources"
+                    echo "${name}|${expected}|${copy}" >> "${work}/unstapled.txt"
                     probe_bundle "${name}" "${expected}" unstapled "${copy}"
                   fi
+                  probe_bundle "${name}" "${expected}" original "${bundle}"
+                  # LV2 bundles are plain folders; the signed object is the binary inside (U53).
+                  case "${bundle}" in
+                    *.lv2)
+                      find "${bundle}" -type f \( -name '*.dylib' -o -name '*.so' \) | while read -r binary; do
+                        probe_bundle "${name}" "${expected}" lv2-binary "${binary}"
+                      done
+                      ;;
+                  esac
                 done
+          done
+
+          # U28: assess the unstapled copies again with the ticket lookup host blocked, and record exit codes and messages.
+          if [ -f "${work}/unstapled.txt" ]; then
+            sudo cp /etc/hosts "${work}/hosts.bak"
+            echo "0.0.0.0 api.apple-cloudkit.com" | sudo tee -a /etc/hosts > /dev/null
+            sudo dscacheutil -flushcache
+            while IFS='|' read -r name expected copy; do
+              probe_bundle "${name}" "${expected}" unstapled-offline "${copy}"
+            done < "${work}/unstapled.txt"
+            sudo cp "${work}/hosts.bak" /etc/hosts
+            sudo dscacheutil -flushcache
+          fi
+
+          # U54: what ditto -x -k does with a symlink entry and with ../ paths. Nothing is executed.
+          crafted="${work}/crafted"
+          mkdir -p "${crafted}"
+          python3 - "${crafted}" <<'PY'
+          import sys, zipfile, stat
+          d = sys.argv[1]
+          with zipfile.ZipFile(f"{d}/symlink.zip", "w") as z:
+              info = zipfile.ZipInfo("Plugin.vst3/Contents/link")
+              info.create_system = 3
+              info.external_attr = (stat.S_IFLNK | 0o777) << 16
+              z.writestr(info, "../../../../outside-target")
+              z.writestr("Plugin.vst3/Contents/Info.plist", "<plist/>")
+          with zipfile.ZipFile(f"{d}/dotdot.zip", "w") as z:
+              z.writestr("../escaped-by-dotdot.txt", "escaped")
+              z.writestr("Plugin.vst3/../../escaped-nested.txt", "escaped")
+              z.writestr("Plugin.vst3/Contents/Info.plist", "<plist/>")
+          PY
+          for zipname in symlink dotdot; do
+            dest="${crafted}/out-${zipname}/dest"
+            mkdir -p "${dest}"
+            {
+              echo "== ditto -x -k ${zipname}.zip"
+              ditto -x -k "${crafted}/${zipname}.zip" "${dest}" 2>&1
+              echo "exit=$?"
+              echo "-- files under out-${zipname} (dest is one level below)"
+              find "${crafted}/out-${zipname}" -exec ls -ld {} \; 2>&1
+              echo "-- files named escaped* or outside-target anywhere under the work dir"
+              find "${work}" \( -name 'escaped*' -o -name 'outside-target' \) 2>&1
+            } > "${out}/ditto-${zipname}.txt"
+            cat "${out}/ditto-${zipname}.txt"
           done
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
