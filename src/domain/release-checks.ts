@@ -412,7 +412,7 @@ export function classifyAiError(error: unknown): ReviewOutcome {
 
 // 無料枠の不足のあと、次にレビューを試す時刻。
 // 公式の文書は 00:00 UTC に戻ると書くが、2026-11-14 には 00:00 UTC を過ぎても不足と返り続けた
-// (docs/design/scanning.md の順序 7)。戻る時刻を決め打ちせず、1 時間ごとにやり直す。失敗した呼び出しは Neurons を使わない。
+// (docs/design/scanning.md の定期処理で行う検査の順序 8)。戻る時刻を決め打ちせず、1 時間ごとにやり直す。失敗した呼び出しは Neurons を使わない。
 const QUOTA_RETRY_MS = 60 * 60 * 1000;
 
 export function quotaRetryAt(now = new Date()): string {

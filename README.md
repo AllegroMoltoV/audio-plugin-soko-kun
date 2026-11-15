@@ -17,7 +17,7 @@ This project is an unofficial service that is not affiliated with Steinberg Medi
 
 ### Background
 
-Malware disguised as cracked audio plugins has been reported repeatedly, and in 2026 an OBS Studio plugin forum saw author accounts taken over and published files replaced. Audio Plugin Soko-kun does not host files. It links to the files that authors publish on GitHub Releases, and lists a version only if the release is immutable, every listed archive has a build provenance attestation from the repository's own release workflow, no file is a known malware sample in MalwareBazaar, and macOS bundles are signed with a Developer ID and notarized. LV2 bundles for macOS are not linked, because Gatekeeper does not assess them. It also reviews the repository's development practices against published [review criteria](docs/design/review-criteria.md) (in Japanese). Passing the checks does not guarantee that a plugin is safe.
+Malware disguised as cracked audio plugins has been reported repeatedly, and in 2026 an OBS Studio plugin forum saw author accounts taken over and published files replaced. Audio Plugin Soko-kun does not host files. It links to the files that authors publish on GitHub Releases, and lists a version only if the release is immutable, every file in the release, including installers that are not linked, has a build provenance attestation from the repository's own release workflow, a zip archive contains a VST 3, CLAP, LV2 or Audio Unit bundle and no archive contains a VST 2 plugin, the repository has an OSI- or FSF-approved open-source license at the release tag, no file is a known malware sample in MalwareBazaar, and macOS bundles are signed with a Developer ID and notarized. LV2 bundles for macOS are not linked, because Gatekeeper does not assess them. It also reviews the repository's development practices against published [review criteria](docs/design/review-criteria.md) (in Japanese). Passing the checks does not guarantee that a plugin is safe.
 
 ### Usage
 
@@ -43,13 +43,14 @@ The listing conditions, the security policy, and how to report a problem are on 
 | `docs/decisions/` | Architecture decision records |
 | `docs/design/` | Design documents |
 | `docs/glossary.md` | Glossary |
-| `docs/operations/` | Operations guides (deployment, admin commands, local development, incident response, backup) |
+| `docs/operations/` | Operations guides (deployment, admin commands, local development, incident response, backup, MCP Registry listing) |
 | `src/` | Cloudflare Worker: web catalog, MCP server, checks and sync |
 | `public/` | Static files: service logo, sharing image, VST Compatible logo |
 | `migrations/` | D1 schema migrations |
 | `scripts/` | Admin commands and maintenance scripts |
 | `test/` | Automated tests |
 | `.github/workflows/` | CI, deployment and verification workflows run on GitHub Actions |
+| `.github/scripts/` | Scripts run by the verification workflows: archive inspection, macOS signing judgment, network API and document scans |
 | `server.json` | Listing definition for the official MCP Registry |
 | `glama.json` | Maintainer of the Glama listing |
 | `LICENSE` | MIT License |
@@ -75,7 +76,9 @@ Steinberg Media Technologies GmbH、CLAP のプロジェクト、Apple、LV2 の
 音のプラグイン倉庫くんは、ファイルを預かりません。作者が GitHub Releases で公開したファイルへ案内します。版を掲載するのは、次の条件をすべて満たすときです。
 
 - リリースが不変 (immutable release) である
-- 案内するアーカイブのすべてに、そのリポジトリのリリースのワークフローによる build provenance の証明がある
+- リリースのすべてのファイルに、そのリポジトリのリリースのワークフローによる build provenance の証明がある。案内しないインストーラーも含む
+- zip のアーカイブに VST 3・CLAP・LV2・Audio Unit のいずれかのバンドルがあり、どのアーカイブにも VST 2 のプラグインが無い
+- リリースのタグの時点のリポジトリのライセンスが、OSI か FSF が認めるオープンソースのライセンスである
 - どのファイルも、MalwareBazaar に既知のマルウェアとして登録されていない
 - macOS 向けのバンドルに、Developer ID の署名と Apple の公証がある。macOS の LV2 のバンドルは、Gatekeeper が判定しないため案内しない
 
@@ -89,13 +92,14 @@ Steinberg Media Technologies GmbH、CLAP のプロジェクト、Apple、LV2 の
 | `docs/decisions/` | 設計判断の記録 |
 | `docs/design/` | 設計文書 |
 | `docs/glossary.md` | 用語集 |
-| `docs/operations/` | 運用の手順 (配備・管理コマンド・ローカルでの開発・障害対応・バックアップ) |
+| `docs/operations/` | 運用の手順 (配備・管理コマンド・ローカルでの開発・侵害の対応・バックアップ・MCP Registry への登録) |
 | `src/` | Cloudflare Worker の本体。Web カタログ・MCP サーバー・検査と同期 |
 | `public/` | 静的なファイル。サービスのロゴ・共有のときの画像・VST Compatible ロゴ |
 | `migrations/` | D1 のスキーマのマイグレーション |
 | `scripts/` | 管理コマンドと保守用のスクリプト |
 | `test/` | 自動テスト |
 | `.github/workflows/` | GitHub Actions で実行する CI・配備・検証のワークフロー |
+| `.github/scripts/` | 検証のワークフローが実行するスクリプト。アーカイブの中身の検査・macOS の署名と公証の判定・通信の API と文書の照合 |
 | `server.json` | 公式の MCP Registry への登録の定義 |
 | `glama.json` | Glama の掲載の保守者 |
 | `LICENSE` | MIT License |
