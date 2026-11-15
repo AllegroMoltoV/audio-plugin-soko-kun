@@ -426,7 +426,7 @@ A06 は、配信プラグイン倉庫くんに無いテストです。攻撃者�
 | `test/setup.ts`・`test/premise.test.ts` | 方針 | なし |
 | `attestation.test.ts` の受け口のアクセス権限 | P20 から P33 | 経路を 4 つにする。`aud` の値を替える。P22・P25・P31・P32 を足す |
 | `attestation.test.ts` の検証の結果 | I01 から I03 | I01 を中身の検査と macOS の判定に広げる |
-| `mcp.test.ts` のアクセス権限 | P01 から P06 | P02 に `error="invalid_token"` を足す。P03 を足す |
+| `mcp.test.ts` のアクセス権限 | P01 から P06・Q03 | P02 に `error="invalid_token"` の確認を足す。P03 (確認のモードの未サインイン) を足す。Q03 (`/oauth/register` のレート制限) を足す |
 | `mcp.test.ts` の検索と `get_plugin` | V01・V02・R03 | 停止のプラグインを同じテストに入れる |
 | `web.test.ts` の script のエスケープ、機械翻訳のエスケープと JSON-LD | X01・X02 | 宣言ファイルの `name` と配布物名を足す |
 | `web.test.ts` の CSP、検査待ちの詳細ページ、旧い URL の転送 2 件、止めた版の警告、連絡先、画像の配信の条件 | X03・P40・N01・N02・N05・N06・P42・P43 | 連絡先のドメインを替える |

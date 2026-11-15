@@ -53,6 +53,11 @@ describe('アクセス権限', () => {
       toolCall('submit_plugin', { repositoryUrl: 'https://github.com/a/b' }, { Authorization: 'Bearer x:y:z' }),
       401,
     ],
+    [
+      '未サインインで submit_plugin の確認のモードを呼ぶ',
+      toolCall('submit_plugin', { repositoryUrl: 'https://github.com/a/b', mode: 'check' }),
+      401,
+    ],
     ['未サインインで list_my_plugins を呼ぶ', toolCall('list_my_plugins', {}), 401],
     [
       'Mcp-Name に search_plugins を付け、本文で list_my_plugins を呼ぶ',
@@ -72,6 +77,35 @@ describe('アクセス権限', () => {
         `resource_metadata="${ORIGIN}/.well-known/oauth-protected-resource/mcp"`,
       );
     }
+  });
+
+  // 偽のトークンでは、MCP クライアントがトークンを取り直せるよう、401 の理由を invalid_token で示す。
+  it('偽のトークンの 401 は WWW-Authenticate に error="invalid_token" を含む', async () => {
+    const response = await SELF.fetch(
+      toolCall('submit_plugin', { repositoryUrl: 'https://github.com/a/b' }, { Authorization: 'Bearer x:y:z' }),
+    );
+    expect(response.status).toBe(401);
+    expect(response.headers.get('WWW-Authenticate')).toContain('error="invalid_token"');
+  });
+
+  // OAuth の経路は KV へ書き込むため、同じ送信元から 1 分に 20 件を超える要求を断る。
+  it('同じ送信元から 1 分に 21 件の /oauth/register は、21 件目が 429 で Retry-After: 60 を含む', async () => {
+    const register = () =>
+      SELF.fetch(`${ORIGIN}/oauth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': '203.0.113.7' },
+        body: JSON.stringify({ redirect_uris: ['http://localhost:3333/callback'], client_name: 'test' }),
+      });
+    const statuses: number[] = [];
+    let last: Response | undefined;
+    for (let i = 0; i < 21; i += 1) {
+      last = await register();
+      statuses.push(last.status);
+      await last.body?.cancel();
+    }
+    expect(statuses.slice(0, 20).every((status) => status !== 429)).toBe(true);
+    expect(last?.status).toBe(429);
+    expect(last?.headers.get('Retry-After')).toBe('60');
   });
 
   it('検索結果に検査待ちのプラグインを含めない', async () => {
