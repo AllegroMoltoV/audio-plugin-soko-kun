@@ -12,6 +12,7 @@ import { runTranslations } from '../translate';
 import { loadAllViews } from './catalog';
 import { type AssetKind, assetKind } from './metadata';
 import { runReleaseChecks } from './release-checks';
+import { releaseNotesStatement } from './release-notes';
 import { REWRITE_ASSET_URLS, REWRITE_RELEASE_URLS } from './release-urls';
 import type { Scanner } from './status';
 
@@ -220,6 +221,8 @@ async function releaseStatements(
       `INSERT INTO release_checks (github_release_id, immutable) VALUES (?, ?)
        ON CONFLICT (github_release_id) DO UPDATE SET immutable = excluded.immutable`,
     ).bind(release.id, release.immutable === true ? 1 : 0),
+    // リリースノートを照合する。本文の編集でも ETag が変わり、この関数が呼ばれる。
+    await releaseNotesStatement(env.DB, release.id, release.body),
     // リリースから外された配布物は掲載対象から外す。
     env.DB.prepare(
       `DELETE FROM assets WHERE release_id = ? AND github_asset_id NOT IN (${assets.map(() => '?').join(', ')})`,
@@ -378,6 +381,8 @@ async function runSync(env: Env, budget: Budget, report: CronReport): Promise<vo
 }
 
 export const DOWNLOADS_PER_RUN = 10;
+// ダウンロード数の記録で、リリースノートを照合し直す新しい順のリリースの数。
+const NOTES_RELEASES_PER_PLUGIN = 5;
 const SNAPSHOT_RETENTION_DAYS = 15;
 
 const dayOf = (date: Date) => date.toISOString().slice(0, 10);
@@ -399,6 +404,7 @@ async function runDownloads(env: Env, budget: Budget, report: CronReport, today 
     .bind(day, DOWNLOADS_PER_RUN)
     .all<{ id: string; owner: string; repo: string }>();
   const statements: D1PreparedStatement[] = [];
+  let recorded = 0;
   for (const row of results) {
     if (!budget.canFetch()) break;
     try {
@@ -412,6 +418,12 @@ async function runDownloads(env: Env, budget: Budget, report: CronReport, today 
           'INSERT INTO download_snapshots (plugin_id, day, total) VALUES (?, ?, ?) ON CONFLICT (plugin_id, day) DO UPDATE SET total = excluded.total',
         ).bind(row.id, day, total),
       );
+      recorded += 1;
+      // 同期は最新のリリースしか読まないため、掲載中の版が最新でないときの本文の編集は、ここで 1 日 1 回照合する。
+      // 掲載中の版は新しい側の数件にあるため、新しい順の NOTES_RELEASES_PER_PLUGIN 件に限る。行の無いリリースは更新しない。
+      for (const release of releases.filter((entry) => !entry.draft).slice(0, NOTES_RELEASES_PER_PLUGIN)) {
+        statements.push(await releaseNotesStatement(env.DB, release.id, release.body));
+      }
     } catch (error) {
       if (error instanceof GitHubError && (error.kind === 'rate_limited' || error.kind === 'unavailable')) {
         report.stoppedBy = `github_${error.kind}`;
@@ -427,7 +439,7 @@ async function runDownloads(env: Env, budget: Budget, report: CronReport, today 
   statements.push(env.DB.prepare('DELETE FROM download_snapshots WHERE day < ?').bind(cutoff));
   budget.takeD1Query();
   await env.DB.batch(statements);
-  report.downloadsRecorded = statements.length - 1;
+  report.downloadsRecorded = recorded;
 }
 
 // 掲載の期間と、マルウェアを検出した版を記録する。どちらの表も行を削除しない (ADR 0013)。

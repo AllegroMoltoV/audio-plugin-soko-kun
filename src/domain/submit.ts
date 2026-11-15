@@ -15,6 +15,7 @@ import {
   type ReviewOutcome,
   reviewRepository,
 } from './release-checks';
+import { releaseNotesStatement } from './release-notes';
 
 export const SUBMITS_PER_DAY = 10;
 
@@ -360,6 +361,8 @@ async function validateAndStore(env: Env, submitter: Submitter, repositoryUrl: s
       env.DB.prepare(
         "INSERT INTO release_checks (github_release_id, immutable, license_state, license_spdx) VALUES (?, ?, 'passed', ?)",
       ).bind(release.id, release.immutable === true ? 1 : 0, licenseSpdx),
+      // 登録の時点の版のリリースノートも照合する。結果は新しい版の検査のレビューで使う。
+      await releaseNotesStatement(env.DB, release.id, release.body),
     ];
     for (const asset of assets) {
       const kind = assetKind(asset.name);

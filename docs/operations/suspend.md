@@ -49,7 +49,7 @@
 
 `hide-images` は、掲載を続けたままロゴと説明の画像だけを止めます。不適切な画像の通報を受けたときに使います。`show-images` で元に戻します。
 
-`pending` は、まだ掲載していない新しい版のうち、管理者が承認しておらず、止めてもいない版を表示します。主な列は次のとおりです。
+`pending` は、まだ掲載していない新しい版のうち、管理者が承認しておらず、止めてもいない版を表示します。掲載したことのある版でも、リリースノートの編集で確認待ち (`notes_held` が 1) になった版は表示します。主な列は次のとおりです。
 
 | 列 | 内容 |
 | --- | --- |
@@ -58,13 +58,14 @@
 | `config_state` | 宣言ファイルの判定の状態 |
 | `review_state`・`review_attempts`・`review_serious` | LLM のレビューの状態・試行の回数・重大な指摘の件数 |
 | `serious_findings` | 重大な指摘の項目・説明・該当の箇所 |
+| `notes_held`・`notes_hits` | 照合の後にリリースノートが編集され、新しい本文が `no-security-bypass` か `no-terminal-paste` の型に当たったときに 1。当たった行と項目。本文は保存しないため、GitHub のリリースの画面で確かめる |
 | `attestations_waiting` | 証明の検証を待っている配布物の件数。`error` で終わり、試行が 3 回に満たない配布物も数える |
 | `contents_waiting` | アーカイブの中身の検査を待っている配布物の件数。数え方は `attestations_waiting` と同じ |
 | `macos_waiting` | macOS の署名と公証の判定を待っている配布物の件数。数え方は `attestations_waiting` と同じ |
 | `checks_exhausted` | 証明の検証・中身の検査・macOS の判定のいずれかが `error` のまま試行を 3 回使い切った配布物の件数。作者には `check_retries_exhausted` と返る |
 | `attestations_failed` | 証明の検証に失敗した配布物の件数 |
 
-`approve-release` は、乗っ取りの兆候・LLM のレビューの指摘・レビューの失敗・macOS の署名の Team ID の食い違いによる確認待ちを解きます。あわせて、同期で所有者の変更を検出したことによる確認待ちも解きます。証明・不変・配布の形・中身の検査・ライセンス・宣言ファイルの条件は解けません。証明の検証・中身の検査・macOS の判定が 3 回 `error` で終わった配布物を含む版も、承認だけでは掲載されません。原因を確かめてから `retry-checks` で検査し直します。確認待ちの理由と算出規則は [データモデル](../design/data-model.md) と [審査の基準](../design/review-criteria.md) に記載しています。
+`approve-release` は、乗っ取りの兆候・LLM のレビューの指摘・レビューの失敗・macOS の署名の Team ID の食い違い・リリースノートの編集 (`notes_held`) による確認待ちを解きます。承認の後にリリースノートが編集され、新しい本文が型に当たると、承認は取り消されます。あわせて、同期で所有者の変更を検出したことによる確認待ちも解きます。証明・不変・配布の形・中身の検査・ライセンス・宣言ファイルの条件は解けません。証明の検証・中身の検査・macOS の判定が 3 回 `error` で終わった配布物を含む版も、承認だけでは掲載されません。原因を確かめてから `retry-checks` で検査し直します。確認待ちの理由と算出規則は [データモデル](../design/data-model.md) と [審査の基準](../design/review-criteria.md) に記載しています。
 
 `suspend-release` は版を止め、告知の文とともに `release_suspensions` に記録します。同じ版にもう一度実行すると、告知の文を書き換えます。指定したタグのリリースが無いときは何も記録せず、出力の行が空になります。侵害が疑われるときの手順は [侵害の対応](incident-response.md) に記載しています。
 
@@ -170,7 +171,7 @@
 | macOS の判定 (`macos_signing_checks`) | `error` で試行が 3 回 | 次の `macos-verify.yaml` の起動 |
 | LLM のレビュー (`release_checks` の `review_state`) | `failed` で試行が 2 回 | 次の定期処理の新しい版の検査 |
 
-通信の検出 (`network_state`) の試行切れは戻しません。通信の検出の試行切れは掲載を止めず、レビューは検出の結果なしで進むためです。試行が残っている `error` と、結果が確定した検査は変えません。レビューの失敗による確認待ちは `approve-release` でも解けます。レビューの結果を得てから判断したいときに `retry-checks` を使います。
+通信の検出 (`network_state`) の試行切れは戻しません。レビューは通信の API の検出の結果なしで進むためです。ただし、同じ取り出しで行う README 以外の文書の照合の結果も無いため、`no-security-bypass` と `no-terminal-paste` が重大の指摘になり、版は管理者の確認待ちになります。`serious_findings` の説明で照合できなかったことを確かめ、`approve-release` で判断します。試行が残っている `error` と、結果が確定した検査は変えません。レビューの失敗による確認待ちは `approve-release` でも解けます。レビューの結果を得てから判断したいときに `retry-checks` を使います。
 
 ## 通報を受けたとき
 

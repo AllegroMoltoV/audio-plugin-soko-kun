@@ -200,7 +200,7 @@ Cron Trigger は `*/15 * * * *` で、15 分ごとに起動します。1 回の�
 
 ### ダウンロード数の記録
 
-配信プラグイン倉庫くんと同じ規則で、プラグインごとに 1 日 1 回、`GET /repos/{owner}/{repo}/releases?per_page=100` の配布物の `download_count` の合計を `download_snapshots` に記録します。数は GitHub での全ダウンロードの数で、インストーラーと案内しない配布物も含みます。週間のダウンロード数は、最新の記録と、7 日以上前の記録のうち最も新しいものとの差です。
+配信プラグイン倉庫くんと同じ規則で、プラグインごとに 1 日 1 回、`GET /repos/{owner}/{repo}/releases?per_page=100` の配布物の `download_count` の合計を `download_snapshots` に記録します。同じ応答で、下書きを除く新しい順の 5 件のリリースノートを照合し直します (「リリースノートの照合」)。数は GitHub での全ダウンロードの数で、インストーラーと案内しない配布物も含みます。週間のダウンロード数は、最新の記録と、7 日以上前の記録のうち最も新しいものとの差です。
 
 ### GitHub API の異常
 
@@ -225,10 +225,11 @@ Cron Trigger は `*/15 * * * *` で、15 分ごとに起動します。1 回の�
 | 配布物の種類 | 配布物の名前の拡張子から `kind` を決める |
 | 差分の起点 | その時点の掲載対象のリリースを `base_release_id` に保存する。無ければ `diff_state` を `skipped` にする |
 | 配布物の検証 | すべての配布物に `attestation_checks` の行を、アーカイブには `content_checks` の行も、`pending` で作る。`macos_signing_checks` の行は、中身の検査で macOS 向けのバンドルを検出したときに作る。macOS の LV2 のバンドルは数えない |
+| リリースノート | 応答の本文を下の「リリースノートの照合」の規則で照合する |
 
 ### 定期処理で行う検査
 
-Cron の定期処理は、`release_checks` のうち未完了の行を、1 回の起動で 1 件ずつ処理します。レビューは、下の「通信の検出」の結果を待ってから行います。待つのは版の公開から 6 時間までで、過ぎたら検出の結果なしでレビューします。宣言ファイル・ライセンス・差分の検査は、検出を待たずに進めます。6 時間の期限は、`verify.yaml` が起動しない障害でレビューが止まり続けないようにするためのものです。
+Cron の定期処理は、`release_checks` のうち未完了の行を、1 回の起動で 1 件ずつ処理します。レビューは、下の「通信の検出」の結果を待ってから行います。待つのは版の公開から 6 時間までで、過ぎたら検出の結果なしでレビューします。このとき README 以外の文書の照合の結果も無いため、`no-security-bypass` と `no-terminal-paste` を重大の指摘にします (「README 以外の文書の照合」)。宣言ファイル・ライセンス・差分の検査は、検出を待たずに進めます。6 時間の期限は、`verify.yaml` が起動しない障害でレビューが止まり続けないようにするためのものです。
 
 | 順序 | 処理 | 規則 |
 | --- | --- | --- |
@@ -375,7 +376,7 @@ macOS の判定を待つ配布物は、`verify.yaml` が中身の検査の結果
 | 経路 | 内容 |
 | --- | --- |
 | `GET /internal/checks/pending` | `attestation_checks` か `content_checks` の結果が `pending` か、`error` で試行が 3 回未満の配布物を、最大 50 件返す。各件に、配布物の ID・`kind`・ダウンロード URL・`digest`・リポジトリ・リポジトリ ID・旧い名前の一覧・タグ・タグのコミット・記録したリリースのワークフローを含める。あわせて、通信の検出を待つ版 (`release_checks` の `network_state` が `pending` か、`error` で試行が 3 回未満) を、版の ID・現在のリポジトリ・版のコミットとともに最大 5 件返す |
-| `POST /internal/checks/results` | 配布物ごとの証明の検証の結果と、アーカイブの中身の検査の結果を、1 回に 100 件まで受け取り、`attestation_checks` と `content_checks` に書く。結果が `pending` か `error` の行だけを書き換え、確定した行は書き換えない。試行を使い切った `error` の行も、遅れて届いた結果を受け入れる。記録したリリースのワークフローと違うワークフローが署名した証明と、署名したワークフローの無い証明は、`passed` を受けても `failed` (`signer_workflow_mismatch`・`signer_workflow_missing`) にする。中身の検査の結果には、カテゴリの手がかり `categories` を含む。中身の検査で macOS 向けのバンドルを検出した配布物には、`macos_signing_checks` の行を `pending` で作る。宣言ファイルとの照合が残っていれば行う。通信の検出の結果 (`networkScans`) を受け取り、`release_checks` の `network_state` が `pending` か `error` の版の `network_state` と `network_hits` に書く。同じ配布物の結果を 2 つ含む要求と、形の合わない配布物の結果は、要求全体を 400 で拒否する。通信の検出の結果も、版の重なり・5 件を超える件数・形の合わない版の結果は、要求全体を 400 で拒否する。当たりは 50 件までとし、ファイルは 200 文字、行の文字列は 160 文字に切る。決まった API の名前でない当たりと、形の合わない当たりは捨てる |
+| `POST /internal/checks/results` | 配布物ごとの証明の検証の結果と、アーカイブの中身の検査の結果を、1 回に 100 件まで受け取り、`attestation_checks` と `content_checks` に書く。結果が `pending` か `error` の行だけを書き換え、確定した行は書き換えない。試行を使い切った `error` の行も、遅れて届いた結果を受け入れる。記録したリリースのワークフローと違うワークフローが署名した証明と、署名したワークフローの無い証明は、`passed` を受けても `failed` (`signer_workflow_mismatch`・`signer_workflow_missing`) にする。中身の検査の結果には、カテゴリの手がかり `categories` を含む。中身の検査で macOS 向けのバンドルを検出した配布物には、`macos_signing_checks` の行を `pending` で作る。宣言ファイルとの照合が残っていれば行う。通信の検出の結果 (`networkScans`) を受け取り、`release_checks` の `network_state` が `pending` か `error` の版の `network_state` と `network_hits` に書く。要素の `docHits` と `docTruncated` (README 以外の文書の照合の当たり) は `doc_hits` に書き、知らない項目の名前の当たりと形の合わない当たりは捨てる。同じ配布物の結果を 2 つ含む要求と、形の合わない配布物の結果は、要求全体を 400 で拒否する。通信の検出の結果も、版の重なり・5 件を超える件数・形の合わない版の結果は、要求全体を 400 で拒否する。当たりは 50 件までとし、ファイルは 200 文字、行の文字列は 160 文字に切る。決まった API の名前でない当たりと、形の合わない当たりは捨てる |
 | `GET /internal/macos-checks/pending` | `macos_signing_checks` の結果が `pending` か、`error` で試行が 3 回未満の配布物を、最大 50 件返す。各件に、配布物の ID・ダウンロード URL・`digest`・リポジトリ・タグと、判定するバンドルのアーカイブの中のパス `bundles` を含める。`bundles` は `content_checks` の `bundles` のうち、macOS 向けで LV2 でないものに限り、パスの規則をもう一度確かめる。この条件は `src/checks/macos-route.ts` の `PENDING_MACOS_FROM` に 1 か所で定め、定期処理の起動の判定と共有する |
 | `POST /internal/macos-checks/results` | 配布物ごとの結果 `{assetId, result, reason, teamIds}` を 1 回に 100 件まで受け取り、`macos_signing_checks` の `result`・`reason`・`team_id` に書き、`attempts` を 1 増やす。`result` と `reason` の組は「署名と公証の判定」の表のものだけを受け付け、`passed` には Team ID を 1 件以上求める。Team ID は英大文字と数字の 10 文字で、10 件まで。形の合わない結果、または同じ配布物の結果を 2 つ含む要求は、全体を 400 で拒否する。行の無い配布物には行を作らない。結果が `pending` か `error` の行だけを書き換え、確定した行は書き換えない。試行を 3 回使い切った `error` の行も、遅れて届いた結果を受け入れる |
 
@@ -498,6 +499,16 @@ Linux の rcodesign は使いません。rcodesign の verify は Mach-O だけ�
 JUCE の `juce::URL` の型の名前では当てません。`launchInDefaultBrowser` のように、ブラウザーで開くだけの用途にも使うためです。`createInputStream` は、ローカルのファイルの `File::createInputStream` と区別するため、`URL::` で修飾した形と `InputStreamOptions` だけに当てます。JUCE をリポジトリに同梱した作者のソースで JUCE 自身の通信の実装に当たらないよう、`juce_core` のディレクトリは探しません。ビルドの出力 (`build`・`build_*`・Rust の `target`) と、`.git`・`.deps` も探しません。
 
 当たりは 50 件までとし、超えたら打ち切りを `truncated` で示します。検出は API の使用だけを示し、送る内容は示しません。そのため、検出の結果だけで掲載を止めず、README の説明と合わせて LLM が判定します。
+
+### README 以外の文書の照合
+
+同じ取り出しで、`.github/scripts/scan-docs.mjs` が README 以外の文書の案内を `no-security-bypass` と `no-terminal-paste` の型で照合します。型は Worker と共有する `src/review/guidance-patterns.mjs` を使います。`verify.yaml` は、`.github/scripts` と `src/review` のディレクトリだけを sparse-checkout で取り出し、`scan-docs.mjs` はこのファイルを相対パスで読みます。対象は `.md`・`.markdown`・`.mdx`・`.txt`・`.rst`・`.adoc`・`.asciidoc`・`.org` のファイルと、直下と `docs/` の拡張子の無い大文字で始まる名前のファイルです。ワークフロー・スクリプト・ロケールのファイルは拡張子で外れます。`.git` とシンボリックリンク、1 MiB を超えるファイル、NUL を含むファイルは読みません。README は名前で除かず、Worker が README の照合と重なる当たりを捨てます。当たり (ファイル・行・項目・行の文字列) は 50 件までとし、通信の検出の結果の要素に `docHits` と `docTruncated` として載せます。照合は 60 秒で打ち切り、失敗した版は通信の検出と同じく `error` として返します。
+
+レビューの時点で結果が届いていない版 (期限切れか、`error` のまま試行を使い切った版) は、`no-security-bypass` と `no-terminal-paste` を重大の指摘にします。リポジトリを大きくして取得を時間切れにすることで、照合を逃れられないようにするためです。`network_state` が `done` で `doc_hits` が NULL の版 (文書の照合を入れる前に検出した版) と、`skipped` の版は、文書を照合していないものとして扱います。
+
+### リリースノートの照合
+
+リリースノート (GitHub のリリースの本文) は、同期と登録で受け取る `releases/latest` の応答と、1 日 1 回のダウンロード数の記録で受け取る `releases` の一覧の応答に含まれます。外部呼び出しを増やさずに、その場で `no-security-bypass` と `no-terminal-paste` の型を照合します。本文は保存せず、当たった行と本文の SHA-256 を `release_checks` の `notes_hits` と `notes_hash` に保存します。ダウンロード数の記録では、新しい順の 5 件のリリースを照合し直します。同期は最新のリリースしか読まないため、掲載中の版が最新でないときの本文の編集を拾うためです。`release_checks` の行が無いリリースは更新しません。照合の済んだ本文が編集され、新しい本文が型に当たったときは、その版を管理者の確認待ち (`notes_held`) にし、管理者の承認を取り消します。新しい版のレビューでは、当たった行を根拠 (`(release notes)` と行番号) にして重大の指摘にします。確認のモードではリリースノートを照合しません。
 
 ### 結果が出るまでの時間
 

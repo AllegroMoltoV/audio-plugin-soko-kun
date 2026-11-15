@@ -411,10 +411,18 @@ describe('通信の API の検出の結果', () => {
           { file: 'src/evil.cpp', line: 1, api: 'made-up', text: 'x' },
           { file: 'src/bad.cpp', line: 'one', api: 'libcurl', text: 'x' },
         ],
+        docHits: [{ file: 'docs/INSTALL.md', line: 3, rule: 'no-terminal-paste', text: 'curl x | sh' }],
+        docTruncated: false,
       },
     ]);
     expect(response.status).toBe(200);
     const row = await scanOf();
+    // 同じ取り出しで照合した文書の当たりも、同じ結果で保存する。
+    const docs = await env.DB.prepare('SELECT doc_hits FROM release_checks').first<string>('doc_hits');
+    expect(JSON.parse(docs ?? '{}')).toEqual({
+      hits: [{ file: 'docs/INSTALL.md', line: 3, rule: 'no-terminal-paste', text: 'curl x | sh' }],
+      truncated: false,
+    });
     expect(row?.network_state).toBe('done');
     expect(JSON.parse(row?.network_hits ?? '{}')).toEqual({
       hits: [{ file: 'Source/Update.cpp', line: 37, api: 'juce-network', text: 'url.readEntireTextStream();' }],

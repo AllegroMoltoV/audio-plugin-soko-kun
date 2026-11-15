@@ -77,7 +77,7 @@ if (command === 'suspend') {
   sql = `SELECT p.owner || '/' || p.repo AS plugin, r.tag, r.published_at,
            CAST((julianday('now') - julianday(r.published_at)) * 1440 AS INTEGER) AS waiting_minutes,
            c.diff_state, c.diff_hits, c.config_state,
-           c.review_state, c.review_attempts, c.review_serious,
+           c.review_state, c.review_attempts, c.review_serious, c.notes_held, c.notes_hits,
            (SELECT json_group_array(json_object('id', json_extract(f.value, '$.id'),
               'explanation', json_extract(f.value, '$.explanation'), 'evidence', json_extract(f.value, '$.evidence')))
             FROM json_each(json_extract(c.review_json, '$.findings')) f WHERE json_extract(f.value, '$.serious') = 1)
@@ -106,7 +106,8 @@ if (command === 'suspend') {
             WHERE a.release_id = r.github_release_id AND t.result = 'failed') AS attestations_failed
          FROM release_checks c JOIN releases r ON r.github_release_id = c.github_release_id JOIN plugins p ON p.id = r.plugin_id
          WHERE c.admin_approved_at IS NULL AND p.removed = 0
-           AND NOT EXISTS (SELECT 1 FROM listing_periods l WHERE l.github_release_id = r.github_release_id)
+           AND (c.notes_held = 1
+             OR NOT EXISTS (SELECT 1 FROM listing_periods l WHERE l.github_release_id = r.github_release_id))
            AND NOT EXISTS (SELECT 1 FROM release_suspensions s WHERE s.github_release_id = r.github_release_id)
          ORDER BY r.published_at;`;
 } else if (command === 'approve-release') {

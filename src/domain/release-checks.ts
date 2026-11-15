@@ -6,7 +6,7 @@ import { GitHubClient, GitHubError } from '../github';
 import { LLM_CRITERIA } from '../review/criteria';
 import { type ChangedFile, checkDiff, type DiffHit, tooLargeHits } from '../review/diff-rules';
 import { type Finding, runReview } from '../review/llm';
-import { NETWORK_WAIT_MS, NETWORK_WAITING, readNetworkScan } from '../review/network';
+import { NETWORK_WAIT_MS, NETWORK_WAITING, readDocScan, readNetworkScan } from '../review/network';
 import {
   clean,
   computeFacts,
@@ -20,6 +20,7 @@ import {
 import { getPluginViewByInternalId } from './catalog';
 import { readDeclaration, serializeDeclaration, settleDeclarations } from './declaration';
 import { licenseAtTag } from './license';
+import { readReleaseNotesHits } from './release-notes';
 import { MAX_REVIEW_ATTEMPTS } from './status';
 
 // ルートのビルド系のファイル (docs/design/scanning.md の「定期処理で行う検査」の順序 5)。
@@ -56,6 +57,8 @@ interface PendingRow {
   review_attempts: number;
   network_state: string;
   network_hits: string | null;
+  notes_hits: string | null;
+  doc_hits: string | null;
   network_ready: number;
 }
 
@@ -70,7 +73,7 @@ export async function runReleaseChecks(env: Env, budget: Budget): Promise<number
   budget.takeD1Query();
   const row = await env.DB.prepare(
     `SELECT c.github_release_id, r.plugin_id, p.owner, p.repo, r.tag, r.commit_sha, c.diff_state, c.license_state, c.config_state,
-       c.config_fetched_at, c.review_state, c.review_attempts, c.network_state, c.network_hits,
+       c.config_fetched_at, c.review_state, c.review_attempts, c.network_state, c.network_hits, c.notes_hits, c.doc_hits,
        ${NETWORK_READY} AS network_ready
      FROM release_checks c JOIN releases r ON r.github_release_id = c.github_release_id JOIN plugins p ON p.id = r.plugin_id
      WHERE p.removed = 0 AND c.review_attempts < ? AND (c.diff_state = 'pending'
@@ -186,6 +189,9 @@ async function checkOne(env: Env, budget: Budget, github: GitHubClient, row: Pen
   if (row.review_state !== 'done' && row.network_ready === 1) {
     const input = await collectReviewFiles(github, row.owner, row.repo, row.tag);
     input.network = row.network_state === 'done' ? readNetworkScan(row.network_hits) : null;
+    // リリースノートは同期の時点で照合してある。照合していない版 (この仕組みより前の版) は未設定のままにする。
+    input.releaseNotesHits = readReleaseNotesHits(row.notes_hits);
+    input.docScan = docScanForReview(row.network_state, row.doc_hits);
     const outcome = await reviewRepository(env, budget, `${row.owner}/${row.repo}`, input, diff, {
       names,
       diffFacts,
@@ -246,6 +252,15 @@ export function tooLargeFacts(files: ChangedFile[] | null, complete: boolean, hi
     `Binary files added or changed: ${paths('binary-added')}`,
     `Held for an administrator by these facts (decided by the catalog, not by this review): ${hits.length > 0 ? 'yes' : 'no'}`,
   ];
+}
+
+// レビューに渡す README 以外の文書の照合の結果。文書は通信の検出と同じ結果で届く。
+// レビューの時点で検出が済んでいない版 (期限切れか、error のまま試行を使い切った版) は 'missing' とし、規則が重大にする。
+// 検出を入れる前の版 (skipped) と、文書の照合を入れる前に検出した版 (done で doc_hits が NULL) は照合していないものとする。
+export function docScanForReview(networkState: string, docHits: string | null): RepositorySnapshot['docScan'] {
+  if (networkState === 'done') return readDocScan(docHits) ?? undefined;
+  if (networkState === 'skipped') return undefined;
+  return 'missing';
 }
 
 export type CollectedFiles = RepositorySnapshot;

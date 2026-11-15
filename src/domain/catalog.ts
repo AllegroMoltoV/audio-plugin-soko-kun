@@ -167,6 +167,7 @@ interface CheckRow {
   review_attempts: number;
   review_serious: number;
   admin_approved_at: string | null;
+  notes_held: number;
 }
 interface ScanRow {
   digest: string;
@@ -345,6 +346,7 @@ async function loadViews(env: Env, pluginId?: string): Promise<PluginView[]> {
       reviewAttempts: row.review_attempts,
       reviewSerious: row.review_serious,
       adminApproved: row.admin_approved_at !== null,
+      notesHeld: row.notes_held === 1,
     });
   }
   const attestationByAsset = new Map<number, AssetForStatus['attestation']>();

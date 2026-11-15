@@ -1,6 +1,7 @@
 name: Verify release files
 
-# 掲載を待つ配布物の証明を検証し、アーカイブの中身を検査し、新しい版のソースから通信の API を探して、結果を音のプラグイン倉庫くんへ送る
+# 掲載を待つ配布物の証明を検証し、アーカイブの中身を検査し、新しい版のソースから通信の API と README 以外の文書の案内を探して、
+# 結果を音のプラグイン倉庫くんへ送る
 # (docs/design/scanning.md の「配布物の検証のワークフロー」、docs/decisions/0014-attestation-verification-in-actions.md)。
 # 音のプラグイン倉庫くんの /internal/checks/ は、このリポジトリの main で動作するこのワークフローの OIDC のトークンだけを受け付ける。
 on:
@@ -34,7 +35,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          sparse-checkout: .github/scripts
+          # scan-docs.mjs は、照合の型を Worker と共有する src/review/guidance-patterns.mjs から読む。
+          # cone mode のため、ファイルではなくディレクトリで指定する。
+          sparse-checkout: |
+            .github/scripts
+            src/review
       - name: Verify pending release files
         env:
           GH_TOKEN: ${{ github.token }}
@@ -143,7 +148,7 @@ jobs:
               results.json > results.next && mv results.next results.json
           done
 
-          # 版ごとに、そのコミットのソースだけを取得して通信の API を探す。ソースは実行もビルドもしない。
+          # 版ごとに、そのコミットのソースだけを取得して通信の API と、README 以外の文書の案内を探す。ソースは実行もビルドもしない。
           for i in $(seq 0 $((releases - 1))); do
             if past_deadline; then
               echo "fetch deadline reached; $((releases - i)) network scans are left for the next run"
@@ -155,6 +160,7 @@ jobs:
             commit=$(jq -r '.commitSha' <<< "${item}")
             src="${work}/src-${release_id}"
             scan=""
+            docs=""
             # 第三者のソースで、同じ回のほかの版の検証を止めないよう、取得と取り出しに時間の上限を付け、
             # 取り出しの前後でディスクの空きを確かめる。Git LFS のファイルは取得しない。
             if [[ "${repository}" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] && [[ "${commit}" =~ ^[0-9a-f]{40}$ ]] \
@@ -165,12 +171,16 @@ jobs:
                   && timeout 120 git checkout -q FETCH_HEAD) \
                   && [ "$(df --output=avail -B1 "${work}" | tail -1 | tr -d ' ')" -ge "${MIN_FREE_BYTES}" ]; then
                 scan=$(timeout 60 bash .github/scripts/scan-network.sh "${src}" || true)
+                # 同じ取り出しで、README 以外の文書の案内を照合する。どちらかが失敗した版は error として送り、やり直させる。
+                docs=$(timeout 60 node .github/scripts/scan-docs.mjs "${src}" || true)
+                if [ -z "${docs}" ]; then scan=""; fi
               fi
             fi
             rm -rf "${src}"
             if [ -n "${scan}" ]; then
-              echo "${repository} ${commit}: $(jq '.hits | length' <<< "${scan}") network API hits"
-              jq --argjson id "${release_id}" --argjson scan "${scan}" '. + [{releaseId: $id, result: "done"} + $scan]' \
+              echo "${repository} ${commit}: $(jq '.hits | length' <<< "${scan}") network API hits, $(jq '.hits | length' <<< "${docs}") document hits"
+              jq --argjson id "${release_id}" --argjson scan "${scan}" --argjson docs "${docs}" \
+                '. + [{releaseId: $id, result: "done"} + $scan + {docHits: $docs.hits, docTruncated: $docs.truncated}]' \
                 scans.json > scans.next && mv scans.next scans.json
             else
               echo "${repository} ${commit}: network scan error"

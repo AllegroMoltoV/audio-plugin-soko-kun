@@ -119,8 +119,8 @@ LLM には、この事実と差分の先頭の 24,000 文字を渡します。LL
 | --- | --- | --- | --- | --- | --- |
 | `ci-source-build` | リリースの配布物を、CI でソースからビルドしている | 判定しない | 掲載の条件の `attestation` で、配布物をタグのコミットからリリースのワークフローで作ったことを確かめるため、別に判定しない | なし | スライド 16〜17 枚目 |
 | `ci-plugin-validation` | CI で、ビルドしたプラグインを検証の道具に読み込ませている | LLM | CI が、ビルドの確認にとどまらず、pluginval・VST 3 SDK の validator・clap-validator・lv2lint・auval のような道具でプラグインを読み込み、処理を試している。ワークフローでこれらの道具に触れる行と、`.github/scripts/` 配下のスクリプトの名前を事実として渡す | なし | obs-backgroundremoval Issue 971 |
-| `no-security-bypass` | 利用者にセキュリティの機能を切らせない | ルール | README の行に、次の案内の型が無い。macOS の `xattr` の `-d`・`-c` による隔離属性の除去 (`xattr -rd com.apple.quarantine`・`xattr -cr` など)、`spctl --master-disable`・`spctl --global-disable` による Gatekeeper の無効化、「このまま開く」と「Open Anyway」の誘導、`Add-MpPreference`・`Set-MpPreference` の除外と無効化の設定、SmartScreen・Defender・Smart App Control の語と無効化や除外の語を同じ行に含む案内 | 案内がある | obs-backgroundremoval Issue 832、obs-spout2-plugin Issue 105、ADR 0003 |
-| `no-terminal-paste` | 導入のために、端末へ取得したものを実行するコマンドを貼り付けさせない | ルール | README の行に、ネットワークから取得した内容をその場で実行させるコマンドの型が無い。型は、`curl` や `wget` の出力をシェル・`osascript`・スクリプトの処理系へパイプで渡すもの、`bash -c "$(curl ...)"` と `bash <(curl ...)`、PowerShell の `irm ... \| iex` と `iex` で取得した文字列を実行するもの、base64 で埋め込んだ文字列を復号して実行するもの、`powershell -EncodedCommand`、`osascript` で取得したスクリプトを実行するものである。ソースからビルドする手順の `cmake` や `cargo` のコマンドは当たらない | 案内がある | オーディオプラグインを装うマルウェアの報告 (非公開の調査記録) |
+| `no-security-bypass` | 利用者にセキュリティの機能を切らせない | ルール | README・リリースノート・README 以外の文書の行に、次の案内の型が無い。macOS の `xattr` の `-d`・`-c` による隔離属性の除去 (`xattr -rd com.apple.quarantine`・`xattr -cr` など)、`spctl --master-disable`・`spctl --global-disable` による Gatekeeper の無効化、「このまま開く」と「Open Anyway」の誘導、`Add-MpPreference`・`Set-MpPreference` の除外と無効化の設定、SmartScreen・Defender・Smart App Control の語と無効化や除外の語を同じ行に含む案内 | 案内がある | obs-backgroundremoval Issue 832、obs-spout2-plugin Issue 105、ADR 0003 |
+| `no-terminal-paste` | 導入のために、端末へ取得したものを実行するコマンドを貼り付けさせない | ルール | README・リリースノート・README 以外の文書の行に、ネットワークから取得した内容をその場で実行させるコマンドの型が無い。型は、`curl` や `wget` の出力をシェル・`osascript`・スクリプトの処理系へパイプで渡すもの、`bash -c "$(curl ...)"` と `bash <(curl ...)`、PowerShell の `irm ... \| iex` と `iex` で取得した文字列を実行するもの、base64 で埋め込んだ文字列を復号して実行するもの、`powershell -EncodedCommand`、`osascript` で取得したスクリプトを実行するものである。ソースからビルドする手順の `cmake` や `cargo` のコマンドは当たらない | 案内がある | オーディオプラグインを装うマルウェアの報告 (非公開の調査記録) |
 | `dependency-pinning` | 依存をパッケージマネージャーやサブモジュールで、版を固定して入れている | ルール | リポジトリに共有ライブラリや実行ファイルを直接入れていない。`CMakeLists.txt` の `FetchContent_Declare` がコミットの SHA か `URL_HASH` で固定され、`file(DOWNLOAD)` に `EXPECTED_HASH` がある。`vcpkg.json` に `builtin-baseline` か `vcpkg-configuration.json` がある。`Cargo.toml` の git の依存は `rev` を持つか、`Cargo.lock` をコミットしている。サブモジュールは Git がコミットで固定するため当たらない | なし | スライド 17 枚目、obs-backgroundremoval Issue 644 |
 | `ci-hardening` | CI を最小の権限で守っている | ルール | ワークフローの `permissions` の指定、`write-all` を使わないこと、アクションの SHA の固定、`persist-credentials: false`、Dependabot の設定 | なし | obs-backgroundremoval PR 805、スライド 19 枚目 |
 | `third-party-provenance` | 同梱する第三者の素材とバイナリの出所とライセンスを示している | 判定しない | 同梱する素材とバイナリを知るには配布物の中身が要り、再配布の条件の判断には入力に無いライセンスの知識が要る | なし | obs-backgroundremoval PR 974、Issue 983 |
@@ -128,9 +128,16 @@ LLM には、この事実と差分の先頭の 24,000 文字を渡します。LL
 | `user-data-handling` | 音声・プロジェクトのファイル・設定・鍵を、利用者に知らせずに外部へ送らない | LLM | 通信の API の検出の結果、README、ワークフローから送る機能があると分かる場合に、README に送り先と内容が書かれている。オーディオプラグインでは、ライセンスの認証と更新の確認のための通信が普通にあるため、通信の有無では判定しない。README の中でデータの送信や API に触れる行と、通信の API の検出の結果を事実として渡す。検出していない版で送る機能の有無が分からなければ判定不能とする | 通信の API が見つかり、README が外部のホストにも送信にも一切触れていない | スライド 15 枚目、obs-backgroundremoval FAQ |
 | `build-hardening` | 防御のためのビルドの設定がある | ルール | ルートの `CMakeLists.txt` か `meson.build` に、Sanitizer の設定 (`-fsanitize` か `b_sanitize`) とスタック保護のフラグ (`-fstack-protector` か `/GS`) がある。Rust だけのビルドは対象外とする | なし | live-backgroundremoval-lite の CMakeLists.txt |
 
-`no-terminal-paste` は、配信プラグイン倉庫くんに無い項目です。偽のオーディオソフトの配布で、README から端末へのコマンドの貼り付けに誘導する手口が報告されているため加えます。
+`no-terminal-paste` は、本サービスが先に加え、配信プラグイン倉庫くんが取り込んだ項目です。偽のオーディオソフトの配布で、README から端末へのコマンドの貼り付けに誘導する手口が報告されているため加えました。
 
 `no-security-bypass` と `no-terminal-paste` をルールで判定するのは、案内の書き方の型がはっきりしていて、判定を揺らさずに済み、Workers AI も呼ばずに済むためです。型に当たる行は、「〜しないでください」のような否定の文脈でも当たります。重大の指摘は管理者の確認待ちになり、管理者が根拠の行を見て判断します。
+
+2 つの項目は、README のほかに、リリースノート (GitHub のリリースの本文) と README 以外の文書も照合します。案内を README から移すだけで照合を逃れられないようにするためです。型は Worker と GitHub Actions で共有する `src/review/guidance-patterns.mjs` に置き、配信プラグイン倉庫くんと同じ実装に保ちます。
+
+- リリースノートは、同期・登録・1 日 1 回のダウンロード数の記録で受け取る本文を、その場で照合します。当たった行は、根拠のファイルを `(release notes)` として示します。承認の後に本文を編集して案内を足した版は、承認を取り消して管理者の確認待ち (`notes_held`) に戻します
+- README 以外の文書は、`verify.yaml` が通信の検出と同じ取り出しで照合します。対象は `.md`・`.markdown`・`.mdx`・`.txt`・`.rst`・`.adoc`・`.asciidoc`・`.org` のファイルと、直下と `docs/` の拡張子の無い大文字で始まる名前のファイル (`INSTALL` など) です。ワークフロー・スクリプト・ロケールのファイルは拡張子で外れます。README と同じファイルの当たりは、README の照合と重なるため捨てます
+- 照合の結果が期限までに届かなかった版は、2 つの項目を重大の指摘にします。リポジトリを大きくして取得を時間切れにすることで、照合を逃れられないようにするためです
+- 確認のモードは README だけを照合します。GitHub の Wiki・gh-pages・外部のサイトと、掲載の後に既定のブランチへ足した案内は照合しません
 
 `user-data-handling` の重大は、通信の API が見つかり、README が外部のホストにも送信にも一切触れていないときに限ります。検出は API の使用だけを示し、送る内容は示さないためです。README で通信を説明している作者を、説明の細かさの違いで管理者の確認待ちにしないようにします。配信プラグイン倉庫くんの 0.2.3 と同じ条件です。
 

@@ -172,10 +172,14 @@ OAuth のクライアント・認可・トークンの情報は D1 ではなく 
 | `admin_approved_at` | TEXT | | 管理者が確認待ちを承認した日時。NULL は未承認 |
 | `network_state` | TEXT | NOT NULL、既定値 `pending` | 通信の API の検出の状態。`pending`・`done`・`error`・`skipped` のいずれか。`skipped` はマイグレーション 0005 の時点で既にあった版 |
 | `network_hits` | TEXT | | 検出で当たった箇所の JSON (`{hits: [{file, line, api, text}], truncated}`)。行の文字列は外部データ |
-| `network_attempts` | INTEGER | NOT NULL、既定値 0 | 検出の結果を受け取った回数。`error` が 3 回になったら、検出の結果なしでレビューする |
+| `network_attempts` | INTEGER | NOT NULL、既定値 0 | 検出の結果を受け取った回数。`error` が 3 回になったら、検出の結果なしでレビューする。このとき README 以外の文書の照合の結果も無いため、`no-security-bypass` と `no-terminal-paste` は重大の指摘になる |
 | `network_checked_at` | TEXT | | 最後に検出の結果を受け取った日時 |
+| `doc_hits` | TEXT | | README 以外の文書の照合で当たった箇所の JSON (`{hits: [{file, line, rule, text}], truncated}`)。通信の検出と同じ結果で受け取る。`network_state` が `done` で NULL なら、文書は照合していない |
+| `notes_hash` | TEXT | | リリースノートの本文の SHA-256 (16 進)。NULL は未照合。本文は保存しない |
+| `notes_hits` | TEXT | | リリースノートで案内の型に当たった行の JSON (`[{line, rule}]`) |
+| `notes_held` | INTEGER | NOT NULL、既定値 0 | 照合の後に本文が編集され、新しい本文が型に当たった。1 の間は、管理者の承認まで掲載しない |
 
-通信の API の検出は、掲載の可否を直接は決めません。検出の結果は `user-data-handling` のレビューの事実として使います。レビューは検出の結果を待ちますが、待つのは版の公開から 6 時間までです。
+通信の API の検出は、掲載の可否を直接は決めません。検出の結果は `user-data-handling` のレビューの事実として使います。レビューは検出の結果を待ちますが、待つのは版の公開から 6 時間までです。同じ結果で届く README 以外の文書の照合は、届かなければ `no-security-bypass` と `no-terminal-paste` の重大の指摘になり、管理者の確認待ちにします。
 
 宣言ファイルは任意です。`missing` は掲載を止めません。規格・OS・アーキテクチャは中身の検査の検出を正とするためです。
 
@@ -323,6 +327,7 @@ OAuth のクライアント・認可・トークンの情報は D1 ではなく 
 - `diff_state` が `passed` か `skipped` である。または `admin_approved_at` がある。
 - `review_state` が `done` で `review_serious` が 0 である。または `admin_approved_at` がある。
 - `macos_signing_checks` の `team_id` が、版のすべてのアーカイブで 1 つの値にそろう。または `admin_approved_at` がある。
+- `notes_held` が 0 である。または `admin_approved_at` がある。
 
 すべてのアーカイブの判定を終えてから掲載するのは、判定の途中で案内する配布物の組が変わることを避けるためです。証明の検証・中身の検査・macOS の判定の `error` は、3 回まで試行します。3 回目も `error` の配布物は自動ではやり直さず、その版は管理者が原因を確かめるまで掲載しません。`admin_approved_at` だけでは、`error` の配布物を含む版を掲載しません。
 

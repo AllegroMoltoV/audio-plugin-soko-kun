@@ -19,6 +19,8 @@ export interface RepoFixture {
   noArchive?: boolean;
   // false はすべての配布物、文字列はその拡張子で終わる配布物について、証明を返さない。
   attestation?: boolean | string;
+  // 最新のリリースのリリースノート (本文)。
+  body?: string;
 }
 
 export function githubHandlers(fixture: RepoFixture = {}, calls: string[] = []) {
@@ -73,6 +75,7 @@ export function githubHandlers(fixture: RepoFixture = {}, calls: string[] = []) 
           published_at: '2026-10-20T00:00:00Z',
           html_url: `https://github.com/${OWNER}/${REPO}/releases/tag/v1.1.0`,
           immutable: fixture.immutable ?? true,
+          body: fixture.body ?? null,
           assets: [
             ...(fixture.noArchive ? [] : [asset(8001, names.get(zipDigest) as string, withDigest ? zipDigest : null)]),
             asset(8002, names.get(sourceDigest) as string, withDigest ? sourceDigest : null),
@@ -150,16 +153,17 @@ export function imageHandlers(files?: Record<string, Uint8Array>, calls: string[
   ];
 }
 
-// リリースの一覧。ダウンロード数の記録に使う。counts は配布物ごとのダウンロード数。
-export function downloadHandlers(counts: number[] = [], calls: string[] = []) {
+// リリースの一覧。ダウンロード数の記録に使う。counts は配布物ごとのダウンロード数、body は登録した版のリリースノート。
+export function downloadHandlers(counts: number[] = [], calls: string[] = [], body: string | null = null) {
   return [
     http.get('https://api.github.com/repos/:owner/:repo/releases', () => {
       calls.push('releases:list');
       return HttpResponse.json([
         {
-          id: 1,
+          id: 7001,
           tag_name: 'v1.1.0',
           draft: false,
+          body,
           assets: counts.map((count, index) => ({ id: index, download_count: count })),
         },
         { id: 2, tag_name: 'v9.9.9', draft: true, assets: [{ id: 99, download_count: 1000 }] },
