@@ -58,6 +58,16 @@ describe('judgeByRules', () => {
     expect(result(findings, 'no-security-bypass')).toBe('unclear');
   });
 
+  it('README.md が大きくて読めなかったら、README の案内の型の判定を met にせず unclear にする', () => {
+    // README を大きくするだけで重大の判定を逃れられないことを確かめる。
+    const unread: RepositorySnapshot = { ...snapshot({}, ['README.md']), unreadFiles: ['README.md'] };
+    const findings = judgeByRules(unread);
+    expect(result(findings, 'no-security-bypass')).toBe('unclear');
+    expect(result(findings, 'no-terminal-paste')).toBe('unclear');
+    // README が本当に無いときは、従来どおり met。
+    expect(result(judgeByRules(snapshot({})), 'no-security-bypass')).toBe('met');
+  });
+
   it('dependency-pinning: コミットしたバイナリと、固定していない FetchContent は not_met', () => {
     expect(result(judgeByRules(snapshot({ 'CMakeLists.txt': 'project(x)' })), 'dependency-pinning')).toBe('met');
     expect(

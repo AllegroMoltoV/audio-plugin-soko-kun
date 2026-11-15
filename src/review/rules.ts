@@ -367,6 +367,10 @@ function readmePattern(
   const doc = readme(snapshot);
   if (!doc) {
     if (snapshot.truncated) return finding(id, 'unclear', 'The repository file list was too large to read in full.');
+    // README.md が大きいか、読む量の上限を先に使い切って読めなかったときは、無いものとして met にしない。
+    // met にすると、README を大きくするだけで重大の判定を逃れられるため (2026-11-15 に配信プラグイン倉庫くんが見つけた)。
+    if (snapshot.unreadFiles.includes('README.md'))
+      return finding(id, 'unclear', 'README.md was too large to read, so this was not checked.');
     return finding(id, 'met', 'Checked by rules: the repository has no README.md.');
   }
   const hits = doc.content
