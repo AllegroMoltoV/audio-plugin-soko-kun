@@ -60,7 +60,7 @@ describe('Web', () => {
     expect(response.headers.get('Location')).toContain(`/plugins/${OWNER}/fixture-pitchshift`);
   });
 
-  // 旧い名前に別のプラグインができても、旧い URL は元のプラグインに向ける (ADR 0015)。
+  // 旧い名前に別のプラグインができても、旧い URL は元のプラグインに向ける (派生元の ADR 0015)。
   it('旧い URL は、同じ名前の別のプラグインより、名前を変えた元のプラグインに向ける', async () => {
     await register();
     await markListable(env.DB);

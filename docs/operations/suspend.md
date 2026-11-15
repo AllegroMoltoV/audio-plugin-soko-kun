@@ -58,6 +58,8 @@
 | `review_state`・`review_attempts`・`review_serious` | LLM のレビューの状態・試行の回数・重大な指摘の件数 |
 | `serious_findings` | 重大な指摘の項目・説明・該当の箇所 |
 | `attestations_waiting` | 証明の検証を待っている配布物の件数。`error` で終わり、試行が 3 回に満たない配布物も数える |
+| `contents_waiting` | アーカイブの中身の検査を待っている配布物の件数。数え方は `attestations_waiting` と同じ |
+| `macos_waiting` | macOS の署名と公証の判定を待っている配布物の件数。数え方は `attestations_waiting` と同じ |
 | `checks_exhausted` | 証明の検証・中身の検査・macOS の判定のいずれかが `error` のまま試行を 3 回使い切った配布物の件数。作者には `check_retries_exhausted` と返る |
 | `attestations_failed` | 証明の検証に失敗した配布物の件数 |
 

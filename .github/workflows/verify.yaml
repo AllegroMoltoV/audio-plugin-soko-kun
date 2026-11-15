@@ -74,7 +74,7 @@ jobs:
             digest=$(jq -r '.digest' <<< "${item}")
             repository=$(jq -r '.repository' <<< "${item}")
             repository_id=$(jq -r '.repositoryId // empty' <<< "${item}")
-            # 現在の名前、旧い名前 (新しい順) の順に試す。名前を変える前に作られた証明は、作られたときの名前でしか通らない (ADR 0015)。
+            # 現在の名前、旧い名前 (新しい順) の順に試す。名前を変える前に作られた証明は、作られたときの名前でしか通らない (派生元の ADR 0015)。
             mapfile -t names < <(jq -r '.repository, (.previousRepositories // [])[]' <<< "${item}")
             tag=$(jq -r '.tag' <<< "${item}")
             commit=$(jq -r '.commitSha' <<< "${item}")

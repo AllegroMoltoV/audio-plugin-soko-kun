@@ -147,7 +147,7 @@ async function syncOne(env: Env, budget: Budget, github: GitHubClient, row: Sync
     ).bind(repo.owner.login, repo.name, freezeSummary ? null : repo.description?.trim() || null, row.id),
   );
   // 名前の変更と移管では、変わる前の URL の ID を記録し、旧い URL から転送できるようにする。
-  // 旧い名前は大文字と小文字を保って残す。名前を変える前に作られた証明は、その名前でしか検証に通らないため (ADR 0015)。
+  // 旧い名前は大文字と小文字を保って残す。名前を変える前に作られた証明は、その名前でしか検証に通らないため (派生元の ADR 0015)。
   const previousSlug = `${row.owner}/${row.repo}`.toLowerCase();
   if (previousSlug !== `${repo.owner.login}/${repo.name}`.toLowerCase()) {
     statements.push(
@@ -158,7 +158,7 @@ async function syncOne(env: Env, budget: Budget, github: GitHubClient, row: Sync
       env.DB.prepare(REWRITE_ASSET_URLS).bind(repo.owner.login, repo.name, row.id),
     );
   }
-  // 所有者が変わったら、管理者が版を承認するまで、まだ掲載していない新しい版を確認待ちにする (ADR 0015)。
+  // 所有者が変わったら、管理者が版を承認するまで、まだ掲載していない新しい版を確認待ちにする (派生元の ADR 0015)。
   if (row.owner.toLowerCase() !== repo.owner.login.toLowerCase()) {
     statements.push(
       env.DB.prepare('UPDATE plugins SET owner_changed_at = COALESCE(owner_changed_at, ?) WHERE id = ?').bind(
@@ -304,7 +304,7 @@ export function resetScanStatements(env: Env, digest: string): D1PreparedStateme
   );
 }
 
-// 新しく現れた配布物は、証明を検証し直す。署名の検証は GitHub Actions が行う (ADR 0014)。
+// 新しく現れた配布物は、証明を検証し直す。署名の検証は GitHub Actions が行う (派生元の ADR 0014)。
 export function resetAttestationStatement(env: Env, assetId: number): D1PreparedStatement {
   return env.DB.prepare(
     `INSERT INTO attestation_checks (github_asset_id, result) VALUES (?, 'pending')
@@ -473,7 +473,7 @@ const WORKFLOWS_URL = 'https://api.github.com/repos/AllegroMoltoV/audio-plugin-s
 
 export type VerifyDispatch = 'dispatched' | 'skipped_no_token' | 'skipped_no_pending' | `failed_${string}`;
 
-// 検証のワークフローを起動する (ADR 0014)。GitHub の schedule は起動しないことがあるため、Worker から起動する。
+// 検証のワークフローを起動する (派生元の ADR 0014)。GitHub の schedule は起動しないことがあるため、Worker から起動する。
 // 待ちの条件は、ワークフローが読む経路と同じものを使う。verify.yaml は GET /internal/checks/pending
 // (検証を待つ配布物と、通信の検出を待つ版)、macos-verify.yaml は GET /internal/macos-checks/pending。
 async function dispatchWorkflow(

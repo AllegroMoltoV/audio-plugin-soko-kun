@@ -458,7 +458,7 @@ describe('runCron のダウンロード数の記録', () => {
   });
 });
 
-// 名前の変更には追従し、所有者の変更は管理者が確かめる (ADR 0015)。
+// 名前の変更には追従し、所有者の変更は管理者が確かめる (派生元の ADR 0015)。
 describe('runCron の名前の変更と移管', () => {
   const sync = async (extra: Record<string, unknown>) => {
     await env.DB.prepare("UPDATE plugins SET last_synced_at = '2000-01-01T00:00:00Z'").run();

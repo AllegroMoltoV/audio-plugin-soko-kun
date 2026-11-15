@@ -86,7 +86,7 @@ export interface PluginView {
   id: string;
   // 内部のプラグイン ID。登録したときの owner/repo で、名前の変更では変えない。
   internalId: string;
-  // 所有者が変わり、管理者がまだ版を承認していない。作者向けの理由の算出にだけ使う (ADR 0015)。
+  // 所有者が変わり、管理者がまだ版を承認していない。作者向けの理由の算出にだけ使う (派生元の ADR 0015)。
   ownerChanged: boolean;
   // 表示名。.audio-soko-kun/config.json の name、無ければリポジトリ名。外部データ。
   name: string;
@@ -619,7 +619,7 @@ export async function searchPlugins(env: Env, query: SearchQuery): Promise<{ tot
 }
 
 // URL と MCP の ID (現在の owner/repo) か、名前を変える前の ID からプラグインを引く。
-// 旧い ID の記録を現在の名前より優先する。旧い名前に別のリポジトリができても、旧い URL を元のプラグインに向けるため (ADR 0015)。
+// 旧い ID の記録を現在の名前より優先する。旧い名前に別のリポジトリができても、旧い URL を元のプラグインに向けるため (派生元の ADR 0015)。
 // 呼び出し側は、返ったプラグインの id と要求の ID を比べて、旧い ID からの転送を判定する。
 export async function getPluginView(env: Env, slug: string): Promise<PluginView | null> {
   const lower = slug.toLowerCase();

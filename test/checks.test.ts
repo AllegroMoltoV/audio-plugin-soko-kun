@@ -156,7 +156,7 @@ describe('配布物の検証の結果', () => {
   };
   const signer = { result: 'passed', signerWorkflow: '.github/workflows/push.yaml' };
 
-  // 名前を変える前に作られた証明は、作られたときの名前 (大文字と小文字を含む) でしか検証に通らない (ADR 0015)。
+  // 名前を変える前に作られた証明は、作られたときの名前 (大文字と小文字を含む) でしか検証に通らない (派生元の ADR 0015)。
   it('I03 一覧に、配布物の種類・リポジトリ ID・大文字と小文字を保った旧い名前を新しい順に含める', async () => {
     await register();
     await env.DB.prepare(

@@ -109,7 +109,7 @@ describe('submitPlugin', () => {
     expect(second).toMatchObject({ ok: false, code: 'duplicate' });
   });
 
-  // 名前を変えたプラグインの旧い名前を、別のリポジトリに使わせない (ADR 0015)。
+  // 名前を変えたプラグインの旧い名前を、別のリポジトリに使わせない (派生元の ADR 0015)。
   it('名前を変えたほかのプラグインの旧い名前と同じ名前のリポジトリは登録しない', async () => {
     await env.DB.prepare(
       `INSERT INTO plugins (id, github_repo_id, owner, repo, license_spdx, submitter_github_id, created_at, updated_at, last_synced_at)

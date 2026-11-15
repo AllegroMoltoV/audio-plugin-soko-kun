@@ -219,7 +219,7 @@ async function listPending(env: Env): Promise<Response> {
       downloadUrl: row.download_url,
       digest: row.digest,
       repository: `${row.owner}/${row.repo}`,
-      // 名前を変える前に作られた証明は、作られたときの名前でしか検証に通らない。新しい順の旧い名前と、照合に使う ID (ADR 0015)。
+      // 名前を変える前に作られた証明は、作られたときの名前でしか検証に通らない。新しい順の旧い名前と、照合に使う ID (派生元の ADR 0015)。
       repositoryId: row.github_repo_id,
       previousRepositories: row.previous_names ? row.previous_names.split(' ') : [],
       tag: row.tag,

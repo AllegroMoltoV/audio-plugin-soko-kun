@@ -311,7 +311,7 @@ async function validateAndStore(env: Env, submitter: Submitter, repositoryUrl: s
     if (duplicate) {
       return fail('duplicate', 'The repository is already registered.', `See the existing entry: ${duplicate.id}`);
     }
-    // 名前を変えたプラグインの旧い名前を、別のリポジトリに使わせない。旧い URL の行き先を変えないため (ADR 0015)。
+    // 名前を変えたプラグインの旧い名前を、別のリポジトリに使わせない。旧い URL の行き先を変えないため (派生元の ADR 0015)。
     const slug = `${repo.owner.login}/${repo.name}`.toLowerCase();
     const reserved = await env.DB.prepare(
       'SELECT 1 FROM plugins WHERE id = ? UNION ALL SELECT 1 FROM plugin_aliases WHERE alias = ? LIMIT 1',

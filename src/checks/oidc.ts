@@ -1,4 +1,4 @@
-// GitHub Actions の OIDC のトークンの検証 (docs/design/scanning.md の「Worker の経路」、ADR 0014)。
+// GitHub Actions の OIDC のトークンの検証 (docs/design/scanning.md の「Worker の経路」、派生元の ADR 0014)。
 // 本サービスのリポジトリの main で動く、経路ごとに決めたワークフローが発行したトークンだけを受け付ける。
 export const ACTIONS_ISSUER = 'https://token.actions.githubusercontent.com';
 export const ACTIONS_JWKS_URL = `${ACTIONS_ISSUER}/.well-known/jwks`;

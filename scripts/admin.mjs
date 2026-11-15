@@ -70,7 +70,7 @@ if (command === 'suspend') {
            ORDER BY started_at DESC;
          SELECT tag, reason, note, suspended_at FROM release_suspensions WHERE plugin_id = ${PID} ORDER BY suspended_at DESC;`;
 } else if (command === 'pending') {
-  // 掲載の条件を満たしていない新しい版。管理者の確認を待つ理由と、証明の検証を待っている時間を示す。
+  // 掲載の条件を満たしていない新しい版。管理者の確認を待つ理由と、証明の検証・中身の検査・macOS の判定を待っている件数を示す。
   // waiting_minutes は版の公開からの経過時間。定期処理が止まって検査が進まないことに気づけるよう示す。
   sql = `SELECT p.owner || '/' || p.repo AS plugin, r.tag, r.published_at,
            CAST((julianday('now') - julianday(r.published_at)) * 1440 AS INTEGER) AS waiting_minutes,
@@ -84,6 +84,14 @@ if (command === 'suspend') {
             WHERE a.release_id = r.github_release_id
               AND (t.result = 'pending' OR (t.result = 'error' AND t.attempts < ${MAX_CHECK_ATTEMPTS})))
              AS attestations_waiting,
+           (SELECT count(*) FROM content_checks k JOIN assets a ON a.github_asset_id = k.github_asset_id
+            WHERE a.release_id = r.github_release_id
+              AND (k.result = 'pending' OR (k.result = 'error' AND k.attempts < ${MAX_CHECK_ATTEMPTS})))
+             AS contents_waiting,
+           (SELECT count(*) FROM macos_signing_checks m JOIN assets a ON a.github_asset_id = m.github_asset_id
+            WHERE a.release_id = r.github_release_id
+              AND (m.result = 'pending' OR (m.result = 'error' AND m.attempts < ${MAX_CHECK_ATTEMPTS})))
+             AS macos_waiting,
            (SELECT count(*) FROM assets a
               LEFT JOIN attestation_checks t ON t.github_asset_id = a.github_asset_id
               LEFT JOIN content_checks k ON k.github_asset_id = a.github_asset_id
@@ -102,7 +110,7 @@ if (command === 'suspend') {
 } else if (command === 'approve-release') {
   // 乗っ取りの兆候とレビューの指摘による確認待ちだけを解く。証明・不変・配布の形の条件は解けない。
   if (!reason || !TAG.test(reason)) fail('a release tag is required');
-  // 所有者の変更による確認待ちも、この承認で解く (ADR 0015)。
+  // 所有者の変更による確認待ちも、この承認で解く (派生元の ADR 0015)。
   sql = `UPDATE release_checks SET admin_approved_at = ${quote(now)} WHERE github_release_id = ${releaseOf(reason)};
          UPDATE plugins SET owner_changed_at = NULL WHERE id = ${PID} AND ${releaseOf(reason)} IS NOT NULL;
          SELECT r.tag, c.admin_approved_at FROM release_checks c JOIN releases r ON r.github_release_id = c.github_release_id
