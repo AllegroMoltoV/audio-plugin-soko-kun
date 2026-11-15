@@ -170,6 +170,12 @@ OAuth のクライアント・認可・トークンの情報は D1 ではなく 
 | `review_serious` | INTEGER | NOT NULL、既定値 0 | 重大な指摘の件数 |
 | `reviewed_at` | TEXT | | レビューした日時 |
 | `admin_approved_at` | TEXT | | 管理者が確認待ちを承認した日時。NULL は未承認 |
+| `network_state` | TEXT | NOT NULL、既定値 `pending` | 通信の API の検出の状態。`pending`・`done`・`error`・`skipped` のいずれか。`skipped` はマイグレーション 0005 の時点で既にあった版 |
+| `network_hits` | TEXT | | 検出で当たった箇所の JSON (`{hits: [{file, line, api, text}], truncated}`)。行の文字列は外部データ |
+| `network_attempts` | INTEGER | NOT NULL、既定値 0 | 検出の結果を受け取った回数。`error` が 3 回になったら、検出の結果なしでレビューする |
+| `network_checked_at` | TEXT | | 最後に検出の結果を受け取った日時 |
+
+通信の API の検出は、掲載の可否を直接は決めません。検出の結果は `user-data-handling` のレビューの事実として使います。レビューは検出の結果を待ちますが、待つのは版の公開から 6 時間までです。
 
 宣言ファイルは任意です。`missing` は掲載を止めません。規格・OS・アーキテクチャは中身の検査の検出を正とするためです。
 

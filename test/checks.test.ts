@@ -393,3 +393,110 @@ describe('配布物の検証の結果', () => {
     });
   });
 });
+
+describe('通信の API の検出の結果', () => {
+  async function register(): Promise<void> {
+    network.use(...githubHandlers());
+    const result = await submitPlugin(
+      env,
+      { githubUserId: 4242, githubToken: USER_TOKEN },
+      `https://github.com/${OWNER}/${REPO}`,
+    );
+    if (!result.ok) throw new Error(result.code);
+  }
+
+  const releaseId = async () =>
+    (await env.DB.prepare('SELECT github_release_id FROM release_checks').first<number>('github_release_id')) ?? 0;
+  const scanOf = () =>
+    env.DB.prepare('SELECT network_state, network_hits, network_attempts FROM release_checks').first<{
+      network_state: string;
+      network_hits: string | null;
+      network_attempts: number;
+    }>();
+
+  async function releases(): Promise<Array<{ releaseId: number; repository: string; commitSha: string }>> {
+    const response = await SELF.fetch(PENDING, { headers: { Authorization: `Bearer ${await sign(valid())}` } });
+    expect(response.status).toBe(200);
+    return ((await response.json()) as { releases: never[] }).releases;
+  }
+
+  async function post(networkScans: unknown): Promise<Response> {
+    return SELF.fetch(RESULTS, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${await sign(valid())}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ results: [], networkScans }),
+    });
+  }
+
+  it('検出を待つ版を一覧に載せ、結果を保存したら一覧から外す。知らない API と形の合わない当たりは捨てる', async () => {
+    await register();
+    const id = await releaseId();
+    expect(await releases()).toEqual([
+      { releaseId: id, repository: `${OWNER}/${REPO}`, commitSha: expect.stringMatching(/^[0-9a-f]{40}$/) },
+    ]);
+    const response = await post([
+      {
+        releaseId: id,
+        result: 'done',
+        truncated: false,
+        hits: [
+          { file: 'Source/Update.cpp', line: 37, api: 'juce-network', text: 'url.readEntireTextStream();' },
+          { file: 'src/evil.cpp', line: 1, api: 'made-up', text: 'x' },
+          { file: 'src/bad.cpp', line: 'one', api: 'libcurl', text: 'x' },
+        ],
+      },
+    ]);
+    expect(response.status).toBe(200);
+    const row = await scanOf();
+    expect(row?.network_state).toBe('done');
+    expect(JSON.parse(row?.network_hits ?? '{}')).toEqual({
+      hits: [{ file: 'Source/Update.cpp', line: 37, api: 'juce-network', text: 'url.readEntireTextStream();' }],
+      truncated: false,
+    });
+    expect(await releases()).toEqual([]);
+  });
+
+  it('error を 3 回受けた版は一覧から外し、確定した done は error で書き換えない', async () => {
+    await register();
+    const id = await releaseId();
+    for (let i = 0; i < 3; i++) expect((await post([{ releaseId: id, result: 'error' }])).status).toBe(200);
+    expect(await scanOf()).toMatchObject({ network_state: 'error', network_attempts: 3 });
+    expect(await releases()).toEqual([]);
+    await env.DB.prepare(
+      `UPDATE release_checks SET network_state = 'done', network_hits = '{"hits":[],"truncated":false}'`,
+    ).run();
+    await post([{ releaseId: id, result: 'error' }]);
+    expect(await scanOf()).toMatchObject({ network_state: 'done' });
+  });
+
+  const invalid: Array<[string, (id: number) => unknown]> = [
+    [
+      '同じ版が重なる',
+      (id) => [
+        { releaseId: id, result: 'error' },
+        { releaseId: id, result: 'done', hits: [] },
+      ],
+    ],
+    ['result の値が一覧の外', (id) => [{ releaseId: id, result: 'skipped' }]],
+    ['done なのに hits が無い', (id) => [{ releaseId: id, result: 'done' }]],
+    ['networkScans が配列でない', (id) => ({ releaseId: id, result: 'done', hits: [] })],
+  ];
+  for (const [label, body] of invalid) {
+    it(`形の合わない検出の結果は 400 で拒否し、書かない: ${label}`, async () => {
+      await register();
+      expect((await post(body(await releaseId()))).status).toBe(400);
+      expect(await scanOf()).toMatchObject({ network_state: 'pending', network_attempts: 0 });
+    });
+  }
+
+  it('トークンの無い要求では、検出の結果を書き換えない', async () => {
+    await register();
+    const response = await SELF.fetch(RESULTS, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ results: [], networkScans: [{ releaseId: await releaseId(), result: 'done', hits: [] }] }),
+    });
+    expect(response.status).toBe(401);
+    expect(await scanOf()).toMatchObject({ network_state: 'pending' });
+  });
+});

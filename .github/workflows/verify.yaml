@@ -1,6 +1,6 @@
 name: Verify release files
 
-# 掲載を待つ配布物の証明を検証し、アーカイブの中身を検査して、結果を音のプラグイン倉庫くんへ送る
+# 掲載を待つ配布物の証明を検証し、アーカイブの中身を検査し、新しい版のソースから通信の API を探して、結果を音のプラグイン倉庫くんへ送る
 # (docs/design/scanning.md の「配布物の検証のワークフロー」、docs/decisions/0014-attestation-verification-in-actions.md)。
 # 音のプラグイン倉庫くんの /internal/checks/ は、このリポジトリの main で動作するこのワークフローの OIDC のトークンだけを受け付ける。
 on:
@@ -26,7 +26,7 @@ jobs:
   verify:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -51,10 +51,12 @@ jobs:
           }
           curl -fsS -H "Authorization: Bearer $(token)" "${SOKO_KUN_ORIGIN}/internal/checks/pending" > pending.json
           count=$(jq '.assets | length' pending.json)
-          echo "pending: ${count}"
-          if [ "${count}" -eq 0 ]; then exit 0; fi
+          releases=$(jq '(.releases // []) | length' pending.json)
+          echo "pending: ${count} assets, ${releases} releases for the network scan"
+          if [ "${count}" -eq 0 ] && [ "${releases}" -eq 0 ]; then exit 0; fi
 
           echo '[]' > results.json
+          echo '[]' > scans.json
           for i in $(seq 0 $((count - 1))); do
             item=$(jq -c ".assets[${i}]" pending.json)
             asset_id=$(jq -r '.assetId' <<< "${item}")
@@ -132,6 +134,32 @@ jobs:
               results.json > results.next && mv results.next results.json
           done
 
-          jq '{results: .}' results.json > body.json
+          # 版ごとに、そのコミットのソースだけを取得して通信の API を探す。ソースは実行もビルドもしない。
+          for i in $(seq 0 $((releases - 1))); do
+            item=$(jq -c ".releases[${i}]" pending.json)
+            release_id=$(jq -r '.releaseId' <<< "${item}")
+            repository=$(jq -r '.repository' <<< "${item}")
+            commit=$(jq -r '.commitSha' <<< "${item}")
+            src="${work}/src-${release_id}"
+            scan=""
+            if [[ "${repository}" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] && [[ "${commit}" =~ ^[0-9a-f]{40}$ ]]; then
+              mkdir -p "${src}"
+              if (cd "${src}" && git init -q && timeout 120 git fetch -q --depth 1 "https://github.com/${repository}.git" "${commit}" \
+                  && git checkout -q FETCH_HEAD); then
+                scan=$(timeout 60 bash .github/scripts/scan-network.sh "${src}" || true)
+              fi
+            fi
+            rm -rf "${src}"
+            if [ -n "${scan}" ]; then
+              echo "${repository} ${commit}: $(jq '.hits | length' <<< "${scan}") network API hits"
+              jq --argjson id "${release_id}" --argjson scan "${scan}" '. + [{releaseId: $id, result: "done"} + $scan]' \
+                scans.json > scans.next && mv scans.next scans.json
+            else
+              echo "${repository} ${commit}: network scan error"
+              jq --argjson id "${release_id}" '. + [{releaseId: $id, result: "error"}]' scans.json > scans.next && mv scans.next scans.json
+            fi
+          done
+
+          jq --slurpfile scans scans.json '{results: ., networkScans: $scans[0]}' results.json > body.json
           curl -fsS -X POST -H "Authorization: Bearer $(token)" -H 'Content-Type: application/json' \
             --data @body.json "${SOKO_KUN_ORIGIN}/internal/checks/results"

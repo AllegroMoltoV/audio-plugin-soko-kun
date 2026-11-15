@@ -1,8 +1,10 @@
 // 配布物の検証の受け口 (docs/design/scanning.md の「Worker の経路」)。
-// GitHub Actions の verify.yaml に、証明の検証と中身の検査を待つ配布物を渡し、結果を受け取る。どちらも OIDC のトークンを求める。
+// GitHub Actions の verify.yaml に、証明の検証と中身の検査を待つ配布物と、通信の検出を待つ版を渡し、結果を受け取る。
+// どちらも OIDC のトークンを求める。
 import { INFERABLE_CATEGORIES, settleDeclarations } from '../domain/declaration';
 import { MAX_CHECK_ATTEMPTS } from '../domain/status';
 import type { Env } from '../env';
+import { NETWORK_PENDING, NETWORK_PENDING_LIMIT, parseNetworkScans } from '../review/network';
 import { VERIFY_WORKFLOW_REF, verifyActionsToken } from './oidc';
 
 const MAX_PENDING = 50;
@@ -33,6 +35,11 @@ export const PENDING_CHECKS_FROM = `FROM assets a JOIN releases r ON r.github_re
   WHERE p.removed = 0 AND (t.result = 'pending' OR (t.result = 'error' AND t.attempts < ?)
     OR c.result = 'pending' OR (c.result = 'error' AND c.attempts < ?))`;
 export const PENDING_CHECKS_BINDINGS = [MAX_CHECK_ATTEMPTS, MAX_CHECK_ATTEMPTS] as const;
+
+// 通信の検出を待つ版の条件。結合する別名は、新しい版の検査 c・リリース r・プラグイン p。
+export const PENDING_SCANS_FROM = `FROM release_checks c JOIN releases r ON r.github_release_id = c.github_release_id
+  JOIN plugins p ON p.id = r.plugin_id
+  WHERE ${NETWORK_PENDING}`;
 
 interface PendingAsset {
   github_asset_id: number;
@@ -191,7 +198,20 @@ async function listPending(env: Env): Promise<Response> {
   )
     .bind(...PENDING_CHECKS_BINDINGS, MAX_PENDING)
     .all<PendingAsset>();
+  // 通信の API の検出を待つ版。版ごとに、そのコミットのソースを 1 回だけ調べる。
+  const { results: releases } = await env.DB.prepare(
+    `SELECT c.github_release_id, p.owner, p.repo, r.commit_sha
+     ${PENDING_SCANS_FROM}
+     ORDER BY c.network_checked_at IS NOT NULL, c.network_checked_at LIMIT ?`,
+  )
+    .bind(NETWORK_PENDING_LIMIT)
+    .all<{ github_release_id: number; owner: string; repo: string; commit_sha: string }>();
   return Response.json({
+    releases: releases.map((row) => ({
+      releaseId: row.github_release_id,
+      repository: `${row.owner}/${row.repo}`,
+      commitSha: row.commit_sha,
+    })),
     assets: results.map((row) => ({
       assetId: row.github_asset_id,
       kind: row.kind,
@@ -227,8 +247,24 @@ async function saveResults(request: Request, env: Env): Promise<Response> {
     return new Response('bad request', { status: 400 });
   }
   const results = parseResults(body);
-  if (!results) return new Response('bad request', { status: 400 });
-  if (results.length === 0) return Response.json({ updated: 0 });
+  const scans = parseNetworkScans((body as { networkScans?: unknown })?.networkScans);
+  if (!results || !scans) return new Response('bad request', { status: 400 });
+  const timestamp = new Date().toISOString();
+  const statements: D1PreparedStatement[] = [];
+  // 結果が確定した行 (pending と error 以外) は書き換えない。
+  for (const scan of scans) {
+    statements.push(
+      env.DB.prepare(
+        `UPDATE release_checks SET network_state = ?, network_hits = ?, network_attempts = network_attempts + 1,
+           network_checked_at = ?
+         WHERE github_release_id = ? AND network_state IN ('pending', 'error')`,
+      ).bind(scan.result, scan.scan ? JSON.stringify(scan.scan) : null, timestamp, scan.releaseId),
+    );
+  }
+  if (results.length === 0) {
+    if (statements.length > 0) await env.DB.batch(statements);
+    return Response.json({ updated: statements.length });
+  }
 
   const ids = results.map((result) => result.assetId);
   const { results: rows } = await env.DB.prepare(
@@ -241,8 +277,6 @@ async function saveResults(request: Request, env: Env): Promise<Response> {
     .bind(...ids)
     .all<KnownAsset>();
   const known = new Map(rows.map((row) => [row.github_asset_id, row]));
-  const timestamp = new Date().toISOString();
-  const statements: D1PreparedStatement[] = [];
   // 同じ呼び出しの中で初めて記録するワークフローも、以降の配布物の照合に使う。
   const workflows = new Map<string, string | null>();
   // 中身の検査の結果を書いた版。宣言ファイルとの照合が残っていれば、書いたあとで行う。

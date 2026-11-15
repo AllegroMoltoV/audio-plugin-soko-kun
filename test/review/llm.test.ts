@@ -30,7 +30,8 @@ describe('parseReview', () => {
       JSON.stringify({
         findings: [
           { ...validation, serious: true },
-          { id: 'user-data-handling', result: 'not_met', serious: true, evidence: [{ file: 'README.md' }] },
+          // 重大とする場合を持つ項目でも、満たしていない以外の判定は重大にしない。
+          { id: 'user-data-handling', result: 'met', serious: true, evidence: [{ file: 'README.md' }] },
         ],
       }),
       README,
@@ -81,6 +82,29 @@ describe('parseReview', () => {
       paths,
     );
     expect(findings?.[0]?.evidence).toEqual([{ file: 'docs/INSTALL.md' }]);
+  });
+
+  it('通信の検出で当たったソースのファイルを根拠にした重大は残し、当たっていないソースのファイルは捨てる', () => {
+    const paths = evidencePaths({
+      files: [{ path: 'README.md', content: '' }],
+      diff: null,
+      sourceFiles: ['Source/Update.cpp'],
+    });
+    const findings = parseReview(
+      JSON.stringify({
+        findings: [
+          {
+            id: 'user-data-handling',
+            result: 'not_met',
+            serious: true,
+            evidence: [{ file: 'Source/Update.cpp', lines: '9-9' }, { file: 'Source/Other.cpp' }],
+          },
+        ],
+      }),
+      paths,
+    );
+    expect(findings?.[0]?.serious).toBe(true);
+    expect(findings?.[0]?.evidence).toEqual([{ file: 'Source/Update.cpp', lines: '9-9' }]);
   });
 
   it('形の合わない応答は失敗にする', () => {

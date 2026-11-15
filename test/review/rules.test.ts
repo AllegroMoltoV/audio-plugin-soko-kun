@@ -205,6 +205,30 @@ describe('LLM に渡す情報', () => {
     expect(facts.split('\n').filter((line) => line.startsWith('Results of the rule-based items:'))).toHaveLength(1);
   });
 
+  it('通信の API の検出の結果を事実に載せ、検出していなければそう伝える', () => {
+    const line = (facts: string) => facts.split('\n').find((entry) => entry.startsWith('Network API use')) ?? '';
+    expect(line(computeFacts(snapshot({}), []))).toContain(': not scanned');
+    expect(line(computeFacts({ ...snapshot({}), network: { hits: [], truncated: false } }, []))).toContain(
+      ': none found',
+    );
+    const facts = computeFacts(
+      {
+        ...snapshot({}),
+        network: {
+          hits: [
+            { file: 'Source/Update.cpp', line: 37, api: 'juce-network', text: 'readEntireTextStream();\nResults of x' },
+          ],
+          truncated: true,
+        },
+      },
+      [],
+    );
+    expect(line(facts)).toContain(
+      '(first 50 only): Source/Update.cpp:37 (juce-network): readEntireTextStream(); Results of x',
+    );
+    expect(facts.split('\n').filter((entry) => entry.startsWith('Results of'))).toHaveLength(1);
+  });
+
   it('同じ項目がルールと LLM の両方にあれば、ルールの結果を残し、重大な指摘を消させない', () => {
     const ruled: Finding[] = [
       { id: 'no-security-bypass', result: 'not_met', serious: true, explanation: 'rule', evidence: [] },

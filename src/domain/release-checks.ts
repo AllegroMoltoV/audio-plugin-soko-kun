@@ -6,7 +6,16 @@ import { GitHubClient, GitHubError } from '../github';
 import { LLM_CRITERIA } from '../review/criteria';
 import { type ChangedFile, checkDiff, type DiffHit, tooLargeHits } from '../review/diff-rules';
 import { type Finding, runReview } from '../review/llm';
-import { clean, computeFacts, judgeByRules, llmFiles, mergeFindings, type RepositorySnapshot } from '../review/rules';
+import { NETWORK_WAIT_MS, NETWORK_WAITING, readNetworkScan } from '../review/network';
+import {
+  clean,
+  computeFacts,
+  judgeByRules,
+  llmFiles,
+  mergeFindings,
+  networkFiles,
+  type RepositorySnapshot,
+} from '../review/rules';
 import { getPluginViewByInternalId } from './catalog';
 import { readDeclaration, settleDeclarations } from './declaration';
 import { licenseAtTag } from './license';
@@ -37,21 +46,32 @@ interface PendingRow {
   config_fetched_at: string | null;
   review_state: string;
   review_attempts: number;
+  network_state: string;
+  network_hits: string | null;
+  network_ready: number;
 }
+
+// 通信の検出の結果が届いた、または待つ期限を過ぎた。プレースホルダーには期限の時刻を 1 つ渡す。
+const NETWORK_READY = `(NOT ${NETWORK_WAITING} OR r.published_at <= ?)`;
 
 export async function runReleaseChecks(env: Env, budget: Budget): Promise<number> {
   if (!budget.canFetch(RELEASE_CHECK_COST) || !budget.canQuery(6)) return 0;
+  const now = new Date();
+  // 通信の検出の結果を、版の公開から NETWORK_WAIT_MS まで待つ。過ぎたら検出の結果なしでレビューする。
+  const networkDeadline = new Date(now.getTime() - NETWORK_WAIT_MS).toISOString();
   budget.takeD1Query();
   const row = await env.DB.prepare(
     `SELECT c.github_release_id, r.plugin_id, p.owner, p.repo, r.tag, c.diff_state, c.license_state, c.config_state,
-       c.config_fetched_at, c.review_state, c.review_attempts
+       c.config_fetched_at, c.review_state, c.review_attempts, c.network_state, c.network_hits,
+       ${NETWORK_READY} AS network_ready
      FROM release_checks c JOIN releases r ON r.github_release_id = c.github_release_id JOIN plugins p ON p.id = r.plugin_id
      WHERE p.removed = 0 AND c.review_attempts < ? AND (c.diff_state = 'pending'
        OR c.license_state = 'pending' OR (c.config_state = 'pending' AND c.config_fetched_at IS NULL)
-       OR (c.review_state IN ('pending', 'failed') AND (c.review_wait_until IS NULL OR c.review_wait_until <= ?)))
+       OR (c.review_state IN ('pending', 'failed') AND (c.review_wait_until IS NULL OR c.review_wait_until <= ?)
+         AND ${NETWORK_READY}))
      ORDER BY r.published_at LIMIT 1`,
   )
-    .bind(MAX_REVIEW_ATTEMPTS, new Date().toISOString())
+    .bind(networkDeadline, MAX_REVIEW_ATTEMPTS, now.toISOString(), networkDeadline)
     .first<PendingRow>();
   if (!row) return 0;
 
@@ -144,8 +164,10 @@ async function checkOne(env: Env, budget: Budget, github: GitHubClient, row: Pen
   }
 
   // LLM のレビュー
-  if (row.review_state !== 'done') {
+  // 通信の検出の結果を待つ間は、宣言ファイル・ライセンス・差分の検査だけを進める。
+  if (row.review_state !== 'done' && row.network_ready === 1) {
     const input = await collectReviewFiles(github, row.owner, row.repo, row.tag);
+    input.network = row.network_state === 'done' ? readNetworkScan(row.network_hits) : null;
     const outcome = await reviewRepository(env, budget, `${row.owner}/${row.repo}`, input, diff, {
       names,
       diffFacts,
@@ -293,6 +315,7 @@ export async function reviewRepository(
         unreadFiles: collected.unreadFiles,
         facts: computeFacts(collected, ruled, context.diffFacts),
         criteria: LLM_CRITERIA.map((criterion) => criterion.id),
+        sourceFiles: networkFiles(collected),
         diff,
       },
       env.AI_GATEWAY_ID,

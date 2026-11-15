@@ -221,7 +221,7 @@ Cron Trigger は `*/15 * * * *` で、15 分ごとに起動します。1 回の�
 
 ### 定期処理で行う検査
 
-Cron の定期処理は、`release_checks` のうち未完了の行を、1 回の起動で 1 件ずつ処理します。
+Cron の定期処理は、`release_checks` のうち未完了の行を、1 回の起動で 1 件ずつ処理します。レビューは、下の「通信の検出」の結果を待ってから行います。待つのは版の公開から 6 時間までで、過ぎたら検出の結果なしでレビューします。宣言ファイル・ライセンス・差分の検査は、検出を待たずに進めます。6 時間の期限は、`verify.yaml` が起動しない障害でレビューが止まり続けないようにするためのものです。
 
 | 順序 | 処理 | 規則 |
 | --- | --- | --- |
@@ -230,7 +230,7 @@ Cron の定期処理は、`release_checks` のうち未完了の行を、1 回�
 | 3 | 差分の取得 | `GET /repos/{owner}/{repo}/compare/{起点のタグ}...{新しいタグ}` を `application/vnd.github.diff` で送り、本文を先頭から 24,000 文字まで読んで接続を切る |
 | 4 | 乗っ取りの兆候 | 差分のファイルの見出しと追加の行から、審査の基準の乗っ取りの兆候を判定する。差分が 24,000 文字を超えたときは、同じ API を JSON で送って変更されたファイルの一覧を取得し、`diff-too-large` の事実を計算する。当たれば `diff_state` を `held` にする。差分を取得できなければ `error` にし、算出規則では確認待ちとして扱う |
 | 5 | レビューの入力の取得 | タグの時点のファイルの一覧を 1 回で取得し、一覧にあるファイルだけを取得する。対象は、`.github/workflows/` のワークフロー 6 件まで、README、ルートのビルド系のファイル、CONTRIBUTING、プルリクエストのテンプレートである。1 ファイルの上限は 32 KB、合計の上限は 60,000 文字 |
-| 6 | ルールの判定と LLM のレビュー | ルールで判定する項目を判定する。続けて Workers AI の `@cf/openai/gpt-oss-120b` に、LLM で判定する項目と、README とワークフローと差分と、本サービスが計算した事実を渡し、項目ごとの判定と説明と該当の箇所を JSON で返させる。指示の冒頭は、オーディオプラグインのリポジトリをレビューする旨にする。項目ごとの判定の方法は [審査の基準](review-criteria.md) に記載する |
+| 6 | ルールの判定と LLM のレビュー | ルールで判定する項目を判定する。続けて Workers AI の `@cf/openai/gpt-oss-120b` に、LLM で判定する項目と、README とワークフローと差分と、本サービスが計算した事実を渡し、項目ごとの判定と説明と該当の箇所を JSON で返させる。事実には通信の検出の結果を含め、検出の結果が無いときは `not scanned` と書く。検出で当たったソースのファイルは、指摘の根拠として認める。指示の冒頭は、オーディオプラグインのリポジトリをレビューする旨にする。項目ごとの判定の方法は [審査の基準](review-criteria.md) に記載する |
 | 7 | 失敗 | タイムアウト・5xx・形の合わない応答では `review_attempts` を 1 増やし、`review_state` を `failed` にする。2 回失敗した版は確認待ちのまま管理者の判断を待つ |
 | 8 | 無料枠の不足と混雑 | 配信プラグイン倉庫くんと同じ規則で扱う。1 日の無料枠の不足を示す `4006` と `3036`、AI Gateway の支出の上限を示す `2045` では試行に数えず、`review_wait_until` を 1 時間後にする。一時的な混雑を示す `3040` では次の起動でやり直す |
 
@@ -325,6 +325,10 @@ sequenceDiagram
         L->>G: 配布物を取得
         L->>L: SHA-256 の照合、証明の検証、アーカイブなら中身の検査
     end
+    loop 通信の検出を待つ版ごと
+        L->>G: 版のコミットのソースを git fetch --depth 1 で取得
+        L->>L: 通信の API を文字列で探す
+    end
     L->>W: POST /internal/checks/results (OIDC)
     G->>M: verify.yaml の完了の後に workflow_run で起動
     M->>W: GET /internal/macos-checks/pending (OIDC)
@@ -339,7 +343,7 @@ sequenceDiagram
 
 ### 取得と処理の上限
 
-どちらのワークフローも、配布物を読むだけで、中のコードを実行しません。配布物は 1 件ずつ取得し、処理を終えるたびに削除します。
+どちらのワークフローも、配布物を読むだけで、中のコードを実行しません。配布物は 1 件ずつ取得し、処理を終えるたびに削除します。`verify.yaml` が通信の検出のために取得するソースも、実行もビルドもしません。
 
 | 項目 | 上限 |
 | --- | --- |
@@ -347,7 +351,7 @@ sequenceDiagram
 | アーカイブの項目の数 | 10,000 (仮の値) |
 | 展開後の合計の大きさ | 1 GiB (仮の値) |
 | 1 項目の展開後の大きさ | 256 MiB (仮の値) |
-| ジョブの時間 | 20 分 (仮の値) |
+| ジョブの時間 | 40 分 (仮の値)。通信の検出のソースの取得の時間を見込んで、配信プラグイン倉庫くんと同じく 20 分から延ばした |
 | 1 回に処理する件数 | 50 件 (仮の値) |
 
 取得の上限を 2 GiB にするのは、オーディオプラグインの 23 件のリポジトリの配布物 167 件を調べた最大が 1,102.9 MiB で、1 GiB では DISTRHO/Cardinal を掲載できないためです (非公開の調査記録)。仮の値は、シードのプラグインの配布物 (633 KB) を処理できる値です。DISTRHO/Cardinal の最大の zip の項目の数・展開後の大きさ・処理時間を測ってから確定します。
@@ -358,8 +362,8 @@ sequenceDiagram
 
 | 経路 | 内容 |
 | --- | --- |
-| `GET /internal/checks/pending` | `attestation_checks` か `content_checks` の結果が `pending` か、`error` で試行が 3 回未満の配布物を、最大 50 件返す。各件に、配布物の ID・`kind`・ダウンロード URL・`digest`・リポジトリ・リポジトリ ID・旧い名前の一覧・タグ・タグのコミット・記録したリリースのワークフローを含める |
-| `POST /internal/checks/results` | 配布物ごとの証明の検証の結果と、アーカイブの中身の検査の結果を受け取り、`attestation_checks` と `content_checks` に書く。中身の検査の結果には、カテゴリの手がかり `categories` を含む。中身の検査で macOS 向けのバンドルを検出した配布物には、`macos_signing_checks` の行を `pending` で作る。宣言ファイルとの照合が残っていれば行う |
+| `GET /internal/checks/pending` | `attestation_checks` か `content_checks` の結果が `pending` か、`error` で試行が 3 回未満の配布物を、最大 50 件返す。各件に、配布物の ID・`kind`・ダウンロード URL・`digest`・リポジトリ・リポジトリ ID・旧い名前の一覧・タグ・タグのコミット・記録したリリースのワークフローを含める。あわせて、通信の検出を待つ版 (`release_checks` の `network_state` が `pending` か、`error` で試行が 3 回未満) を、版の ID・現在のリポジトリ・版のコミットとともに最大 5 件返す |
+| `POST /internal/checks/results` | 配布物ごとの証明の検証の結果と、アーカイブの中身の検査の結果を受け取り、`attestation_checks` と `content_checks` に書く。中身の検査の結果には、カテゴリの手がかり `categories` を含む。中身の検査で macOS 向けのバンドルを検出した配布物には、`macos_signing_checks` の行を `pending` で作る。宣言ファイルとの照合が残っていれば行う。通信の検出の結果 (`networkScans`) を受け取り、`release_checks` の `network_state` と `network_hits` に書く。版の重なり・5 件を超える件数・形の合わない版の結果は、要求全体を 400 で拒否する。当たりは 50 件までとし、ファイルは 200 文字、行の文字列は 160 文字に切る。決まった API の名前でない当たりと、形の合わない当たりは捨てる |
 | `GET /internal/macos-checks/pending` | `macos_signing_checks` の結果が `pending` か、`error` で試行が 3 回未満の配布物を、最大 50 件返す。各件に、配布物の ID・ダウンロード URL・`digest`・macOS 向けのバンドルのアーカイブの中のパスを含める |
 | `POST /internal/macos-checks/results` | 配布物ごとの署名と公証の判定の結果を受け取り、`macos_signing_checks` に書く |
 
@@ -377,7 +381,7 @@ sequenceDiagram
 | `job_workflow_ref` | `/internal/checks/` の経路では `AllegroMoltoV/audio-plugin-soko-kun/.github/workflows/verify.yaml@refs/heads/main`。`/internal/macos-checks/` の経路では `AllegroMoltoV/audio-plugin-soko-kun/.github/workflows/macos-verify.yaml@refs/heads/main` |
 | `exp` | 現在より後 |
 
-`verify.yaml` は、Worker の定期処理が workflow_dispatch で起動します。起動には秘密情報 `GITHUB_DISPATCH_TOKEN` を使います。配信プラグイン倉庫くんでは、GitHub の schedule による起動が一度も起きなかったため、Worker から起動する形に改めた経緯があります。schedule は予備として残します。`macos-verify.yaml` は、`verify.yaml` の完了を workflow_run で受けて起動します。
+`verify.yaml` は、Worker の定期処理が workflow_dispatch で起動します。起動の条件は、`GET /internal/checks/pending` が返す配布物か版があることです。起動には秘密情報 `GITHUB_DISPATCH_TOKEN` を使います。配信プラグイン倉庫くんでは、GitHub の schedule による起動が一度も起きなかったため、Worker から起動する形に改めた経緯があります。schedule は予備として残します。`macos-verify.yaml` は、`verify.yaml` の完了を workflow_run で受けて起動します。
 
 ### 証明の検証
 
@@ -446,6 +450,27 @@ macOS の追加の検証で、次の事柄を確かめます。結果を受け�
 - `ditto -x -k` の展開の安全
 
 `macos-verify.yaml` を運用に入れるまでは、macOS 向けのバンドルを含むアーカイブの `macos_signing_checks` は `pending` のまま残り、そのアーカイブを案内しません。[データモデル](data-model.md) の算出規則により、そのアーカイブを含む版は掲載しません。
+
+### 通信の検出
+
+`user-data-handling` のレビューに事実として渡すため、新しい版のソースのコードから通信の API の使用を探します。配信プラグイン倉庫くんの 0.2.3 の仕組みを引き継ぎ、オーディオプラグインのフレームワークの API を足しています。
+
+`verify.yaml` は、通信の検出を待つ版ごとに、空のディレクトリで `git fetch --depth 1 https://github.com/<リポジトリ>.git <版のコミット>` を実行し、そのコミットのソースだけを取得します。サブモジュールは取得しません。取得したソースは実行もビルドもしません。`.github/scripts/scan-network.sh` が、C・C++・Objective-C・Rust のファイルから次の API を文字列で探し、ファイル・行・API の名前・行の文字列を返します。取得は 120 秒、探索は 60 秒で打ち切り、失敗は `error` として返します。
+
+| API の名前 | 探す文字列 |
+| --- | --- |
+| `winhttp`・`wininet` | WinHTTP と WinINet の接続と要求の関数 |
+| `libcurl` | `curl_easy_init`・`curl_easy_perform`・`curl_multi_` |
+| `qt-network` | `QNetworkAccessManager`・`QWebSocket`・`QTcpSocket`・`QUdpSocket` |
+| `socket` | `WSAStartup`・`getaddrinfo`・`socket(` |
+| `cpp-httplib`・`ixwebsocket`・`websocketpp`・`libwebsockets`・`boost-asio`・`poco-net` | HTTP と WebSocket のライブラリのクライアントの型と関数 |
+| `nsurlsession` | `NSURLSession`・`NSURLConnection` |
+| `juce-network` | JUCE の `WebInputStream`・`StreamingSocket`・`DatagramSocket`・`URL::createInputStream`・`InputStreamOptions`・`readEntireTextStream`・`readEntireBinaryStream`・`downloadToFile` |
+| `rust-http`・`rust-net` | Rust の `reqwest`・`ureq`・`hyper::Client`・`isahc`・`attohttpc`、`TcpStream::connect`・`UdpSocket::bind`・`tungstenite` |
+
+JUCE の `juce::URL` の型の名前では当てません。`launchInDefaultBrowser` のように、ブラウザーで開くだけの用途にも使うためです。`createInputStream` は、ローカルのファイルの `File::createInputStream` と区別するため、`URL::` で修飾した形と `InputStreamOptions` だけに当てます。JUCE をリポジトリに同梱した作者のソースで JUCE 自身の通信の実装に当たらないよう、`juce_core` のディレクトリは探しません。ビルドの出力 (`build`・`build_*`・Rust の `target`) も探しません。
+
+当たりは 50 件までとし、超えたら打ち切りを `truncated` で示します。検出は API の使用だけを示し、送る内容は示しません。そのため、検出の結果だけで掲載を止めず、README の説明と合わせて LLM が判定します。
 
 ### 結果が出るまでの時間
 
