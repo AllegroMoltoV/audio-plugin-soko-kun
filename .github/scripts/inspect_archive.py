@@ -21,9 +21,10 @@ import zipfile
 
 
 class Limits:
-    """展開の上限。値は仮の値で、大きな配布物の計測の後に確定する (scanning.md の「取得と処理の上限」)。"""
+    """展開の上限 (scanning.md の「取得と処理の上限」)。DISTRHO/Cardinal 26.02 の win64 の zip
+    (項目 57,218、展開後 3.29 GiB、最大の項目 100 MiB) を処理できる値にした。"""
 
-    def __init__(self, max_entries=10_000, max_total=1024 * 1024 * 1024, max_entry=256 * 1024 * 1024):
+    def __init__(self, max_entries=100_000, max_total=4 * 1024 * 1024 * 1024, max_entry=256 * 1024 * 1024):
         self.max_entries = max_entries
         self.max_total = max_total
         self.max_entry = max_entry

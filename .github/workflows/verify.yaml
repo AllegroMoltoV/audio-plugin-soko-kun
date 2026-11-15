@@ -21,6 +21,9 @@ env:
   # 配布物 1 件の取得の上限 (2 GiB) と、ジョブの最初に確かめる空き容量 (取得の上限に 1 GiB を足した値)
   MAX_DOWNLOAD_BYTES: '2147483648'
   MIN_FREE_BYTES: '3221225472'
+  # ジョブの開始からこの秒数を過ぎたら、新しい配布物と通信の検出のソースを取得しない。残りは次の回に回す。
+  # 結果は最後にまとめて送るため、ジョブが時間切れ (timeout-minutes) になるとその回の結果をすべて失う。
+  FETCH_DEADLINE_SECONDS: '1500'
 
 jobs:
   verify:
@@ -37,6 +40,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          started=$(date +%s)
+          past_deadline() { [ $(( $(date +%s) - started )) -ge "${FETCH_DEADLINE_SECONDS}" ]; }
           work="${RUNNER_TEMP}/verify"
           mkdir -p "${work}"
           free=$(df --output=avail -B1 "${work}" | tail -1 | tr -d ' ')
@@ -58,6 +63,10 @@ jobs:
           echo '[]' > results.json
           echo '[]' > scans.json
           for i in $(seq 0 $((count - 1))); do
+            if past_deadline; then
+              echo "fetch deadline reached; $((count - i)) assets are left for the next run"
+              break
+            fi
             item=$(jq -c ".assets[${i}]" pending.json)
             asset_id=$(jq -r '.assetId' <<< "${item}")
             kind=$(jq -r '.kind' <<< "${item}")
@@ -136,6 +145,10 @@ jobs:
 
           # 版ごとに、そのコミットのソースだけを取得して通信の API を探す。ソースは実行もビルドもしない。
           for i in $(seq 0 $((releases - 1))); do
+            if past_deadline; then
+              echo "fetch deadline reached; $((releases - i)) network scans are left for the next run"
+              break
+            fi
             item=$(jq -c ".releases[${i}]" pending.json)
             release_id=$(jq -r '.releaseId' <<< "${item}")
             repository=$(jq -r '.repository' <<< "${item}")
