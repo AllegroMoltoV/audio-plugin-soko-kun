@@ -176,4 +176,50 @@ describe('checkPlugin (確認のモード)', () => {
     for (let i = 0; i < 4; i += 1) await checkPlugin(env, submitter, url);
     expect(await checkPlugin(env, submitter, url)).toMatchObject({ ok: false, code: 'rate_limited' });
   });
+
+  // 不変のリリースは公開の後に直せないため、リリースの前の確認で、残りの条件と直し方が分からないと作者が困る。
+  it('リリースの前は、リリースを要る条件を未判定として直し方とともに返す', async () => {
+    network.use(...githubHandlers({ release: 'none' }), ...releaseCheckHandlers());
+    const result = (await checkPlugin(env, submitter, url)) as {
+      conditions: Array<{ code: string; result: string; fix?: string }>;
+      config: { result: string };
+    };
+    expect(result.conditions.find((item) => item.code === 'no_release')?.result).toBe('failed');
+    const unchecked = result.conditions.filter(
+      (item) => item.result === 'unchecked' && item.code !== 'plugin_content' && item.code !== 'macos_signing',
+    );
+    expect(unchecked.map((item) => item.code)).toEqual([
+      'not_immutable',
+      'no_verifiable_asset',
+      'unsupported_tag',
+      'no_license',
+      'no_archive',
+      'no_attestation',
+    ]);
+    expect(unchecked.every((item) => (item.fix ?? '').length > 0)).toBe(true);
+    expect(unchecked[0]?.fix).toContain('immutable-releases');
+    expect(result.config.result).toBe('missing');
+  });
+
+  // 宣言の誤りが不変のリリースの公開の後に分かると、その版を直せない。照合は中身の検査の後のため、形だけを返す。
+  it('既定のブランチの宣言ファイルの形を、リリースの前に返す', async () => {
+    const declare = (text: string) =>
+      network.use(
+        http.get(`https://api.github.com/repos/${OWNER}/${REPO}/contents/.audio-soko-kun/config.json`, ({ request }) =>
+          new URL(request.url).searchParams.get('ref') === 'main'
+            ? HttpResponse.text(text)
+            : new HttpResponse(null, { status: 404 }),
+        ),
+      );
+    network.use(...githubHandlers({ release: 'none' }), ...releaseCheckHandlers());
+    declare('{"category": "synth"}');
+    const invalid = (await checkPlugin(env, submitter, url)) as { config: { result: string; fix?: string } };
+    expect(invalid.config).toMatchObject({ result: 'invalid' });
+    expect(invalid.config.fix).toContain('"name"');
+
+    // name だけの宣言は正しい (2026-11-15 の試行で、照合の側で invalid になった形)。
+    declare('{"name": "White Noise"}');
+    const ok = (await checkPlugin(env, submitter, url)) as { config: { result: string } };
+    expect(ok.config.result).toBe('ok');
+  });
 });

@@ -171,7 +171,7 @@ LLM には、この事実と差分の先頭の 24,000 文字を渡します。LL
 - `install-location`: README に、`Common Files\VST3`・`Common Files\CLAP`・`Common Files\LV2`・`~/Library/Audio/Plug-Ins`・`~/.vst3`・`~/.clap`・`~/.lv2` のような規格ごとの標準の導入先がある
 - `cpu-compatibility`: ルートのビルド系のファイルとワークフローに、`/arch:AVX2`・`-mavx2`・`-march=native`・`target-cpu=native` のような命令の指定が無い
 - `hermetic-build`: ワークフローに `-latest` のランナーが無い
-- `repository-protection`: 有効な ruleset のうち、既定のブランチ (`~DEFAULT_BRANCH` か `~ALL`) を対象にして削除と強制 push を禁じ、承認 1 名以上のプルリクエストを必須にするブランチの ruleset と、タグの作成・更新・削除を制限するタグの ruleset の両方がある。ruleset の例外を許す相手は API で読めないため判定しない。既定のブランチを名前で指定した ruleset は数えない。ruleset を読めなかったとき、有効な ruleset が詳細を読む上限の 3 件を超えて満たすものが見つからないときは判定不能とする
+- `repository-protection`: 有効な ruleset のうち、既定のブランチ (`~DEFAULT_BRANCH` か `~ALL`) を対象にして削除と強制 push を禁じ、承認 1 名以上のプルリクエストを必須にするブランチの ruleset と、タグの作成・更新・削除を制限するタグの ruleset の両方がある。ruleset の例外を許す相手は API で読めないため判定しない。1 人で開発する作者には、ブランチの ruleset の例外にリポジトリの管理者を「For pull requests only」で足す設定を案内する (強制 push と削除の禁止は残る)。既定のブランチを名前で指定した ruleset は数えない。ruleset を読めなかったとき、有効な ruleset が詳細を読む上限の 3 件を超えて満たすものが見つからないときは判定不能とする
 - `contribution-compliance`: CONTRIBUTING かプルリクエストのテンプレートで、DCO や `Signed-off-by` を求めている
 
 ## 外した推奨

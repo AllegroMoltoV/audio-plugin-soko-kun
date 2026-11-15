@@ -6,6 +6,7 @@ import { CRITERIA_BY_ID, referenceOf } from '../review/criteria';
 import type { Finding } from '../review/llm';
 import { type ReviewSummary, reviewView } from './author';
 import { resetAttestationStatement, resetContentStatements, resetScanStatements } from './cron';
+import { CONFIG_DIR, readDeclaration } from './declaration';
 import { type LicenseFailure, licenseAtTag } from './license';
 import { assetKind, summarizeReadme } from './metadata';
 import {
@@ -191,6 +192,36 @@ function condition(code: ConditionCode, passed: boolean): Condition {
   return passed ? { code, result: 'passed' } : { code, result: 'failed', ...MESSAGES[code] };
 }
 
+// リリースが無いと判定できない条件。確認のモードで、リリースの前に直し方を示す。
+const RELEASE_CONDITIONS: ConditionCode[] = [
+  'not_immutable',
+  'no_verifiable_asset',
+  'unsupported_tag',
+  'no_license',
+  'no_archive',
+  'no_attestation',
+];
+
+// リリースの前の確認で、未判定の条件に付ける説明。不変のリリースは公開の後に直せないため、公開の前の確かめ方を書く。
+// リポジトリの設定を読む API は管理者の読み取りの権限を求め、本サービスのサインインはスコープを求めないため使わない。
+function beforeRelease(code: ConditionCode): Condition {
+  if (code === 'not_immutable') {
+    return {
+      code,
+      result: 'unchecked',
+      message:
+        'There is no release yet. The first release must be an immutable release, which cannot be changed after it is published.',
+      fix: 'Before you publish, turn on immutable releases in the repository settings. You can confirm it with: gh api repos/<owner>/<repository>/immutable-releases (it should show "enabled": true). Attach all files to a draft release first, then publish it, because files cannot be added after publishing.',
+    };
+  }
+  return {
+    code,
+    result: 'unchecked',
+    message: 'There is no release yet, so this condition was not checked.',
+    fix: MESSAGES[code].fix,
+  };
+}
+
 // 掲載の条件を順に判定する。リポジトリを取得できない、または管理者でないときは、そこで止める。
 // stopOnFailure のときは、最初に満たさなかった条件で止める (登録)。そうでなければ、判定できる条件をすべて判定する (確認のモード)。
 async function evaluateConditions(
@@ -216,7 +247,12 @@ async function evaluateConditions(
   const release = latest?.release ?? null;
   const published = release !== null && !release.draft && Boolean(release.published_at);
   conditions.push(condition('no_release', published));
-  if (!published || !release) return evaluated;
+  if (!published || !release) {
+    // 確認のモードでは、リリースを要る残りの条件を未判定として直し方とともに返す。
+    // 不変のリリースは公開の後に直せないため、作者が公開の前に条件を知れるようにする。
+    if (!stopOnFailure) conditions.push(...RELEASE_CONDITIONS.map(beforeRelease));
+    return evaluated;
+  }
   evaluated.release = release;
   evaluated.etag = latest?.etag ?? null;
   const assets = release.assets.filter((asset) => asset.digest?.startsWith('sha256:'));
@@ -393,12 +429,50 @@ async function validateAndStore(env: Env, submitter: Submitter, repositoryUrl: s
 
 export const CHECKS_PER_DAY = 5;
 
+// 確認のモードで返す .audio-soko-kun/config.json の判定。宣言は任意のため、無いこと (missing) は誤りではない。
+export interface ConfigCheck {
+  result: 'ok' | 'missing' | 'invalid' | 'unchecked';
+  message?: string;
+  fix?: string;
+}
+
+const CONFIG_PATH = `${CONFIG_DIR}/config.json`;
+const CONFIG_FIX = `Write a JSON object such as {"name": "<display name, 1-60 characters>"}. Every field is optional. "category" must be one of instrument, effect, analyzer, midi, utility. Each entry of "assets" needs "pattern", "os", "arch", and "formats". Commit ${CONFIG_PATH} before you tag the release, because the catalog reads the file at the release tag.`;
+
+// 既定のブランチの宣言ファイルの形を確かめる。宣言した配布物と、アーカイブの中身の検査の結果の照合は、
+// 中身の検査 (GitHub Actions) を終えた版でしか行えないため、確認のモードでは形 (ok・missing・invalid) だけを返す。
+async function checkConfig(github: GitHubClient, owner: string, repo: string, ref: string): Promise<ConfigCheck> {
+  let parsed: Awaited<ReturnType<typeof readDeclaration>>;
+  try {
+    parsed = await readDeclaration(github, owner, repo, ref);
+  } catch (error) {
+    if (error instanceof GitHubError && error.kind !== 'rate_limited' && error.kind !== 'unavailable') {
+      return { result: 'unchecked' };
+    }
+    throw error;
+  }
+  if (parsed.state === 'missing') {
+    return {
+      result: 'missing',
+      message: `The default branch has no ${CONFIG_PATH}. The declaration is optional: without it, the catalog shows the repository name and decides the category from the plugin bundles, or uses utility.`,
+    };
+  }
+  if (parsed.state === 'invalid') {
+    return { result: 'invalid', message: `${CONFIG_PATH} on the default branch is not valid.`, fix: CONFIG_FIX };
+  }
+  return {
+    result: 'ok',
+    message: `${CONFIG_PATH} on the default branch is valid. Declared assets are compared with the archive contents only when a release is checked.`,
+  };
+}
+
 export type CheckResult =
   | SubmitResult
   | {
       ok: boolean;
       mode: 'check';
       conditions: Condition<ConditionCode | DeferredConditionCode>[];
+      config: ConfigCheck;
       review: { status: 'done' | 'failed' | 'unavailable'; message?: string; resumesAt?: string } & ReviewSummary;
     };
 
@@ -427,6 +501,11 @@ export async function checkPlugin(env: Env, submitter: Submitter, repositoryUrl:
     const evaluated = await evaluateConditions(asUser, asApp, parsed, false);
     const { repo } = evaluated;
     const admin = evaluated.conditions.find((item) => item.code === 'not_admin')?.result === 'passed';
+    // 宣言ファイルは版の検査でだけ読んでいたため、誤りが不変のリリースの公開の後に分かった。公開の前に形を確かめる。
+    let config: ConfigCheck = { result: 'unchecked' };
+    if (admin && budget.canFetch(1 + REVIEW_FILES_COST + 1)) {
+      config = await checkConfig(asApp, repo.owner.login, repo.name, repo.default_branch);
+    }
     let review: { findings: Finding[]; unreadFiles: string[] } | null = null;
     let unavailable: ReviewOutcome['kind'] | null = null;
     if (admin && budget.canFetch(REVIEW_FILES_COST + 1)) {
@@ -446,6 +525,7 @@ export async function checkPlugin(env: Env, submitter: Submitter, repositoryUrl:
       ok: evaluated.conditions.every((item) => item.result === 'passed'),
       mode: 'check',
       conditions: admin ? [...evaluated.conditions, ...DEFERRED] : evaluated.conditions,
+      config,
       review: {
         status: review ? 'done' : unavailable === 'quota' || unavailable === 'busy' ? 'unavailable' : 'failed',
         ...(unavailable === 'quota'

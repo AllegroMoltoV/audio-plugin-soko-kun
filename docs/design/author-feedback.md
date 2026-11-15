@@ -177,7 +177,16 @@ sequenceDiagram
 
 `assets` は、版の配布物ごとの案内の有無と、中身の検査の結果です。配信プラグイン倉庫くんには無い項目です。本サービスでは、版を掲載しながら一部の配布物だけを案内しないことがあるためです。案内しない配布物には `notGuidedBecause` に理由と直し方を付けます。インストーラーにも、案内しない理由として `installer_not_guided` を付けます。
 
-`blockers` の `waitsFor` は、作者が直すものなら `"author"`、管理者の確認を待つものなら `"admin"`、本サービスの処理を待つものなら `"system"` です。作者の LLM は、`"author"` のものだけを作者に直すよう勧めれば済みます。`"system"` の `blockers` には、再開の目安の時刻 `resumesAt` を付けます。`checkAgainAfter` は、`resumesAt` のうち最も遅い時刻です。
+`blockers` の `waitsFor` は、作者が直すものなら `"author"`、管理者の確認を待つものなら `"admin"`、本サービスの処理を待つものなら `"system"` です。作者の LLM は、`"author"` のものだけを作者に直すよう勧めれば済みます。`"system"` の `blockers` には、再開の目安の時刻 `resumesAt` を付けます。目安は、版の公開の時刻からの上限で、理由ごとに違います。上限の前は、同じ版なら何度呼んでも同じ時刻を返します。呼ぶたびに時刻が後ろへ動くと、作者の LLM が検査が延びたと誤って説明するためです。上限を過ぎても終わらないときだけ、次の定期処理の区切り (15 分ごと) の 15 分後を返します。AI Gateway の支出の上限か Workers AI の無料枠の不足でレビューを待つときは、待つ時刻 (`review_wait_until`) を返します。`checkAgainAfter` は、`resumesAt` のうち最も遅い時刻です。
+
+| 理由 | 公開からの上限 | 根拠 |
+| --- | --- | --- |
+| `scan_pending`・`checks_missing`・`license_pending`・`diff_pending` | 30 分 | 定期処理は 15 分ごとに動く。2 回分 |
+| `attestation_pending`・`content_check_pending` | 60 分 | 定期処理の同期で配布物を見つけた後、`verify.yaml` (15 分ごと) で検証する |
+| `config_pending` | 60 分 | 宣言ファイルの判定は、すべてのアーカイブの中身の検査を終えてから行う |
+| `macos_check_pending` | 90 分 | `macos-verify.yaml` は、中身の検査で macOS のバンドルを見つけた後の回に動く。中身の検査の上限に、1 回分の周期と余裕を足す |
+| `review_pending` | 6 時間 30 分 | レビューは通信の検出の結果を版の公開から最大 6 時間待つ |
+
 
 `checks.diffRules.hits` と `diff_held` の `hits` は、当たった乗っ取りの兆候の `rule` と `file` です。`diff-too-large` では、当たった事実を `fact` に入れます。値は `github-changed`・`build-script-changed`・`binary-added`・`list-incomplete` です。
 
@@ -243,15 +252,22 @@ sequenceDiagram
   "ok": false,
   "mode": "check",
   "conditions": [
-    { "code": "immutable_release", "result": "failed", "message": "Immutable releases are not enabled.", "fix": "Enable immutable releases in the repository settings, then publish a new release." },
-    { "code": "distribution_format", "result": "passed", "installers": ["example-delay-1.0.0-setup.exe"], "message": "Installers are not guided. Only archives are guided." },
-    { "code": "attestation", "result": "failed", "message": "Release assets have no build provenance attestation. Installers need attestations too.", "fix": "Add actions/attest-build-provenance to the release job for every release asset." }
+    { "code": "not_admin", "result": "passed" },
+    { "code": "no_release", "result": "failed", "message": "The repository has no published release.", "fix": "Publish a release on GitHub with the plugin files attached." },
+    { "code": "not_immutable", "result": "unchecked", "message": "There is no release yet. The first release must be an immutable release, which cannot be changed after it is published.", "fix": "Before you publish, turn on immutable releases in the repository settings. ..." },
+    { "code": "no_attestation", "result": "unchecked", "message": "There is no release yet, so this condition was not checked.", "fix": "..." },
+    { "code": "plugin_content", "result": "unchecked", "message": "After registration, every zip archive is inspected for VST 3, CLAP, LV2, or Audio Unit bundles. ..." }
   ],
+  "config": { "result": "invalid", "message": ".audio-soko-kun/config.json on the default branch is not valid.", "fix": "Write a JSON object such as {\"name\": \"<display name, 1-60 characters>\"}. ..." },
   "review": { "status": "done", "summary": { "serious": 0, "notMet": 2, "recommendations": 3 }, "findings": [] }
 }
 ```
 
-条件は最新のリリースで判定し、レビューは既定のブランチの最新のコミットのファイルで行います。中身の検査と macOS の署名と公証の判定は、確認のモードでは行わず、それぞれの条件の説明だけを返します。どちらも GitHub Actions で配布物を取得して行うためです。また、確認のモードを使う公開前のリリースには、まだ配布物がありません。通信の API の検出も新しい版にだけ行うため、確認のモードの `user-data-handling` は README とワークフローだけで判定します。
+条件は最新のリリースで判定し、レビューは既定のブランチの最新のコミットのファイルで行います。リリースがまだ無いときは、`no_release` の後の条件 (`not_immutable`・`no_verifiable_asset`・`unsupported_tag`・`no_license`・`no_archive`・`no_attestation`) を `unchecked` として、直し方とともに返します。不変のリリースは公開の後に直せないため、作者が公開の前に条件を知れるようにするためです。リポジトリの不変のリリースの設定を読む API は管理者の読み取りの権限を求め、本サービスのサインインは権限を求めないため使いません。
+
+あわせて、既定のブランチの `.audio-soko-kun/config.json` の形を確かめ、`config` の結果を返します。結果は `ok`・`missing`・`invalid` で、外部呼び出しの予算が残っていないとき、管理者でないとき、GitHub がレート制限と障害以外の失敗を返したときは `unchecked` です。宣言は任意のため、`missing` は誤りではありません。宣言した配布物 (`assets`) とアーカイブの中身の照合と、カテゴリの推定は、中身の検査 (GitHub Actions) を終えた版でしか行えないため、確認のモードでは形だけを確かめます。
+
+中身の検査と macOS の署名と公証の判定は、確認のモードでは行わず、それぞれの条件の説明だけを返します。どちらも GitHub Actions で配布物を取得して行うためです。また、確認のモードを使う公開前のリリースには、まだ配布物がありません。通信の API の検出も新しい版にだけ行うため、確認のモードの `user-data-handling` は README とワークフローだけで判定します。
 
 AI Gateway の支出の上限、Workers AI の無料枠の不足、混雑でレビューできなかったときは、`review` の `status` を `unavailable` にし、理由を返します。支出の上限と無料枠の不足では、再開の時刻 `resumesAt` も返します。この要求は回数に数えません。確認のモードは 1 人あたり 1 日 5 回までにします。
 

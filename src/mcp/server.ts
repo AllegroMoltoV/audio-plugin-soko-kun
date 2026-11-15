@@ -197,7 +197,7 @@ export function buildMcpServer(env: Env, user?: SignedInUser): McpServer {
     {
       title: 'Get an audio plugin',
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
-      description: `Get details of a plugin by its id (owner/repository). Download links are included only for listed plugins. ${UNTRUSTED_NOTE}`,
+      description: `Get details of an audio plugin by its id (owner/repository). Download links are included only for listed plugins. ${UNTRUSTED_NOTE}`,
       inputSchema: {
         id: z
           .string()
@@ -268,7 +268,7 @@ export function buildMcpServer(env: Env, user?: SignedInUser): McpServer {
         // 自前の D1 を読み、GitHub で管理権限を確かめるだけで、書き込まない。
         annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
         description:
-          'For plugin authors. Returns the plugins you administer on GitHub, each version state (listed, checking, held, rejected, suspended), the blockers that keep a version from being listed with how to fix them, and repository review findings. Call it 15 minutes or more after publishing a release. Requires signing in with GitHub.',
+          'For audio plugin authors. Returns the plugins you administer on GitHub, each version state (listed, checking, held, rejected, suspended), the blockers that keep a version from being listed with how to fix them, and repository review findings. Call it 15 minutes or more after publishing a release. Requires signing in with GitHub.',
         inputSchema: {
           pluginId: z
             .string()
