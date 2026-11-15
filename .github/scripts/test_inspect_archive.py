@@ -209,9 +209,9 @@ class W01UnsafeEntries(ArchiveTest):
 
 
 class W02Limits(ArchiveTest):
-    def test_too_many_entries_with_the_provisional_limit(self):
-        entries = [(f"docs/{i}.txt", b"x") for i in range(10_001)] + [VST3_WIN]
-        result = self.inspect(entries)
+    def test_too_many_entries(self):
+        entries = [(f"docs/{i}.txt", b"x") for i in range(11)] + [VST3_WIN]
+        result = self.inspect(entries, limits=ia.Limits(max_entries=10))
         self.assertEqual((result["result"], result["reason"]), ("error", "too_many_entries"))
 
     def test_total_size_over_the_limit(self):
@@ -222,10 +222,11 @@ class W02Limits(ArchiveTest):
         result = self.inspect([VST3_WIN, ("big.bin", b"\0" * 5000)], limits=ia.Limits(max_entry=3000))
         self.assertEqual((result["result"], result["reason"]), ("error", "too_large_entry"))
 
-    def test_provisional_values(self):
+    def test_default_values(self):
+        # DISTRHO/Cardinal 26.02 の win64 の zip (項目 57,218、展開後 3.29 GiB、最大の項目 100 MiB) を処理できる値。
         self.assertEqual(
             (ia.DEFAULT_LIMITS.max_entries, ia.DEFAULT_LIMITS.max_total, ia.DEFAULT_LIMITS.max_entry),
-            (10_000, 1 << 30, 256 << 20),
+            (100_000, 4 << 30, 256 << 20),
         )
 
 
