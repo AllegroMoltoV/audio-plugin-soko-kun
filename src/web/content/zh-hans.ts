@@ -50,7 +50,7 @@ export const zhHans: Record<PageKey, PageContent> = {
               '发布中的每个文件（包括安装程序）都有由仓库的发布工作流生成的构建来源证明（build provenance attestation），例如使用 actions/attest-build-provenance 生成。',
               '插件以 zip 压缩包分发。本平台只引导用户前往包含 VST 3、CLAP、LV2 或 Audio Unit 插件包的 zip 压缩包，不引导用户前往 exe、msi、pkg 等安装程序。',
               '所有压缩包都不包含 VST 2。如果发布中的任何压缩包包含 VST 2 插件包或入口点，本平台不会收录该发布。',
-              'macOS 插件包已使用 Developer ID 证书签名，并通过 Apple 公证。如果压缩包中的 macOS 插件包未通过此项检查，本平台不会引导用户前往该压缩包。',
+              'macOS 插件包已使用 Developer ID 证书签名，并通过 Apple 公证。如果压缩包中的 macOS 插件包未通过此项检查，本平台不会引导用户前往该压缩包。由于 Gatekeeper 不评估 LV2 插件包，本平台不会引导用户前往 macOS 的 LV2 插件包。',
               '发布通过“安全与免责声明”页面所述的其他自动检查，包括与已知恶意软件数据库的比对。',
             ],
           },
@@ -82,7 +82,7 @@ export const zhHans: Record<PageKey, PageContent> = {
       {
         heading: '发布前检查仓库',
         paragraphs: [
-          '发布之前，请让 AI 代理以检查模式运行 submit_plugin。检查模式会用最新发布判断收录条件，并审查默认分支的最新提交。检查模式不会登记插件。24 小时内最多可使用 5 次检查模式。',
+          '发布之前，请让 AI 代理以检查模式运行 submit_plugin。检查模式会用最新发布判断收录条件，并审查默认分支的最新提交。检查模式不会登记插件。24 小时内最多可使用 5 次检查模式。检查模式也需要用 GitHub 登录。即使在第一次发布之前，检查模式也会把需要发布才能判断的条件作为未判断返回，并附上满足方法，同时检查默认分支上 .audio-soko-kun/config.json 的格式。上架的发布必须是不可变发布，发布后不能再添加文件：请先把所有文件附加到草稿发布，再公开发布。查找关闭安全功能的说明和运行下载内容的命令的规则，也会匹配告诉用户不要这样做的句子。',
           '审查遵循在 GitHub 上公开的审查标准：https://github.com/AllegroMoltoV/audio-plugin-soko-kun/blob/main/docs/design/review-criteria.md',
           '检查模式不会检查压缩包的内容和 macOS 签名，因为这些检查会在登记后于 GitHub Actions 中下载文件进行。代理会说明这些检查的要求。',
         ],
@@ -144,6 +144,7 @@ export const zhHans: Record<PageKey, PageContent> = {
               'macos_not_signed、macos_adhoc、macos_not_developer_id、macos_not_notarized：请使用 Developer ID 证书为 macOS 插件包签名，并通过 Apple 公证。',
               'declaration_mismatch、not_declared：.audio-soko-kun/config.json 中的声明与检查的压缩包不一致。请修正声明，然后发布新版本。',
               'installer_not_guided：本平台不引导用户前往安装程序。用户从 zip 压缩包获取插件。',
+              'macos_lv2_not_guided：压缩包中只有 macOS 的 LV2 插件包，本平台不会引导用户前往。请添加使用 Developer ID 证书签名并经过公证的 macOS VST 3、CLAP 或 Audio Unit 插件包。',
             ],
           },
         ],
@@ -181,6 +182,10 @@ export const zhHans: Record<PageKey, PageContent> = {
           '所有字段都是可选的。本平台根据检查的插件包确定格式、操作系统和架构，声明仅用于核对这些信息以及选择要引导的压缩包。',
           '填写 assets 后，本平台只引导用户前往与 pattern 匹配的压缩包。如果文件无效、没有压缩包与任何 pattern 匹配，或检查的压缩包与声明不一致，本平台不会收录该发布。',
           '本平台读取每个新发布标签时的该文件，因此更改文件后请发布新版本。',
+          '最简单的有效文件只声明显示名称：',
+          { code: '{\n  "name": "Simple Pitch Shift"\n}' },
+          '本平台按以下顺序决定类别。首先，根据检查过的插件包推断类别：依据是 Audio Unit 组件的 type（aumu、aufx、aumf、aumi）和 VST 3 插件包中 moduleinfo.json 的 Sub Categories。当线索指向多个类别时，按 instrument、midi、analyzer、effect 的顺序优先采用。无法推断时使用此文件中的 category，如果也没有则为 utility。推断出的类别优先于声明的类别。',
+          '由于本平台不运行插件的二进制文件，CLAP 的 features 不用于判断类别。没有 moduleinfo.json 的 VST 3 插件包（例如用 clap-wrapper 构建的插件包）也无法提供线索。只以 CLAP 发布的插件，请在此文件中声明 category。',
         ],
       },
       {
@@ -195,7 +200,7 @@ export const zhHans: Record<PageKey, PageContent> = {
         heading: '保护你的发布',
         paragraphs: [
           '请把发布的标签打在默认分支的提交上。标签指向不在默认分支上的提交的发布，会等待管理员确认。',
-          '对仓库有写入权限的人都可以创建发布。本平台建议用规则集保护默认分支，禁止删除和强制推送，并要求至少一人批准的拉取请求；同时用标签规则集保护发布标签，只允许仓库管理员创建、更新或删除标签。这些设置不是收录条件。',
+          '对仓库有写入权限的人都可以创建发布。本平台建议用规则集保护默认分支，禁止删除和强制推送，并要求至少一人批准的拉取请求；同时用标签规则集保护发布标签，只允许仓库管理员创建、更新或删除标签。这些设置不是收录条件。如果你独自开发，请在分支规则集的绕过列表中，以 "For pull requests only" 添加仓库管理员（Repository admin）。这样可以合并自己的拉取请求，同时仍禁止强制推送和删除。请不要使用 "Always allow"，它也会允许强制推送和删除。',
         ],
       },
       {
@@ -226,7 +231,7 @@ export const zhHans: Record<PageKey, PageContent> = {
               'macOS 签名与公证：包含 macOS 插件包的压缩包，只有在确认其插件包已使用 Developer ID 证书签名并通过 Apple 公证后，才会引导用户前往。',
               '恶意软件查询：在已知恶意软件样本数据库 MalwareBazaar 中查询 GitHub 公布的每个文件的 SHA-256。已收录的文件也会定期重新查询。',
               '与已收录发布的差异：按规则检查从已收录发布到新发布的变更。符合规则的发布将等待管理员确认。',
-              '开发实践审查：由仓库文件即可判定的项目（例如 Action 的固定和发布工作流）按规则判定。只有需要阅读文字的项目（例如 README 中的安装步骤）才由 LLM 结合本平台计算的事实进行判定。源代码仅用于以文本方式查找网络 API 的调用，不会构建或运行。有严重问题的发布将等待管理员确认。',
+              '开发实践审查：由仓库文件即可判定的项目（例如 Action 的固定、发布工作流以及 README 中的安装步骤）按规则判定。只有需要阅读文字的项目（例如 README 中对插件发送数据的说明）才由 LLM 结合本平台计算的事实进行判定。关闭安全功能的说明和运行下载内容的命令，会在 README、发布说明和仓库中的其他文档中检查，包括上架后对发布说明的编辑。源代码仅用于以文本方式查找网络 API 的调用和这些说明，不会构建或运行。有严重问题的发布将等待管理员确认。',
             ],
           },
           '审查标准在 GitHub 上公开：https://github.com/AllegroMoltoV/audio-plugin-soko-kun/blob/main/docs/design/review-criteria.md',

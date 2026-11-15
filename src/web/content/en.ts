@@ -50,7 +50,7 @@ export const en: Record<PageKey, PageContent> = {
               'Every file in the release, including installers, has a build provenance attestation created by the release workflow of the repository, for example with actions/attest-build-provenance.',
               'The plugins are distributed as zip archives. This platform guides users only to zip archives that contain VST 3, CLAP, LV2, or Audio Unit bundles. It does not guide users to installers such as exe, msi, or pkg files.',
               'No archive contains VST 2. If any archive in a release contains a VST 2 bundle or entry point, this platform does not list the release.',
-              'macOS bundles are signed with a Developer ID certificate and notarized by Apple. This platform does not guide users to archives whose macOS bundles fail this check.',
+              'macOS bundles are signed with a Developer ID certificate and notarized by Apple. This platform does not guide users to archives whose macOS bundles fail this check. LV2 bundles for macOS are not guided, because Gatekeeper does not assess LV2 bundles.',
               'The release passes the other automated checks described on the Security page, including the lookup in a database of known malware.',
             ],
           },
@@ -82,7 +82,7 @@ export const en: Record<PageKey, PageContent> = {
       {
         heading: 'Check your repository before a release',
         paragraphs: [
-          'Before you publish a release, ask your AI agent to run submit_plugin in check mode. It checks the listing conditions on the latest release and reviews the latest commit of the default branch. It does not register the plugin. You can use check mode up to 5 times in 24 hours.',
+          'Before you publish a release, ask your AI agent to run submit_plugin in check mode. It checks the listing conditions on the latest release and reviews the latest commit of the default branch. It does not register the plugin. You can use check mode up to 5 times in 24 hours. Check mode also requires signing in with GitHub. Before the first release, check mode still returns the conditions that need a release as unchecked, with how to meet them, and checks the shape of .audio-soko-kun/config.json on the default branch. A listed release must be an immutable release, and files cannot be added to it after it is published: attach all files to a draft release first, then publish it. The rules that look for instructions to turn off a security feature or to run a downloaded command also match sentences that tell users not to do it.',
           'The review follows the review criteria, which are public on GitHub: https://github.com/AllegroMoltoV/audio-plugin-soko-kun/blob/main/docs/design/review-criteria.md',
           'Check mode does not inspect the archives or the macOS signatures, because those checks download the files in GitHub Actions after registration. The agent shows what these checks require.',
         ],
@@ -144,6 +144,7 @@ export const en: Record<PageKey, PageContent> = {
               'macos_not_signed, macos_adhoc, macos_not_developer_id, macos_not_notarized: Sign the macOS bundles with a Developer ID certificate and notarize them with Apple.',
               'declaration_mismatch, not_declared: The declarations in .audio-soko-kun/config.json and the inspected archives disagree. Fix the declarations, then publish a new release.',
               'installer_not_guided: Installers are not guided. Users get the plugins from the zip archives.',
+              'macos_lv2_not_guided: An archive contains only LV2 bundles for macOS, which are not guided. Add VST 3, CLAP, or Audio Unit bundles for macOS, signed with a Developer ID certificate and notarized.',
             ],
           },
         ],
@@ -181,6 +182,10 @@ export const en: Record<PageKey, PageContent> = {
           'All fields are optional. This platform takes the formats, OS, and architectures from the inspected bundles, and uses the declarations only to check them and to choose the archives to guide.',
           'With assets, this platform guides users only to the archives that match a pattern. It does not list a release whose file is invalid, whose archives match no pattern, or whose inspected archives disagree with the declarations.',
           'This platform reads the file at the tag of each new release, so publish a new release after you change the file.',
+          'The smallest valid file declares only the display name:',
+          { code: '{\n  "name": "Simple Pitch Shift"\n}' },
+          'This platform decides the category in this order. First, it infers the category from the inspected bundles: the type of Audio Unit components (aumu, aufx, aumf, aumi) and the Sub Categories in moduleinfo.json of VST 3 bundles. When the bundles point to several categories, instrument, midi, analyzer, and effect take precedence in this order. If nothing can be inferred, it uses category in this file, and otherwise utility. An inferred category takes precedence over the declared one.',
+          'CLAP features are not used for the category, because this platform does not run plugin binaries. VST 3 bundles without moduleinfo.json, such as those built with clap-wrapper, also give no hint. For a CLAP-only plugin, declare category in this file.',
         ],
       },
       {
@@ -195,7 +200,7 @@ export const en: Record<PageKey, PageContent> = {
         heading: 'Protecting your releases',
         paragraphs: [
           'Tag each release on a commit of the default branch. A release whose tag points to a commit that is not on the default branch waits for an administrator to confirm it.',
-          'Anyone with write access to the repository can create a release. This platform recommends protecting the default branch with a ruleset that blocks deletion and force pushes and requires a pull request with at least one approval, and protecting release tags with a tag ruleset that lets only repository admins create, update, or delete them. These settings are not listing conditions.',
+          'Anyone with write access to the repository can create a release. This platform recommends protecting the default branch with a ruleset that blocks deletion and force pushes and requires a pull request with at least one approval, and protecting release tags with a tag ruleset that lets only repository admins create, update, or delete them. These settings are not listing conditions. If you develop alone, add the Repository admin role to the bypass list of the branch ruleset with "For pull requests only", so that you can merge your own pull request while force pushes and deletion stay blocked. Do not use "Always allow", which also allows force pushes and deletion.',
         ],
       },
       {
@@ -226,7 +231,7 @@ export const en: Record<PageKey, PageContent> = {
               'macOS signing and notarization: An archive with macOS bundles is guided only after its bundles are confirmed to be signed with a Developer ID certificate and notarized by Apple.',
               'Malware lookup: The SHA-256 digest of each file, as published by GitHub, is looked up in MalwareBazaar, a database of known malware samples. Listed files are looked up again regularly.',
               'Changes since the listed release: The changes from the listed release to the new release are checked against rules. A release that matches a rule waits for an administrator to confirm it.',
-              'Development practice review: Items that the repository files decide, such as pinned actions and release workflows, are checked by rules. Only the items that need reading text, such as install instructions in the README, are judged by an LLM, with facts computed by the catalog. The source code is only searched as text for network API calls. It is never built or run. A release with a serious finding waits for an administrator to confirm it.',
+              'Development practice review: Items that the repository files decide, such as pinned actions, release workflows, and install instructions in the README, are checked by rules. Only the items that need reading text, such as how the README explains the data the plugin sends, are judged by an LLM, with facts computed by the catalog. Instructions that turn off a security feature or run a downloaded command are checked in the README, the release notes, and the other documents in the repository, including edits to the release notes after listing. The source code is only searched as text for network API calls and for these instructions. It is never built or run. A release with a serious finding waits for an administrator to confirm it.',
             ],
           },
           'The review criteria are public on GitHub: https://github.com/AllegroMoltoV/audio-plugin-soko-kun/blob/main/docs/design/review-criteria.md',

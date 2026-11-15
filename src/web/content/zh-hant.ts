@@ -50,7 +50,7 @@ export const zhHant: Record<PageKey, PageContent> = {
               '發行中的每個檔案（包括安裝程式）都有由儲存庫的發行工作流程產生的建置來源證明（build provenance attestation），例如使用 actions/attest-build-provenance 產生。',
               '外掛以 zip 壓縮檔發布。本平台只引導使用者前往包含 VST 3、CLAP、LV2 或 Audio Unit 外掛套件的 zip 壓縮檔，不引導使用者前往 exe、msi、pkg 等安裝程式。',
               '所有壓縮檔都不包含 VST 2。如果發行中的任何壓縮檔包含 VST 2 外掛套件或進入點，本平台不會收錄該發行。',
-              'macOS 外掛套件已使用 Developer ID 憑證簽署，並通過 Apple 公證。如果壓縮檔中的 macOS 外掛套件未通過此項檢查，本平台不會引導使用者前往該壓縮檔。',
+              'macOS 外掛套件已使用 Developer ID 憑證簽署，並通過 Apple 公證。如果壓縮檔中的 macOS 外掛套件未通過此項檢查，本平台不會引導使用者前往該壓縮檔。由於 Gatekeeper 不評估 LV2 外掛套件，本平台不會引導使用者前往 macOS 的 LV2 外掛套件。',
               '發行通過「安全與免責聲明」頁面所述的其他自動檢查，包括與已知惡意軟體資料庫的比對。',
             ],
           },
@@ -82,7 +82,7 @@ export const zhHant: Record<PageKey, PageContent> = {
       {
         heading: '發行前檢查儲存庫',
         paragraphs: [
-          '發布之前，請讓 AI 代理以檢查模式執行 submit_plugin。檢查模式會以最新發行判斷收錄條件，並審查預設分支的最新提交。檢查模式不會登記外掛。24 小時內最多可使用 5 次檢查模式。',
+          '發布之前，請讓 AI 代理以檢查模式執行 submit_plugin。檢查模式會以最新發行判斷收錄條件，並審查預設分支的最新提交。檢查模式不會登記外掛。24 小時內最多可使用 5 次檢查模式。檢查模式也需要以 GitHub 登入。即使在第一次發行之前，檢查模式也會把需要發行才能判斷的條件作為未判斷傳回，並附上滿足方法，同時檢查預設分支上 .audio-soko-kun/config.json 的格式。上架的發行必須是不可變發行，發布後不能再新增檔案：請先把所有檔案附加到草稿發行，再公開發行。尋找關閉安全功能的說明和執行下載內容的指令的規則，也會比對告訴使用者不要這樣做的句子。',
           '審查遵循在 GitHub 上公開的審查標準：https://github.com/AllegroMoltoV/audio-plugin-soko-kun/blob/main/docs/design/review-criteria.md',
           '檢查模式不會檢查壓縮檔的內容和 macOS 簽署，因為這些檢查會在登記後於 GitHub Actions 中下載檔案進行。代理會說明這些檢查的要求。',
         ],
@@ -144,6 +144,7 @@ export const zhHant: Record<PageKey, PageContent> = {
               'macos_not_signed、macos_adhoc、macos_not_developer_id、macos_not_notarized：請使用 Developer ID 憑證簽署 macOS 外掛套件，並通過 Apple 公證。',
               'declaration_mismatch、not_declared：.audio-soko-kun/config.json 中的宣告與檢查的壓縮檔不一致。請修正宣告，然後發布新版本。',
               'installer_not_guided：本平台不引導使用者前往安裝程式。使用者從 zip 壓縮檔取得外掛。',
+              'macos_lv2_not_guided：壓縮檔中只有 macOS 的 LV2 外掛套件，本平台不會引導使用者前往。請新增使用 Developer ID 憑證簽署並通過公證的 macOS VST 3、CLAP 或 Audio Unit 外掛套件。',
             ],
           },
         ],
@@ -181,6 +182,10 @@ export const zhHant: Record<PageKey, PageContent> = {
           '所有欄位皆為選填。本平台根據檢查的外掛套件決定格式、作業系統和架構，宣告僅用於核對這些資訊以及選擇要引導的壓縮檔。',
           '填寫 assets 後，本平台只引導使用者前往符合 pattern 的壓縮檔。如果檔案無效、沒有壓縮檔符合任何 pattern，或檢查的壓縮檔與宣告不一致，本平台不會收錄該發行。',
           '本平台讀取每個新發行標籤時的該檔案，因此變更檔案後請發布新版本。',
+          '最簡單的有效檔案只宣告顯示名稱：',
+          { code: '{\n  "name": "Simple Pitch Shift"\n}' },
+          '本平台依以下順序決定類別。首先，根據檢查過的外掛套件推斷類別：依據是 Audio Unit 元件的 type（aumu、aufx、aumf、aumi）和 VST 3 外掛套件中 moduleinfo.json 的 Sub Categories。當線索指向多個類別時，依 instrument、midi、analyzer、effect 的順序優先採用。無法推斷時使用此檔案中的 category，如果也沒有則為 utility。推斷出的類別優先於宣告的類別。',
+          '由於本平台不執行外掛的二進位檔，CLAP 的 features 不用於判斷類別。沒有 moduleinfo.json 的 VST 3 外掛套件（例如以 clap-wrapper 建置的外掛套件）也無法提供線索。只以 CLAP 發布的外掛，請在此檔案中宣告 category。',
         ],
       },
       {
@@ -195,7 +200,7 @@ export const zhHant: Record<PageKey, PageContent> = {
         heading: '保護你的發行版本',
         paragraphs: [
           '請把發行版本的標籤打在預設分支的提交上。標籤指向不在預設分支上的提交的發行版本，會等待管理員確認。',
-          '對儲存庫有寫入權限的人都可以建立發行版本。本平台建議以規則集保護預設分支，禁止刪除與強制推送，並要求至少一人核准的拉取要求；同時以標籤規則集保護發行標籤，只允許儲存庫管理員建立、更新或刪除標籤。這些設定不是收錄條件。',
+          '對儲存庫有寫入權限的人都可以建立發行版本。本平台建議以規則集保護預設分支，禁止刪除與強制推送，並要求至少一人核准的拉取要求；同時以標籤規則集保護發行標籤，只允許儲存庫管理員建立、更新或刪除標籤。這些設定不是收錄條件。如果你獨自開發，請在分支規則集的略過清單中，以 "For pull requests only" 新增儲存庫管理員（Repository admin）。這樣可以合併自己的拉取要求，同時仍禁止強制推送與刪除。請不要使用 "Always allow"，它也會允許強制推送與刪除。',
         ],
       },
       {
@@ -226,7 +231,7 @@ export const zhHant: Record<PageKey, PageContent> = {
               'macOS 簽署與公證：包含 macOS 外掛套件的壓縮檔，只有在確認其外掛套件已使用 Developer ID 憑證簽署並通過 Apple 公證後，才會引導使用者前往。',
               '惡意軟體查詢：在已知惡意軟體樣本資料庫 MalwareBazaar 中查詢 GitHub 公布的每個檔案的 SHA-256。已收錄的檔案也會定期重新查詢。',
               '與已收錄發行的差異：依規則檢查從已收錄發行到新發行的變更。符合規則的發行將等待管理員確認。',
-              '開發實務審查：由儲存庫檔案即可判定的項目（例如 Action 的固定和發行工作流程）依規則判定。只有需要閱讀文字的項目（例如 README 中的安裝步驟）才由 LLM 結合本平台計算的事實進行判定。原始碼僅用於以文字方式尋找網路 API 的呼叫，不會建置或執行。有嚴重問題的發行將等待管理員確認。',
+              '開發實務審查：由儲存庫檔案即可判定的項目（例如 Action 的固定、發行工作流程以及 README 中的安裝步驟）依規則判定。只有需要閱讀文字的項目（例如 README 中對外掛傳送資料的說明）才由 LLM 結合本平台計算的事實進行判定。關閉安全功能的說明和執行下載內容的指令，會在 README、發行說明和儲存庫中的其他文件中檢查，包括上架後對發行說明的編輯。原始碼僅用於以文字方式尋找網路 API 的呼叫和這些說明，不會建置或執行。有嚴重問題的發行將等待管理員確認。',
             ],
           },
           '審查標準在 GitHub 上公開：https://github.com/AllegroMoltoV/audio-plugin-soko-kun/blob/main/docs/design/review-criteria.md',

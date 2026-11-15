@@ -50,7 +50,7 @@ export const es419: Record<PageKey, PageContent> = {
               'Todos los archivos de la versión, incluidos los instaladores, tienen una atestación de procedencia de la compilación (build provenance attestation) creada por el workflow de publicación del repositorio, por ejemplo con actions/attest-build-provenance.',
               'Los plugins se distribuyen como archivos zip. Esta plataforma solo guía a los usuarios a archivos zip que contienen bundles VST 3, CLAP, LV2 o Audio Unit. No guía a instaladores como archivos exe, msi o pkg.',
               'Ningún archivo comprimido contiene VST 2. Si algún archivo comprimido de una versión contiene un bundle o un punto de entrada VST 2, esta plataforma no incluye la versión.',
-              'Los bundles para macOS están firmados con un certificado Developer ID y notarizados por Apple. Esta plataforma no guía a archivos comprimidos cuyos bundles para macOS no pasan esta revisión.',
+              'Los bundles para macOS están firmados con un certificado Developer ID y notarizados por Apple. Esta plataforma no guía a archivos comprimidos cuyos bundles para macOS no pasan esta revisión. No se guía a los bundles LV2 para macOS, porque Gatekeeper no evalúa los bundles LV2.',
               'La versión pasa las demás revisiones automáticas descritas en la página Seguridad, incluida la consulta en una base de datos de malware conocido.',
             ],
           },
@@ -82,7 +82,7 @@ export const es419: Record<PageKey, PageContent> = {
       {
         heading: 'Revisa tu repositorio antes de una versión',
         paragraphs: [
-          'Antes de publicar una versión, pide a tu agente de IA que ejecute submit_plugin en modo de comprobación. Este modo evalúa las condiciones de la lista en la versión más reciente y revisa el commit más reciente de la rama predeterminada. No registra el plugin. Puedes usar el modo de comprobación hasta 5 veces en 24 horas.',
+          'Antes de publicar una versión, pide a tu agente de IA que ejecute submit_plugin en modo de comprobación. Este modo evalúa las condiciones de la lista en la versión más reciente y revisa el commit más reciente de la rama predeterminada. No registra el plugin. Puedes usar el modo de comprobación hasta 5 veces en 24 horas. El modo de comprobación también requiere iniciar sesión con GitHub. Incluso antes de la primera versión, el modo de comprobación devuelve como no comprobadas las condiciones que requieren una versión, con cómo cumplirlas, y comprueba el formato de .audio-soko-kun/config.json en la rama predeterminada. Una versión publicada debe ser una versión inmutable y no se pueden añadir archivos después de publicarla: adjunta todos los archivos a un borrador de versión y luego publícala. Las reglas que buscan instrucciones para desactivar una función de seguridad o ejecutar un comando descargado también detectan frases que piden no hacerlo.',
           'La revisión sigue los criterios de revisión, que son públicos en GitHub: https://github.com/AllegroMoltoV/audio-plugin-soko-kun/blob/main/docs/design/review-criteria.md',
           'El modo de comprobación no inspecciona los archivos comprimidos ni las firmas de macOS, porque esas revisiones descargan los archivos en GitHub Actions después del registro. El agente muestra lo que exigen esas revisiones.',
         ],
@@ -144,6 +144,7 @@ export const es419: Record<PageKey, PageContent> = {
               'macos_not_signed, macos_adhoc, macos_not_developer_id, macos_not_notarized: Firma los bundles para macOS con un certificado Developer ID y notarízalos con Apple.',
               'declaration_mismatch, not_declared: Las declaraciones de .audio-soko-kun/config.json no coinciden con los archivos comprimidos inspeccionados. Corrige las declaraciones y publica una nueva versión.',
               'installer_not_guided: No se guía a los instaladores. Los usuarios obtienen los plugins de los archivos zip.',
+              'macos_lv2_not_guided: Un archivo comprimido solo contiene bundles LV2 para macOS, a los que no se guía. Añade bundles VST 3, CLAP o Audio Unit para macOS, firmados con un certificado Developer ID y notarizados.',
             ],
           },
         ],
@@ -181,6 +182,10 @@ export const es419: Record<PageKey, PageContent> = {
           'Todos los campos son opcionales. Esta plataforma toma los formatos, el SO y las arquitecturas de los bundles inspeccionados, y usa las declaraciones solo para comprobarlos y elegir los archivos comprimidos a los que guía.',
           'Con assets, esta plataforma solo guía a los usuarios a los archivos comprimidos que coinciden con un pattern. No incluye una versión cuyo archivo no es válido, cuyos archivos comprimidos no coinciden con ningún pattern o cuyos archivos comprimidos inspeccionados no coinciden con las declaraciones.',
           'Esta plataforma lee el archivo en la etiqueta de cada nueva versión; por eso, publica una nueva versión después de cambiar el archivo.',
+          'El archivo válido más pequeño declara solo el nombre visible:',
+          { code: '{\n  "name": "Simple Pitch Shift"\n}' },
+          'Esta plataforma decide la categoría en este orden. Primero, la infiere a partir de los bundles inspeccionados: el type de los componentes Audio Unit (aumu, aufx, aumf, aumi) y las Sub Categories del moduleinfo.json de los bundles VST 3. Cuando los bundles indican varias categorías, instrument, midi, analyzer y effect tienen prioridad en ese orden. Si no se puede inferir nada, usa category de este archivo y, si no existe, utility. Una categoría inferida tiene prioridad sobre la declarada.',
+          'Las features de CLAP no se usan para la categoría, porque esta plataforma no ejecuta los binarios de los plugins. Los bundles VST 3 sin moduleinfo.json, como los generados con clap-wrapper, tampoco dan pistas. Para un plugin distribuido solo como CLAP, declara category en este archivo.',
         ],
       },
       {
@@ -195,7 +200,7 @@ export const es419: Record<PageKey, PageContent> = {
         heading: 'Proteger tus versiones',
         paragraphs: [
           'Crea la etiqueta de cada versión en un commit de la rama predeterminada. Una versión cuya etiqueta apunta a un commit fuera de la rama predeterminada espera la confirmación de un administrador.',
-          'Cualquier persona con permiso de escritura en el repositorio puede crear una versión. Esta plataforma recomienda proteger la rama predeterminada con un ruleset que bloquee la eliminación y el push forzado y exija un pull request con al menos una aprobación, y proteger las etiquetas de versión con un ruleset de etiquetas que solo permita a los administradores del repositorio crear, actualizar o eliminar etiquetas. Estos ajustes no son condiciones de publicación.',
+          'Cualquier persona con permiso de escritura en el repositorio puede crear una versión. Esta plataforma recomienda proteger la rama predeterminada con un ruleset que bloquee la eliminación y el push forzado y exija un pull request con al menos una aprobación, y proteger las etiquetas de versión con un ruleset de etiquetas que solo permita a los administradores del repositorio crear, actualizar o eliminar etiquetas. Estos ajustes no son condiciones de publicación. Si desarrollas solo, añade el rol Repository admin a la lista de bypass del ruleset de la rama con "For pull requests only", para poder fusionar tu propio pull request mientras el push forzado y la eliminación siguen bloqueados. No uses "Always allow", que también permite el push forzado y la eliminación.',
         ],
       },
       {
@@ -226,7 +231,7 @@ export const es419: Record<PageKey, PageContent> = {
               'Firma y notarización en macOS: Un archivo comprimido con bundles para macOS solo se guía después de confirmar que sus bundles están firmados con un certificado Developer ID y notarizados por Apple.',
               'Consulta de malware: El SHA-256 de cada archivo, publicado por GitHub, se consulta en MalwareBazaar, una base de datos de muestras de malware conocido. Los archivos incluidos se vuelven a consultar con regularidad.',
               'Cambios desde la versión incluida: Los cambios desde la versión incluida hasta la nueva versión se revisan con reglas. Una versión que coincide con una regla espera la confirmación de un administrador.',
-              'Revisión de prácticas de desarrollo: Los elementos que deciden los archivos del repositorio, como las actions fijadas y los workflows de publicación, se comprueban con reglas. Solo los elementos que requieren leer texto, como las instrucciones de instalación del README, los evalúa un LLM, con hechos calculados por el catálogo. El código fuente solo se busca como texto para encontrar llamadas a APIs de red. Nunca se compila ni se ejecuta. Una versión con una observación grave espera la confirmación de un administrador.',
+              'Revisión de prácticas de desarrollo: Los elementos que deciden los archivos del repositorio, como las actions fijadas, los workflows de publicación y las instrucciones de instalación del README, se comprueban con reglas. Solo los elementos que requieren leer texto, como la explicación del README sobre los datos que envía el plugin, los evalúa un LLM, con hechos calculados por el catálogo. Las instrucciones que desactivan una función de seguridad o ejecutan un comando descargado se comprueban en el README, las notas de la versión y los otros documentos del repositorio, incluidas las ediciones de las notas de la versión después de publicarse. El código fuente solo se busca como texto para encontrar llamadas a APIs de red y estas instrucciones. Nunca se compila ni se ejecuta. Una versión con una observación grave espera la confirmación de un administrador.',
             ],
           },
           'Los criterios de la revisión son públicos en GitHub: https://github.com/AllegroMoltoV/audio-plugin-soko-kun/blob/main/docs/design/review-criteria.md',
