@@ -144,6 +144,17 @@ describe('アクセス権限', () => {
     expect(payload.total).toBe(1);
   });
 
+  // 表示名 (宣言ファイルの name) でも見つかること。所有者名・リポジトリ名・概要・訳のどこにも無い語で確かめる。
+  it('表示名の語でも検索できる', async () => {
+    await registerPendingFixture();
+    await markListable(env.DB);
+    await env.DB.prepare("UPDATE plugins SET display_name = 'こえかえピッチ / Koekae Pitch'").run();
+    const japanese = await toolResult(await SELF.fetch(toolCall('search_plugins', { keyword: 'こえかえ' })));
+    expect(japanese.payload.total).toBe(1);
+    const english = await toolResult(await SELF.fetch(toolCall('search_plugins', { keyword: 'koekae' })));
+    expect(english.payload.total).toBe(1);
+  });
+
   // V10: VST 3 の絞り込みには、中身の検査で VST 3 のバンドルを検出したものだけを出す (ADR 0004)。
   it('VST 3 の絞り込みは中身の検査で検出した規格で行い、CLAP だけのプラグインを含めない', async () => {
     await registerPendingFixture();
