@@ -226,7 +226,7 @@ export const en: Record<PageKey, PageContent> = {
               'macOS signing and notarization: An archive with macOS bundles is guided only after its bundles are confirmed to be signed with a Developer ID certificate and notarized by Apple.',
               'Malware lookup: The SHA-256 digest of each file, as published by GitHub, is looked up in MalwareBazaar, a database of known malware samples. Listed files are looked up again regularly.',
               'Changes since the listed release: The changes from the listed release to the new release are checked against rules. A release that matches a rule waits for an administrator to confirm it.',
-              'Development practice review: Items that the repository files decide, such as pinned actions and release workflows, are checked by rules. Only the items that need reading text, such as install instructions in the README, are judged by an LLM, with facts computed by the catalog. The review does not read the source code. A release with a serious finding waits for an administrator to confirm it.',
+              'Development practice review: Items that the repository files decide, such as pinned actions and release workflows, are checked by rules. Only the items that need reading text, such as install instructions in the README, are judged by an LLM, with facts computed by the catalog. The source code is only searched as text for network API calls. It is never built or run. A release with a serious finding waits for an administrator to confirm it.',
             ],
           },
           'The review criteria are public on GitHub: https://github.com/AllegroMoltoV/audio-plugin-soko-kun/blob/main/docs/design/review-criteria.md',

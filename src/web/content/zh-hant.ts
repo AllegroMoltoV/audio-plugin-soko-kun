@@ -226,7 +226,7 @@ export const zhHant: Record<PageKey, PageContent> = {
               'macOS 簽署與公證：包含 macOS 外掛套件的壓縮檔，只有在確認其外掛套件已使用 Developer ID 憑證簽署並通過 Apple 公證後，才會引導使用者前往。',
               '惡意軟體查詢：在已知惡意軟體樣本資料庫 MalwareBazaar 中查詢 GitHub 公布的每個檔案的 SHA-256。已收錄的檔案也會定期重新查詢。',
               '與已收錄發行的差異：依規則檢查從已收錄發行到新發行的變更。符合規則的發行將等待管理員確認。',
-              '開發實務審查：由儲存庫檔案即可判定的項目（例如 Action 的固定和發行工作流程）依規則判定。只有需要閱讀文字的項目（例如 README 中的安裝步驟）才由 LLM 結合本平台計算的事實進行判定。審查不讀取原始碼。有嚴重問題的發行將等待管理員確認。',
+              '開發實務審查：由儲存庫檔案即可判定的項目（例如 Action 的固定和發行工作流程）依規則判定。只有需要閱讀文字的項目（例如 README 中的安裝步驟）才由 LLM 結合本平台計算的事實進行判定。原始碼僅用於以文字方式尋找網路 API 的呼叫，不會建置或執行。有嚴重問題的發行將等待管理員確認。',
             ],
           },
           '審查標準在 GitHub 上公開：https://github.com/AllegroMoltoV/audio-plugin-soko-kun/blob/main/docs/design/review-criteria.md',
