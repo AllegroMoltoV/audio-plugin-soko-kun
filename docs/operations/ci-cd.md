@@ -171,7 +171,8 @@ npx wrangler tail --env production
 
 | 項目 | 設定 |
 | --- | --- |
-| ブランチ保護 | ruleset で `main` を保護する。ブランチの削除と force push を禁じる。PR を必須にし、マージには `test`・`inspect-archive`・`actionlint`・`dependency-review`・`analyze` の成功を求める |
+| ブランチ保護 | ruleset `main` で既定のブランチを保護する。ブランチの削除と force push を禁じる。PR を必須にし、マージには 1 名以上の承認と、`test`・`inspect-archive`・`actionlint`・`dependency-review`・`analyze` の成功を求める。依頼者の承認を得て `main` へ直接 push するときに限り、`gh` で ruleset を一時的に無効にし、push の後に有効へ戻す |
+| タグの保護 | ruleset `release-tags` で、すべてのタグの作成・更新・削除を管理者に限る |
 | Secret scanning | 有効にする |
 | Push protection | 有効にする。秘密情報を含む push を拒否する |
 | Dependabot alerts と Dependabot security updates | 有効にする。security updates は、脆弱性のある依存を直す PR を、毎週の更新とは別に作る |

@@ -52,6 +52,10 @@ The listing conditions, the security policy, and how to report a problem are on 
 | `.github/workflows/` | CI, deployment and verification workflows run on GitHub Actions |
 | `LICENSE` | MIT License |
 
+### AI disclosure
+
+Anthropic Claude Code was used for almost the entire development of this service, including research, source code, Cloudflare and GitHub configuration, tests, and documentation. The source code was derived from Plugin Soko-kun, which was also developed with Claude Code. The seed plugin simple-pitchshift-audio was also written with Claude Code, and the author checked it in a DAW. The author decided the requirements and design policies, reviewed the web pages and documents, and approved each deployment and external operation one by one. The author did not perform a rigorous line-by-line human review of the source code.
+
 ### License
 
 MIT License. See [LICENSE](LICENSE). The VST Compatible logo images (`docs/images/VST_Compatible_Logo_Steinberg*.png` and their copies `public/images/vst-compatible*.png`) are trademarks of Steinberg Media Technologies GmbH and are not covered by the MIT License.
@@ -107,6 +111,10 @@ codex mcp add audio-plugin-soko-kun --url https://audio-soko-kun.allegromoltov.j
 検索と詳細の取得は、サインインなしで使えます。自分が管理するリポジトリを登録するときは、先に GitHub でサインインします。Claude Code では `/mcp` を、Codex では `codex mcp login audio-plugin-soko-kun` を実行します。そのうえで「この GitHub リポジトリのオーディオプラグインを登録して」のように話しかけます。新しいリリースは自動で取り込みます。作者は、リリースの前に「このプラグインの掲載の条件を確かめて」、リリースのあとに「新しい版の掲載の状況を確かめて」のように話しかけて確かめられます。
 
 掲載の条件、セキュリティの方針、問題の通報の方法は Web サイトに記載しています。[音のプラグイン倉庫くんとは？](https://audio-soko-kun.allegromoltov.jp/about)、[掲載ポリシー](https://audio-soko-kun.allegromoltov.jp/policy)、[プラグインを登録する](https://audio-soko-kun.allegromoltov.jp/submit)、[セキュリティと免責](https://audio-soko-kun.allegromoltov.jp/security)、[通報](https://audio-soko-kun.allegromoltov.jp/report) を参照してください。
+
+### AI 利用開示
+
+本サービスの開発では、調査、ソースコード、Cloudflare と GitHub の設定、テスト、文書を含むほぼすべての工程で Anthropic Claude Code を使用しました。ソースコードは、同じく Claude Code で開発した配信プラグイン倉庫くんをもとにしています。シードのプラグイン simple-pitchshift-audio も Claude Code で書き、作者が DAW で動作を確認しました。要件と設計の方針は作者が決めました。作者は Web の画面と文書を確認し、配備と外部への操作を 1 回ずつ承認しました。ソースコードを 1 行ずつ読む厳密な人間のレビューは行っていません。
 
 ### ライセンス
 
