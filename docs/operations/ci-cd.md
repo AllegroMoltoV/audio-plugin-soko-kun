@@ -25,7 +25,7 @@ GitHub Actions のワークフローの目的と権限、依存の更新、本�
 
 ### codeql.yml
 
-`codeql.yml` は、`javascript-typescript` をビルドなしで解析します。結果は GitHub の Code scanning に送ります。GitHub の個人アカウントの private リポジトリでは Code scanning を使えないため、リポジトリが private の間は、解析の後の結果の送信で失敗します。
+`codeql.yml` は、`javascript-typescript` と `python` をビルドなしで解析します。`python` は、第三者の zip を読む `.github/scripts/inspect_archive.py` を対象にするためです。必須のチェック `analyze` の名前を保つため、2 つの言語を 1 つのジョブで解析します。結果は GitHub の Code scanning に送ります。
 
 ### deploy.yml
 

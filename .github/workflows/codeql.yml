@@ -25,6 +25,8 @@ jobs:
           persist-credentials: false
       - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
-          languages: javascript-typescript
+          # python は、第三者の zip を読む .github/scripts/inspect_archive.py と、そのテストを解析するため。
+          # 必須のチェック analyze の名前を変えないよう、matrix にせず 1 つのジョブで両方を解析する。
+          languages: javascript-typescript,python
           build-mode: none
       - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
