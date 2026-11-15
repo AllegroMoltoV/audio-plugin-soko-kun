@@ -7,7 +7,7 @@
 
 VST® is a registered trademark of Steinberg Media Technologies GmbH.
 
-`submit_plugin` の処理・Cron の定期処理・配布物の検証のワークフロー・スキャナー・無料プランの予算の仕様です。
+`submit_plugin` の処理・Cron の定期処理・配布物の検証のワークフロー・スキャナー・1 回の起動の予算の仕様です。
 
 配信プラグイン倉庫くんの [検査と同期](https://github.com/AllegroMoltoV/plugin-soko-kun/blob/main/docs/design/scanning.md) を引き継ぎ、次の 4 点を変えています。
 
@@ -94,7 +94,7 @@ VST® is a registered trademark of Steinberg Media Technologies GmbH.
 
 ### 確認のモード
 
-引数 `mode` が `check` のときは、登録せず、順序 3 から 16 の判定の結果を条件ごとに返します。順序 8 と 9 の重複は判定に含めません。あわせて、既定のブランチの最新のコミットのファイルで、下の「定期処理で行う検査」の順序 5 と 6 と同じレビューを行い、結果を返します。応答の形は [作者へのレビューの返し方](author-feedback.md) に記載します。上限は利用者ごとに直近 24 時間で 5 件で、`check_log` で数えます。Workers AI の無料枠の不足か混雑、AI Gateway の支出の上限でレビューできなかった要求は、件数に数えません。
+引数 `mode` が `check` のときは、登録せず、順序 3 から 16 の判定の結果を条件ごとに返します。順序 8 と 9 の重複は判定に含めません。あわせて、既定のブランチの最新のコミットのファイルで、下の「定期処理で行う検査」の順序 5 と 6 と同じレビューを行い、結果を返します。応答の形は [作者へのレビューの返し方](author-feedback.md) に記載します。上限は利用者ごとに直近 24 時間で 5 件で、`check_log` で数えます。AI Gateway の支出の上限、Workers AI の無料枠の不足、混雑でレビューできなかった要求は、件数に数えません。
 
 確認のモードでは、中身の検査と macOS の判定を行わず、それぞれの条件の説明だけを返します。どちらも配布物の取得を伴い、GitHub Actions で行うためです。また、確認のモードを使う公開前のリリースには、まだ配布物がありません。
 
@@ -239,9 +239,9 @@ Cron の定期処理は、`release_checks` のうち未完了の行を、1 回�
 | 5 | レビューの入力の取得 | タグの時点のファイルの一覧を 1 回で取得する。README は、一覧によらず、GitHub がリポジトリの画面に表示するものを、GitHub の README の API (`GET /repos/{owner}/{repo}/readme?ref={tag}`) で最初に取得する。探す場所 (`.github`・直下・`docs`)、名前、拡張子は GitHub が決めるため、`README.md` 以外の名前の README も照合する。最初に読むのは、先に読むファイルで合計の上限を使い切られ、README の照合を逃れられないようにするためである。README の上限は 128 KB とする。`no-security-bypass` と `no-terminal-paste` が README の全文を照合するためである。続いて一覧から、`.github/workflows/` のワークフロー 6 件まで、ルートのビルド系のファイル、CONTRIBUTING、プルリクエストのテンプレートをこの順に選び、一覧にあるものだけを取得する。1 ファイルの上限は 32 KB とする。LLM に渡す合計の上限は 60,000 文字で、README は LLM に渡す先頭 32,768 文字だけを数える。LLM には README の先頭 32,768 文字だけを渡し、残りを渡していないことを 1 行で書き添える。128 KB を超える README と読めなかった README は、無い README と同じに扱わず、2 つの項目を重大の `not_met` にする。README の名前を変えるか大きくすることで、照合を逃れられないようにするためである。あわせて `GET /repos/{owner}/{repo}/rulesets` で ruleset の一覧を取得し、有効なものの詳細を、ブランチのもの、タグのものの順に 3 件まで取得する。取得できなければ、ruleset を読めなかったものとして扱う |
 | 6 | ルールの判定と LLM のレビュー | ルールで判定する項目を判定する。続けて Workers AI の `@cf/openai/gpt-oss-120b` に、LLM で判定する項目と、README とワークフローと差分と、本サービスが計算した事実を渡し、項目ごとの判定と説明と該当の箇所を JSON で返させる。事実には通信の検出の結果を含め、検出の結果が無いときは `not scanned` と書く。検出で当たったソースのファイルは、指摘の根拠として認める。指示の冒頭は、オーディオプラグインのリポジトリをレビューする旨にする。項目ごとの判定の方法は [審査の基準](review-criteria.md) に記載する |
 | 7 | 失敗 | LLM のタイムアウト・5xx・形の合わない応答と、検査の GitHub の呼び出しのレート制限以外の失敗 (403、5xx など) では `review_attempts` を 1 増やし、`review_state` を `failed` にする。5xx を数えるのは、そのリポジトリだけの恒常的な失敗で同じ版が検査の先頭を占め続けないようにするためである。2 回失敗した版は確認待ちのまま管理者の判断を待つ。GitHub のレート制限と予算の超過は試行に数えず、次の起動でやり直す |
-| 8 | 無料枠の不足と混雑 | 配信プラグイン倉庫くんと同じ規則で扱う。1 日の無料枠の不足を示す `4006` と `3036`、AI Gateway の支出の上限を示す `2045` では試行に数えず、`review_wait_until` を 1 時間後にする。一時的な混雑を示す `3040` では次の起動でやり直す |
+| 8 | 支出の上限・無料枠の不足・混雑 | 配信プラグイン倉庫くんと同じ規則で扱う。Workers AI の例外のメッセージから内部コードを取り出す。Workers Paid では、レビューを止めるのは主に AI Gateway の支出の上限 (`2045`) で、1 日の無料枠の不足 (`4006`・`3036`) は Workers Free で起きる。どちらの扱いもコードに残す。`2045`・`4006`・`3036` では試行に数えず、`review_wait_until` を 1 時間後にして、それまでレビューを行わない。一時的な混雑を示す `3040` では試行に数えず、次の起動でやり直す |
 
-順序 5 のビルド系のファイルは、リポジトリのルートの `CMakeLists.txt`・`Cargo.toml`・`vcpkg.json`・`.gitmodules`・`meson.build` です。配信プラグイン倉庫くんの一覧のうち、`buildspec.json` は obs-plugintemplate に固有のため外しています。`.gitmodules` は、JUCE や VST 3 SDK をサブモジュールで取り込む作者が多いため加えています。一覧を広げるとレビュー 1 件の入力が増え、Workers AI の 1 日の枠で受け入れられる版の数が減るため、この 5 つに絞ります。
+順序 5 のビルド系のファイルは、リポジトリのルートの `CMakeLists.txt`・`Cargo.toml`・`vcpkg.json`・`.gitmodules`・`meson.build` です。配信プラグイン倉庫くんの一覧のうち、`buildspec.json` は obs-plugintemplate に固有のため外しています。`.gitmodules` は、JUCE や VST 3 SDK をサブモジュールで取り込む作者が多いため加えています。一覧を広げるとレビュー 1 件の入力が増え、AI Gateway の支出の上限の内で受け入れられる版の数が減るため、この 5 つに絞ります。
 
 外部呼び出しは、1 件ごとに予算から引きます。1 件の検査の外部呼び出しは最大で 25 件です。内訳は次のとおりです。通信の検出の結果は D1 から読むため、外部呼び出しに数えません。
 
@@ -308,7 +308,7 @@ Cron の定期処理は、`release_checks` のうち未完了の行を、1 回�
 
 判定は次の順に進みます。
 
-1. 定期処理の順序 1 で宣言ファイルを取得する。形の誤りは、その場で `invalid` にする。それ以外は、取得した日時を `config_fetched_at` に、検証して正規化した宣言を `config_json` に書く。ファイルが無ければ `config_json` を NULL にする
+1. 定期処理の順序 1 で宣言ファイルを取得する。形の誤りは、その場で `invalid` にする。それ以外は、取得した日時を `config_fetched_at` に、検証して正規化した宣言を `config_json` に書く。`config_json` には宣言ファイルに書いた項目だけを入れ、省いた項目を入れない (`serializeDeclaration`)。読み直すときに、省いた項目を不正な値とみなさないためである。ファイルが無ければ `config_json` を NULL にする
 2. 版のすべてのアーカイブの中身の検査が `pending` と `error` でなくなった時点で、`missing`・`no_declared_assets`・`mismatch`・`ok` のいずれかに決める。宣言の取得の後に中身の検査が終われば `POST /internal/checks/results` が、中身の検査の後に宣言を取得すれば定期処理が判定する
 3. `ok` と `missing` では、`plugins` の `display_name`・`declared_assets`・`category` をその版の値に替える。`missing` では `display_name` と `declared_assets` を NULL に戻す。作者が宣言ファイルを消した後も、古い宣言で配布物を絞り込まないためです
 
@@ -375,9 +375,9 @@ macOS の判定を待つ配布物は、`verify.yaml` が中身の検査の結果
 | 経路 | 内容 |
 | --- | --- |
 | `GET /internal/checks/pending` | `attestation_checks` か `content_checks` の結果が `pending` か、`error` で試行が 3 回未満の配布物を、最大 50 件返す。各件に、配布物の ID・`kind`・ダウンロード URL・`digest`・リポジトリ・リポジトリ ID・旧い名前の一覧・タグ・タグのコミット・記録したリリースのワークフローを含める。あわせて、通信の検出を待つ版 (`release_checks` の `network_state` が `pending` か、`error` で試行が 3 回未満) を、版の ID・現在のリポジトリ・版のコミットとともに最大 5 件返す |
-| `POST /internal/checks/results` | 配布物ごとの証明の検証の結果と、アーカイブの中身の検査の結果を受け取り、`attestation_checks` と `content_checks` に書く。中身の検査の結果には、カテゴリの手がかり `categories` を含む。中身の検査で macOS 向けのバンドルを検出した配布物には、`macos_signing_checks` の行を `pending` で作る。宣言ファイルとの照合が残っていれば行う。通信の検出の結果 (`networkScans`) を受け取り、`release_checks` の `network_state` と `network_hits` に書く。版の重なり・5 件を超える件数・形の合わない版の結果は、要求全体を 400 で拒否する。当たりは 50 件までとし、ファイルは 200 文字、行の文字列は 160 文字に切る。決まった API の名前でない当たりと、形の合わない当たりは捨てる |
+| `POST /internal/checks/results` | 配布物ごとの証明の検証の結果と、アーカイブの中身の検査の結果を、1 回に 100 件まで受け取り、`attestation_checks` と `content_checks` に書く。結果が `pending` か `error` の行だけを書き換え、確定した行は書き換えない。試行を使い切った `error` の行も、遅れて届いた結果を受け入れる。記録したリリースのワークフローと違うワークフローが署名した証明と、署名したワークフローの無い証明は、`passed` を受けても `failed` (`signer_workflow_mismatch`・`signer_workflow_missing`) にする。中身の検査の結果には、カテゴリの手がかり `categories` を含む。中身の検査で macOS 向けのバンドルを検出した配布物には、`macos_signing_checks` の行を `pending` で作る。宣言ファイルとの照合が残っていれば行う。通信の検出の結果 (`networkScans`) を受け取り、`release_checks` の `network_state` が `pending` か `error` の版の `network_state` と `network_hits` に書く。同じ配布物の結果を 2 つ含む要求と、形の合わない配布物の結果は、要求全体を 400 で拒否する。通信の検出の結果も、版の重なり・5 件を超える件数・形の合わない版の結果は、要求全体を 400 で拒否する。当たりは 50 件までとし、ファイルは 200 文字、行の文字列は 160 文字に切る。決まった API の名前でない当たりと、形の合わない当たりは捨てる |
 | `GET /internal/macos-checks/pending` | `macos_signing_checks` の結果が `pending` か、`error` で試行が 3 回未満の配布物を、最大 50 件返す。各件に、配布物の ID・ダウンロード URL・`digest`・リポジトリ・タグと、判定するバンドルのアーカイブの中のパス `bundles` を含める。`bundles` は `content_checks` の `bundles` のうち、macOS 向けで LV2 でないものに限り、パスの規則をもう一度確かめる。この条件は `src/checks/macos-route.ts` の `PENDING_MACOS_FROM` に 1 か所で定め、定期処理の起動の判定と共有する |
-| `POST /internal/macos-checks/results` | 配布物ごとの結果 `{assetId, result, reason, teamIds}` を受け取り、`macos_signing_checks` の `result`・`reason`・`team_id` に書き、`attempts` を 1 増やす。`result` と `reason` の組は「署名と公証の判定」の表のものだけを受け付け、`passed` には Team ID を 1 件以上求める。Team ID は英大文字と数字の 10 文字で、10 件まで。形の合わない結果、または同じ配布物の結果を 2 つ含む要求は、全体を 400 で拒否する。行の無い配布物には行を作らない。結果が確定した行と、試行を 3 回使い切った `error` の行は書き換えない |
+| `POST /internal/macos-checks/results` | 配布物ごとの結果 `{assetId, result, reason, teamIds}` を 1 回に 100 件まで受け取り、`macos_signing_checks` の `result`・`reason`・`team_id` に書き、`attempts` を 1 増やす。`result` と `reason` の組は「署名と公証の判定」の表のものだけを受け付け、`passed` には Team ID を 1 件以上求める。Team ID は英大文字と数字の 10 文字で、10 件まで。形の合わない結果、または同じ配布物の結果を 2 つ含む要求は、全体を 400 で拒否する。行の無い配布物には行を作らない。結果が `pending` か `error` の行だけを書き換え、確定した行は書き換えない。試行を 3 回使い切った `error` の行も、遅れて届いた結果を受け入れる |
 
 配信プラグイン倉庫くんの `/internal/attestations/pending` と `/internal/attestations/results` を、証明の検証と中身の検査を合わせて扱う形に改めています。
 
@@ -482,7 +482,7 @@ Linux の rcodesign は使いません。rcodesign の verify は Mach-O だけ�
 
 `user-data-handling` のレビューに事実として渡すため、新しい版のソースのコードから通信の API の使用を探します。配信プラグイン倉庫くんの 0.2.3 の仕組みを引き継ぎ、オーディオプラグインのフレームワークの API を足しています。
 
-`verify.yaml` は、通信の検出を待つ版ごとに、空のディレクトリで `git fetch --depth 1 https://github.com/<リポジトリ>.git <版のコミット>` を実行し、そのコミットのソースだけを取得します。サブモジュールは取得しません。取得したソースは実行もビルドもしません。`.github/scripts/scan-network.sh` が、C・C++・Objective-C・Rust のファイルから次の API を文字列で探し、ファイル・行・API の名前・行の文字列を返します。取得は 120 秒、探索は 60 秒で打ち切り、失敗は `error` として返します。
+`verify.yaml` は、通信の検出を待つ版ごとに、空のディレクトリで `git fetch --depth 1 https://github.com/<リポジトリ>.git <版のコミット>` を実行し、そのコミットのソースだけを取得します。サブモジュールは取得しません。取得したソースは実行もビルドもしません。`.github/scripts/scan-network.sh` が、C・C++・Objective-C・Rust のファイルから次の API を文字列で探し、ファイル・行・API の名前・行の文字列を返します。取得 (`git fetch`) と取り出し (`git checkout`) はそれぞれ 120 秒、探索は 60 秒で打ち切ります。Git LFS のファイルは取得しません (`GIT_LFS_SKIP_SMUDGE=1`)。取り出しの前後でランナーの空き容量を確かめ、3 GiB に満たなければ探しません。第三者のソースで、同じ回のほかの版と配布物の検証を止めないためです。どの失敗も `error` として返します。
 
 | API の名前 | 探す文字列 |
 | --- | --- |
@@ -495,7 +495,7 @@ Linux の rcodesign は使いません。rcodesign の verify は Mach-O だけ�
 | `juce-network` | JUCE の `WebInputStream`・`StreamingSocket`・`DatagramSocket`・`URL::createInputStream`・`InputStreamOptions`・`readEntireTextStream`・`readEntireBinaryStream`・`downloadToFile` |
 | `rust-http`・`rust-net` | Rust の `reqwest`・`ureq`・`hyper::Client`・`isahc`・`attohttpc`、`TcpStream::connect`・`UdpSocket::bind`・`tungstenite` |
 
-JUCE の `juce::URL` の型の名前では当てません。`launchInDefaultBrowser` のように、ブラウザーで開くだけの用途にも使うためです。`createInputStream` は、ローカルのファイルの `File::createInputStream` と区別するため、`URL::` で修飾した形と `InputStreamOptions` だけに当てます。JUCE をリポジトリに同梱した作者のソースで JUCE 自身の通信の実装に当たらないよう、`juce_core` のディレクトリは探しません。ビルドの出力 (`build`・`build_*`・Rust の `target`) も探しません。
+JUCE の `juce::URL` の型の名前では当てません。`launchInDefaultBrowser` のように、ブラウザーで開くだけの用途にも使うためです。`createInputStream` は、ローカルのファイルの `File::createInputStream` と区別するため、`URL::` で修飾した形と `InputStreamOptions` だけに当てます。JUCE をリポジトリに同梱した作者のソースで JUCE 自身の通信の実装に当たらないよう、`juce_core` のディレクトリは探しません。ビルドの出力 (`build`・`build_*`・Rust の `target`) と、`.git`・`.deps` も探しません。
 
 当たりは 50 件までとし、超えたら打ち切りを `truncated` で示します。検出は API の使用だけを示し、送る内容は示しません。そのため、検出の結果だけで掲載を止めず、README の説明と合わせて LLM が判定します。
 
@@ -528,20 +528,21 @@ VirusTotal は照会先にしません。判断は配信プラグイン倉庫く
 
 MalwareBazaar の `not_found` は確定として扱い、掲載を止めません。照会のたびに `attempts` を 1 増やし、`scanned_at` を更新します。
 
-## 無料プランの予算
+## 1 回の起動の予算
 
-Cloudflare Workers の無料プランの上限に対し、本サービスは次の予算を設けます。新しい版の検査を除き、配信プラグイン倉庫くんと同じ値です。
+本サービスは、1 回の起動に次の予算を設けます。予算は `src/budget.ts` の `Budget` で数えます。Cloudflare のアカウントは Workers Paid ですが (派生元の ADR 0017)、予算は Paid の上限に合わせて広げません。GitHub のレート制限と費用を抑えるためです。新しい版の検査を除き、配信プラグイン倉庫くんと同じ値です。Workers の上限は公式の文書 [Workers の上限](https://developers.cloudflare.com/workers/platform/limits/) を参照してください。
 
-| 対象 | 無料プランの上限 | 本サービスの予算 |
-| --- | --- | --- |
-| 外部呼び出し | 1 回の起動あたり 50 件。リダイレクトも 1 件と数える | 45 件 |
-| D1 のクエリ | 1 回の起動あたり 50 件。`db.batch()` は 1 件 | Cron の順序 1 から 8 で 45 件。順序 9 は予算の外で実行する |
-| CPU 時間 | 1 回の起動あたり 10 ms | 配布物をダウンロードしない。中身の検査・証明の検証・macOS の判定は Worker で行わない。画像は大きさの上限を設け、先頭のバイト列だけを解析する。差分は diff の形式で先頭の 24,000 文字だけを読む |
-| KV の書き込み | 1 日 1,000 件 | OAuth の経路に IP アドレスごとのレート制限を設ける |
-| Cron Trigger | アカウントあたり 5 個 | 1 個 |
-| Workers AI | 1 日 10,000 Neurons | 配信プラグイン倉庫くんと分け合う。新しい版のレビューは 1 日に 10〜16 件を上限として受け入れる |
+| 対象 | 本サービスの予算 |
+| --- | --- |
+| 外部呼び出し | 45 件。リダイレクトも 1 件と数える |
+| D1 のクエリ | Cron の順序 1 から 8 で 45 件。`db.batch()` は 1 件。順序 9 は予算の外で実行する |
+| 読み込み | 配布物をダウンロードしない。中身の検査・証明の検証・macOS の判定は Worker で行わない。画像は大きさの上限を設け、先頭のバイト列だけを解析する。差分は diff の形式で先頭の 24,000 文字だけを読む |
+| KV の書き込み | OAuth の経路に IP アドレスごとのレート制限を設け、費用と乱用を抑える |
+| Cron Trigger | 1 個 |
 
-本サービスは、配信プラグイン倉庫くんと同じ Cloudflare のアカウントに置きます。Cron Trigger と 1 日のリクエストの上限はアカウントで数えるため、2 つのサービスで分け合います。Cron Trigger は 2 つのサービスで 2 個を使います。Workers AI の 1 日の無料枠も、2 つのサービスで分け合う前提で扱います。レビュー 1 件の消費は、差分の無い場合で 524〜708 Neurons でした (非公開の調査記録)。枠が足りない日は、レビューが翌日へ遅れます。本番では、翻訳とレビューの Workers AI の呼び出しを、環境変数 `AI_GATEWAY_ID` の AI Gateway に通します ([アーキテクチャ](architecture.md))。
+本サービスは、配信プラグイン倉庫くんと同じ Cloudflare のアカウントに置きます。Cron Trigger はアカウントで数えるため、2 つのサービスで分け合い、2 個を使います。
+
+本番では、翻訳とレビューの Workers AI の呼び出しを、環境変数 `AI_GATEWAY_ID` の AI Gateway に通します ([アーキテクチャ](architecture.md))。Workers AI の費用は、2 つのサービスで共有するゲートウェイの支出の上限で止めます。上限に達した日は、レビューが 1 時間ごとのやり直しで遅れ、翻訳は次の起動へ回ります。レビュー 1 件の消費は、差分の無い場合で 524〜708 Neurons でした (非公開の調査記録)。
 
 ## 未決定の事項
 

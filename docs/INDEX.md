@@ -11,12 +11,12 @@ VST® is a registered trademark of Steinberg Media Technologies GmbH.
 
 | 知りたいこと | 参照先 | 区分 |
 | --- | --- | --- |
-| プロジェクトの目的と使い方 | `README.md` (未作成) | |
+| プロジェクトの目的と使い方、更新履歴 | [README](../README.md) | |
 | 用語の定義 | [用語集](glossary.md) | リファレンス |
 | 構成要素と要求の流れ | [アーキテクチャ](design/architecture.md) | リファレンス |
 | テーブルと掲載状態の算出規則 | [データモデル](design/data-model.md) | リファレンス |
 | 認可の流れとスコープ | [認証と認可](design/auth.md) | リファレンス |
-| 登録・検査・同期・配布物の検証の処理と無料プランの予算 | [検査と同期](design/scanning.md) | リファレンス |
+| 登録・検査・同期・配布物の検証の処理と 1 回の起動の予算 | [検査と同期](design/scanning.md) | リファレンス |
 | 新しい版を掲載する前に確かめる項目 | [審査の基準](design/review-criteria.md) | リファレンス |
 | 作者の LLM へ検査とレビューの結果を返す MCP のツール | [作者へのレビューの返し方](design/author-feedback.md) | リファレンス |
 | 対応言語と言語の判定 | [多言語対応](design/i18n.md) | リファレンス |

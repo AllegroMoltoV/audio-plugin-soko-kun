@@ -40,7 +40,7 @@ MCP のツールの認証要件・OAuth のエンドポイント・サインイ�
 | `/oauth/token` | アクセストークンの発行 |
 | `/internal/checks/pending`・`/internal/checks/results`・`/internal/macos-checks/pending`・`/internal/macos-checks/results` | 配布物の検証の受け口。GitHub Actions の OIDC のトークンで守る |
 
-`/oauth/register`・`/authorize`・`/oauth/token`・`/callback` には、送信元 IP アドレスあたり 1 分 20 回のレート制限を設けます。これらの経路は KV へ書き込むため、無料プランの KV の書き込みの上限を守る必要があります。`/mcp` と Web カタログの上限は、送信元 IP アドレスあたり 1 分 120 回です。OAuth のメタデータにはレート制限を設けません。集計の方式は [データモデル](data-model.md) の `rate_limit` に記載します。
+`/oauth/register`・`/authorize`・`/oauth/token`・`/callback` には、送信元 IP アドレスあたり 1 分 20 回のレート制限を設けます。これらの経路は KV へ書き込むため、書き込みの費用と乱用を抑えます。`/mcp`・Web カタログ・配布物の検証の受け口の上限は、送信元 IP アドレスあたり 1 分 120 回です。OAuth のメタデータ (`/.well-known/oauth-authorization-server` と `/.well-known/oauth-protected-resource` で始まるパス) にはレート制限を設けません。集計の方式は [データモデル](data-model.md) の `rate_limit` に記載します。
 
 ## アクセストークン
 

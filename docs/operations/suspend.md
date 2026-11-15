@@ -43,7 +43,7 @@
 
 ### 各コマンドの内容
 
-`show` は、プラグインの `admin_suspended`・`suspended_reason`・`removed`・`images_hidden`・`last_synced_at` と、`listing_periods` の掲載の期間、`release_suspensions` の止めた版を表示します。
+`show` は、プラグインの `owner`・`repo`・`display_name`・`admin_suspended`・`suspended_reason`・`removed`・`images_hidden`・`last_synced_at` と、`listing_periods` の掲載の期間、`release_suspensions` の止めた版を表示します。
 
 `set-category` は、自動で推定したカテゴリが誤っていたときに、管理者がカテゴリを直すコマンドです。
 

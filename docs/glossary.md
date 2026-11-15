@@ -75,7 +75,7 @@ VST® is a registered trademark of Steinberg Media Technologies GmbH.
 | 不変のリリース | GitHub の immutable release を指す。公開後に配布物とタグを差し替えられないリリースで、API の `immutable` が true のもの。掲載の条件の 1 つ。 | 固定リリース、ロックされたリリース |
 | 乗っ取りの兆候 | 掲載中の版から新しい版への差分のうち、リリースのワークフローの変更・バイナリの追加と変更・別のホストへのリンクの追加に当たるものを指す。24,000 文字を超える差分では、変更されたファイルの一覧に `.github/` 配下の変更・ビルドのスクリプトの変更・バイナリの追加と変更があるものと、一覧を取り切れなかったものを含む。所有者の変更と、macOS 向けのバンドルの Team ID の食い違いも含む。ルールで判定し、当たった版は確認待ちにする。 | 不審な変更、マルウェアの検出 |
 | 開発の実践のレビュー | 審査の基準と推奨の項目にしたがってリポジトリを読み、指摘を作者に返す処理を指す。ファイルを見れば機械的に決まる項目はルールで、文章の意図を読む項目は LLM で判定する。掲載の可否は決めず、重大な指摘がある版だけを確認待ちにする。 | AI 審査、安全性の評価 |
-| 予算 | Cloudflare Workers の無料プランで 1 回の起動に許される外部呼び出しと D1 クエリの件数に対し、本サービスが自ら設ける上限を指す。 | クォータ、上限値 |
+| 予算 | 1 回の起動で使う外部呼び出しと D1 クエリの件数に、本サービスが自ら設ける上限を指す。どちらも 45 件。Cloudflare Workers の有料プランの上限に合わせて広げない。 | クォータ、上限値 |
 
 ## 認証と MCP
 
@@ -89,4 +89,4 @@ VST® is a registered trademark of Steinberg Media Technologies GmbH.
 | CIMD | Client ID Metadata Document の略。MCP クライアントが自らのメタデータを HTTPS の URL で公開し、その URL を `client_id` として使う登録方式を指す。 | 静的登録 |
 | DCR | Dynamic Client Registration の略。MCP クライアントが登録用エンドポイントへ要求を送り、`client_id` を発行してもらう登録方式を指す。 | 自動登録 |
 | audience | アクセストークンを使ってよいリソースを示す値を指す。本サービスでは `<ORIGIN>/mcp` で、一致しないトークンは拒否する。 | 対象者、スコープ |
-| `ORIGIN` | 本サービスの公開 URL の起点を指す。Worker の環境変数 `ORIGIN` で与える。予定の値は `https://audio-soko-kun.allegromoltov.jp`。 | ホスト名、ベース URL |
+| `ORIGIN` | 本サービスの公開 URL の起点を指す。Worker の環境変数 `ORIGIN` で与える。本番の値は `https://audio-soko-kun.allegromoltov.jp`。 | ホスト名、ベース URL |

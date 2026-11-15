@@ -2,7 +2,7 @@
 
 手元の PC で Worker を起動し、Web カタログ・MCP・Cron の定期処理を確かめる手順です。ローカルの D1 と KV は、`wrangler` が `.wrangler/state/` に作ります。
 
-Workers AI だけは、ローカルでも実環境を呼びます。説明文の機械翻訳と新しい版の LLM のレビューが Workers AI を使うためです。そのため、`wrangler login` で Cloudflare にログインしておく必要があります。呼び出しの分だけ、Workers AI の 1 日の無料枠を使います。
+Workers AI だけは、ローカルでも実環境を呼びます。説明文の機械翻訳と新しい版の LLM のレビューが Workers AI を使うためです。そのため、`wrangler login` で Cloudflare にログインしておく必要があります。呼び出しの分だけ、`wrangler login` でログインしたアカウントの Workers AI を消費します。ローカルには `AI_GATEWAY_ID` が無く、呼び出しは AI Gateway を通らないため、ゲートウェイの支出の上限では止まりません。
 
 ## 前提
 
@@ -32,7 +32,7 @@ CONTACT_EMAIL=<開発者の連絡先のメールアドレス>
 
 `MALWAREBAZAAR_AUTH_KEY` は省略できます。鍵が無いときは照会を行いません。その場合、登録したプラグインは検査待ちのまま残ります。`CONTACT_EMAIL` を省略すると、連絡先を表示するボタンは連絡先を準備中である旨を表示します。
 
-`GITHUB_DISPATCH_TOKEN` は、ローカルでは設定しません。`verify.yaml` は本番の Worker にだけ結果を送るため、ローカルの Worker から起動しても検証は進みません。トークンが無いとき、定期処理は `verify.yaml` を起動しません。
+`GITHUB_DISPATCH_TOKEN` は、ローカルでは設定しません。`verify.yaml` と `macos-verify.yaml` は本番の Worker にだけ結果を送るため、ローカルの Worker から起動しても検証は進みません。トークンが無いとき、定期処理はどちらのワークフローも起動しません。
 
 `ORIGIN` は、`wrangler.jsonc` の `vars` で `http://localhost:8787` に設定しています。
 
@@ -56,7 +56,7 @@ npx wrangler dev
 
 起動後は、ブラウザーで `http://localhost:8787/` を開くと Web カタログを表示できます。MCP のエンドポイントは `http://localhost:8787/mcp` です。
 
-ローカルでは、配布物の検証の受け口 `/internal/checks/` を試せません。受け口は、本サービスのリポジトリの `main` で動作する `verify.yaml` の OIDC のトークンだけを受け付けるためです。受け口の処理は、自動テストで確かめます。
+ローカルでは、配布物の検証の受け口 `/internal/checks/` と `/internal/macos-checks/` を試せません。受け口は、本サービスのリポジトリの `main` で動作する `verify.yaml` と `macos-verify.yaml` の OIDC のトークンだけを受け付けるためです。受け口の処理は、自動テストで確かめます。
 
 ## Cron の手動実行
 
@@ -85,7 +85,7 @@ curl "http://localhost:8787/__scheduled?cron=*/15+*+*+*+*"
 | `previews` | 説明の画像から詳細ページ向けの軽い画像を作った件数 |
 | `subrequests`・`d1Queries` | 使った外部呼び出しと D1 のクエリの件数 |
 | `stoppedBy` | 処理を途中で止めた理由。GitHub の異常は `github_` で、予算の不足は `budget_` で始まる |
-| `verifyDispatch` | `verify.yaml` の起動の結果。ローカルでは `skipped_no_token` になる |
+| `verifyDispatch`・`macosVerifyDispatch` | `verify.yaml` と `macos-verify.yaml` の起動の結果。ローカルでは `skipped_no_token` になる |
 
 ## テストと静的検査
 
@@ -99,7 +99,7 @@ npm run lint
 
 `npm test` は、`wrangler.jsonc` の `test` 環境を使い、Miniflare 上でテスト用の値を与えて動作します。`.dev.vars` の秘密情報は使いません。外部の API への要求はテストの中で模擬します。`test` 環境には Workers AI の binding が無いため、テストは Workers AI を呼びません。
 
-`.github/scripts/` の中身の検査のスクリプトを変えたときは、そのテストも実行します。
+`.github/scripts/` の中身の検査・macOS の判定・通信の検出のスクリプトを変えたときは、そのテストも実行します。
 
 ```sh
 python3 -I -B -m unittest discover -s .github/scripts -p "test_*.py" -v

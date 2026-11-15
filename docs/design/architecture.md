@@ -13,11 +13,13 @@ VST® is a registered trademark of Steinberg Media Technologies GmbH.
 
 本サービスは、GitHub Releases で公開されたオープンソースのオーディオプラグインを検査して掲載する、非公式のレジストリです。対象の規格は VST 3・CLAP・LV2・Audio Unit です。配布物は預からず、作者が公開したファイルへ案内します。配信プラグイン倉庫くんの派生として作り、OBS に依存しない設計と判断を引き継ぎます ([ADR 0002](../decisions/0002-independent-service-derived-from-soko-kun.md))。
 
-本サービスは、Cloudflare Workers の無料プラン上の 1 つの Worker で動作します。Worker は、MCP エンドポイント・OAuth の認可サーバー・Web カタログ・定期処理・配布物の検証の受け口を兼ねます。永続データは D1 に置き、OAuth の状態は KV に置きます。Workers AI は、プラグインの概要の機械翻訳と、新しい版の開発の実践の LLM によるレビューに使います。
+本サービスは、Cloudflare Workers の 1 つの Worker で動作します。Worker は、MCP エンドポイント・OAuth の認可サーバー・Web カタログ・定期処理・配布物の検証の受け口を兼ねます。永続データは D1 に置き、OAuth の状態は KV に置きます。Workers AI は、プラグインの概要の機械翻訳と、新しい版の開発の実践の LLM によるレビューに使います。
 
-本番の Workers AI の呼び出しは、AI Gateway `soko-kun-ai` を通します。このゲートウェイは配信プラグイン倉庫くんと共有し、その支出の上限 (2026-11-15 の時点で 1 日 0.2 米ドル) で、2 つのサービスを合わせた費用を止めます。呼び出しにはメタデータ `service` に `audio-plugin-soko-kun` を付けます。共有するゲートウェイのログで、2 つのサービスの消費を区別するためです。配信プラグイン倉庫くんは `plugin-soko-kun` を付けます。Cloudflare のアカウントは、2026-11-15 から 1 か月だけ Workers Paid にしています。Workers AI の 1 日の無料枠を超えて使うためです。コードは無料プランの上限 (外部呼び出し、D1 のクエリ、CPU 時間) の内で動作するよう作り、Paid の上限に合わせて広げません。無料プランに戻しても動作が変わらないようにするためです。上限に達したときの扱いは [検査と同期](scanning.md) に記載します。
+本番の Workers AI の呼び出しは、AI Gateway `soko-kun-ai` を通します。このゲートウェイは配信プラグイン倉庫くんと共有し、その支出の上限 (2026-11-15 の時点で 1 日 0.2 米ドル) で、2 つのサービスを合わせた費用を止めます。呼び出しにはメタデータ `service` に `audio-plugin-soko-kun` を付けます。共有するゲートウェイのログで、2 つのサービスの消費を区別するためです。配信プラグイン倉庫くんは `plugin-soko-kun` を付けます。ゲートウェイの ID は、本番の環境変数 `AI_GATEWAY_ID` で与えます。手元とテストの環境には `AI_GATEWAY_ID` が無く、ゲートウェイを通しません。上限に達したときの扱いは [検査と同期](scanning.md) に記載します。
 
-配布物を取得して行う処理は、Worker の外で行います。対象は、証明の署名の検証・中身の検査・macOS の署名と公証の判定の 3 つです。Worker の CPU 時間は 1 回の起動あたり 10 ms で、配布物の取得と展開は収まりません。そのため、本サービスのリポジトリの GitHub Actions のワークフロー `verify.yaml` が配布物を取得して証明の署名を検証し、アーカイブの中身を検査して、結果を Worker へ送ります。配布物は 1 件ずつ最大 2 GiB まで取得し、処理を終えるたびに削除します。macOS の署名と公証の判定は、macOS のランナーで動作する別のワークフロー `macos-verify.yaml` が行います。判定の方法は [検査と同期](scanning.md) に記載します。
+Cloudflare のアカウントは、配信プラグイン倉庫くんと共有し、Workers Paid を続けます。本番の CPU 時間が無料プランの上限を一貫して超えるためです (派生元の ADR 0017)。コードは、本サービスが 1 回の起動に設ける予算 (外部呼び出し 45 件、D1 のクエリ 45 件) と読み込みの上限の内で動作するよう作り、Paid の上限に合わせて広げません。予算は GitHub のレート制限と費用を抑える役目も持つためです。予算は [検査と同期](scanning.md) に記載します。
+
+配布物を取得して行う処理は、Worker の外で行います。対象は、証明の署名の検証・中身の検査・macOS の署名と公証の判定の 3 つです。Worker では配布物をダウンロードせず、読み込みの上限を設けているためです。本サービスのリポジトリの GitHub Actions のワークフロー `verify.yaml` が配布物を取得して証明の署名を検証し、アーカイブの中身を検査して、結果を Worker へ送ります。配布物は 1 件ずつ最大 2 GiB まで取得し、処理を終えるたびに削除します。macOS の署名と公証の判定は、macOS のランナーで動作する別のワークフロー `macos-verify.yaml` が行います。判定の方法は [検査と同期](scanning.md) に記載します。無料プランの上限から導いたこの設計は、Workers Paid でも保ちます (派生元の ADR 0017)。
 
 単一の Worker にまとめるのは、構成要素と運用の手間を最小にするためです。MCP と Web は共通のドメインロジックを使います。そのため、検索の条件や掲載状態の算出が経路によって食い違うことはありません。
 
@@ -103,7 +105,7 @@ GitHub と配布物から取得した文字列は、外部データとして扱�
 
 | 判断 | 配信プラグイン倉庫くんの記録 |
 | --- | --- |
-| Cloudflare Workers の無料プランで動作させる | [ADR 0001](https://github.com/AllegroMoltoV/plugin-soko-kun/blob/main/docs/decisions/0001-hosting-cloudflare-workers-free.md) |
+| Cloudflare Workers で動作させる。無料プランを使う判断は ADR 0017 で改められている | [ADR 0001](https://github.com/AllegroMoltoV/plugin-soko-kun/blob/main/docs/decisions/0001-hosting-cloudflare-workers-free.md) |
 | 認可サーバーと MCP を 1 つの Worker に同居させ、認証混在にする | [ADR 0002](https://github.com/AllegroMoltoV/plugin-soko-kun/blob/main/docs/decisions/0002-single-worker-mixed-auth.md) |
 | SHA-256 を計算せず、GitHub の digest を記録する | [ADR 0003](https://github.com/AllegroMoltoV/plugin-soko-kun/blob/main/docs/decisions/0003-github-digest-without-download.md) |
 | 掲載状態を保存せず算出する | [ADR 0004](https://github.com/AllegroMoltoV/plugin-soko-kun/blob/main/docs/decisions/0004-computed-listing-status.md) |
@@ -116,14 +118,35 @@ GitHub と配布物から取得した文字列は、外部データとして扱�
 | 証明の署名の検証を GitHub Actions で行う | [ADR 0014](https://github.com/AllegroMoltoV/plugin-soko-kun/blob/main/docs/decisions/0014-attestation-verification-in-actions.md) |
 | リポジトリの名前の変更と移管を ID で追う | [ADR 0015](https://github.com/AllegroMoltoV/plugin-soko-kun/blob/main/docs/decisions/0015-repository-rename-and-transfer.md) |
 | レビューの項目をルールと LLM に分け、ルールで計算した事実を LLM に渡す | [ADR 0016](https://github.com/AllegroMoltoV/plugin-soko-kun/blob/main/docs/decisions/0016-review-by-rules-and-facts.md) |
+| Cloudflare Workers の有料プラン (Workers Paid) を続ける。ADR 0001 の無料プランを使う判断を改め、無料プランの上限から導いた設計は保つ | [ADR 0017](https://github.com/AllegroMoltoV/plugin-soko-kun/blob/main/docs/decisions/0017-continue-workers-paid.md) |
 
 派生元の ADR 0013 のうち、署名を条件にしない判断は、macOS についてだけ本サービスの [ADR 0003](../decisions/0003-listing-conditions.md) で改めています。exe と msi を含むリリースを掲載しない判断は、同じ ADR でインストーラーを案内しない形に改めています。案内しないインストーラーにも、証明は求めます。
 
+## 派生元と共通の土台
+
+配信プラグイン倉庫くんと本サービスは、次の共通の土台だけを同じ実装に保ちます。土台は配信プラグイン倉庫くんが先に直し、本サービスが写します。土台の外は、それぞれのサービスの事情に合わせて変えます。
+
+| 土台 | 本サービスのファイル |
+| --- | --- |
+| 認可サーバーと GitHub の OAuth | `src/auth/` |
+| 1 回の起動の予算 | `src/budget.ts` |
+| AI Gateway の呼び出しの引数 | `src/ai-gateway.ts` |
+| GitHub API の呼び出し | `src/github.ts` |
+| 配布物の検証の受け口と OIDC のトークンの検証 | `src/checks/` |
+
+両方にある関数と処理は同じ実装にします。サービス名の文字列と、片方だけに要る関数は違ってかまいません。配布物の検証の受け口は、ファイルの全体ではなく、次の決まりをそろえます。
+
+1. OIDC のトークンの照合を通らない要求に 401 を返す
+2. 検証を待つ条件を、一覧の経路と定期処理からのワークフローの起動で共有する
+3. 同じ配布物の結果を 2 つ含む要求を、全体で拒否する
+4. 試行を使い切った検査を管理者の確認待ちにし、管理コマンドで待ちの状態へ戻せる
+5. 結果が確定した行を、遅れて届いた結果で書き換えない
+
+試行を使い切った `error` の行に遅れて届いた結果は、本サービスでは受け入れます。
+
 ## 未決定の事項
 
-| 事項 | 決める時点 |
-| --- | --- |
-| 展開の上限・ジョブの時間の上限・1 回に処理する件数の確定。現在は仮の値 | 大きな配布物の計測の後。[検査と同期](scanning.md) を参照 |
+現在、未決定の事項はありません。
 
 ## 関連文書
 

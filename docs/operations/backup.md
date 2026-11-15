@@ -10,7 +10,7 @@ D1 のバックアップには、自動で記録される Time Travel と、手�
 
 Time Travel は、D1 が変更の履歴を自動で記録する機能です。設定は不要です。過去の任意の時点へデータベースを戻せます。
 
-戻せる期間は、Workers Free プランで 7 日、Workers Paid プランで 30 日です。出典は Cloudflare の公式文書 [D1 の Time Travel](https://developers.cloudflare.com/d1/reference/time-travel/) で、2026-11-14 に確認しました。
+戻せる期間は、Workers Free プランで 7 日、Workers Paid プランで 30 日です。本サービスのアカウントは Workers Paid のため、30 日です。出典は Cloudflare の公式文書 [D1 の Time Travel](https://developers.cloudflare.com/d1/reference/time-travel/) で、2026-11-14 に確認しました。
 
 ### 復元の前の確認
 
@@ -40,7 +40,7 @@ npx wrangler d1 time-travel restore audio-plugin-soko-kun --env production --tim
 
 1. 指定した時点より後に行った管理コマンドの操作を、`npm run admin -- show <owner/repo> --remote` で確かめます。対象は、停止と再開・版の停止・版の承認・`set-category`・`hide-images` と `show-images` です。失われた操作は、やり直します。
 2. 指定した時点より後に登録されたプラグインは、復元で失われます。登録者は `submit_plugin` で登録し直す必要があります。
-3. リリースと配布物の情報は、Cron の同期で GitHub から取り直されます。証明の検証と中身の検査の結果は、検証を待つ配布物として `verify.yaml` が改めて処理します。
+3. リリースと配布物の情報は、Cron の同期で GitHub から取り直されます。証明の検証と中身の検査の結果は、検証を待つ配布物として `verify.yaml` が、macOS の判定の結果は `macos-verify.yaml` が改めて処理します。
 
 ## 手動のエクスポート
 

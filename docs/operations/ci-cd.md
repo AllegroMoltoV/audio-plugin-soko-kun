@@ -6,10 +6,10 @@ GitHub Actions のワークフローの目的と権限、依存の更新、本�
 
 | ファイル | 目的 | 起動の条件 | 権限 |
 | --- | --- | --- | --- |
-| `ci.yml` | 静的検査とテスト、中身の検査のスクリプトのテスト、ワークフローの検査、依存の脆弱性の検査 | PR、`main` への push | `contents: read` |
+| `ci.yml` | 静的検査とテスト、`.github/scripts/` のスクリプトのテスト、ワークフローの検査、依存の脆弱性の検査 | PR、`main` への push | `contents: read` |
 | `codeql.yml` | CodeQL によるコードの脆弱性の検査 | PR、`main` への push、毎週月曜 04:23 UTC | ワークフローは `contents: read`。ジョブに `security-events: write` と `actions: read` を加える |
 | `deploy.yml` | 本番への D1 のマイグレーションの適用と Worker の配備 | 手動実行 `workflow_dispatch` だけ | `contents: read`。environment `production` の秘密情報を使う |
-| `verify.yaml` | 配布物の証明の検証とアーカイブの中身の検査。結果を Worker へ送る | Worker の定期処理からの `workflow_dispatch`、予備の schedule (毎時 7・22・37・52 分) | `contents: read` と `id-token: write` |
+| `verify.yaml` | 配布物の証明の検証とアーカイブの中身の検査、新しい版のソースからの通信の API の検出。結果を Worker へ送る | Worker の定期処理からの `workflow_dispatch`、予備の schedule (毎時 7・22・37・52 分) | `contents: read` と `id-token: write` |
 | `macos-verify.yaml` | macOS 向けのバンドルの Developer ID の署名と Apple の公証の判定。結果を Worker へ送る | Worker の定期処理からの `workflow_dispatch`、予備の schedule (毎時 12・27・42・57 分) | `contents: read` と `id-token: write` |
 | `macos-signing-probe.yaml` | macOS の署名と公証の判定の方法を、標本の配布物で確かめる検証用のワークフロー | 手動実行 `workflow_dispatch` だけ | `contents: read` |
 
@@ -20,7 +20,7 @@ GitHub Actions のワークフローの目的と権限、依存の更新、本�
 | ジョブ | 内容 |
 | --- | --- |
 | `test` | Node.js 24 で `npm ci`・`npm run lint`・`npm run typecheck`・`npm test` を実行する |
-| `inspect-archive` | `.github/scripts/` の中身の検査のスクリプトと macOS の判定のスクリプトのテストを、Python の `unittest` で実行する。標本の配布物はリポジトリに含めないため、標本の配布物との突き合わせは行わない。macOS の判定のテストは、検証 A2 と V2 の `codesign` と `spctl` の出力の抜粋をリポジトリに置いて使う |
+| `inspect-archive` | `.github/scripts/` の中身の検査・macOS の判定・通信の検出のスクリプトのテストを、Python の `unittest` で実行する。標本の配布物はリポジトリに含めないため、標本の配布物との突き合わせは行わない。macOS の判定のテストは、検証 A2 と V2 の `codesign` と `spctl` の出力の抜粋をリポジトリに置いて使う |
 | `actionlint` | ワークフローの記述を actionlint で検査する |
 | `dependency-review` | PR だけで実行する。PR が追加する依存に重大度 high 以上の脆弱性があれば失敗する |
 
@@ -40,11 +40,11 @@ GitHub Actions のワークフローの目的と権限、依存の更新、本�
 
 ### verify.yaml
 
-`verify.yaml` は、検証を待つ配布物の一覧を Worker の `/internal/checks/pending` から受け取り、配布物ごとに SHA-256 の照合・証明の検証・アーカイブの中身の検査を行います。結果は `/internal/checks/results` へ送ります。どちらの要求にも、`aud` を `audio-soko-kun` にした GitHub Actions の OIDC のトークンを添えます。Worker は、このリポジトリの `main` で動作する `verify.yaml` のトークンだけを受け付けます。そのため、ジョブは `main` で起動したときだけ実行します。
+`verify.yaml` は、検証を待つ配布物の一覧を Worker の `/internal/checks/pending` から受け取り、配布物ごとに SHA-256 の照合・証明の検証・アーカイブの中身の検査を行います。続けて、通信の検出を待つ版ごとに、版のコミットのソースを取得して通信の API を探します。結果は `/internal/checks/results` へまとめて 1 回で送ります。どちらの要求にも、`aud` を `audio-soko-kun` にした GitHub Actions の OIDC のトークンを添えます。Worker は、このリポジトリの `main` で動作する `verify.yaml` のトークンだけを受け付けます。そのため、ジョブは `main` で起動したときだけ実行します。
 
 送り先は、ワークフローの `env` の `SOKO_KUN_ORIGIN` にある本番の URL `https://audio-soko-kun.allegromoltov.jp` です。配布物は 1 件ずつ最大 2 GiB まで取得し、処理を終えるたびに削除します。ジョブの最初にランナーの空き容量を確かめ、3 GiB に満たなければその回の処理を行いません。ジョブの時間の上限は 40 分です。ジョブの開始から 25 分を過ぎたら、新しい配布物と通信の検出のソースを取得せず、次の回に回します。同時に 1 つだけ実行し、実行中の検証を取り消しません。検査の規則は [検査と同期](../design/scanning.md) に記載しています。
 
-Worker の定期処理は、15 分ごとの起動の最後に、検証を待つ配布物があるときだけ `verify.yaml` を起動します。起動には、後述の `GITHUB_DISPATCH_TOKEN` を使います。
+Worker の定期処理は、15 分ごとの起動の最後に、検証を待つ配布物か通信の検出を待つ版があるときだけ `verify.yaml` を起動します。起動には、後述の `GITHUB_DISPATCH_TOKEN` を使います。
 
 ### macos-verify.yaml
 
@@ -86,7 +86,7 @@ Dependabot の PR も CI を通してからマージします。
 
 ## Worker の設定
 
-`deploy.yml` と管理用スクリプトの `--remote` は、`wrangler.jsonc` の `production` 環境を使います。`production` 環境には、本番の `ORIGIN`・D1 の `database_id`・KV の `id`・Workers AI の binding (`AI`)・独自ドメイン `audio-soko-kun.allegromoltov.jp` の `routes` を設定します。環境ごとの設定には既定の環境の binding が引き継がれないため、`ai` も `production` 環境に書きます。Cron の `triggers` と `observability` は、既定の環境から引き継がれます。
+`deploy.yml` と管理用スクリプトの `--remote` は、`wrangler.jsonc` の `production` 環境を使います。`production` 環境には、本番の `ORIGIN`・Workers AI の呼び出しを通す AI Gateway の `AI_GATEWAY_ID`・D1 の `database_id`・KV の `id`・Workers AI の binding (`AI`)・独自ドメイン `audio-soko-kun.allegromoltov.jp` の `routes` を設定します。環境ごとの設定には既定の環境の binding が引き継がれないため、`ai` も `production` 環境に書きます。Cron の `triggers` と `observability` は、既定の環境から引き継がれます。
 
 | 項目 | 値 |
 | --- | --- |
@@ -96,6 +96,7 @@ Dependabot の PR も CI を通してからマージします。
 | KV の binding | `OAUTH_KV` |
 | Cron | `*/15 * * * *` |
 | 本番の `ORIGIN` | `https://audio-soko-kun.allegromoltov.jp` |
+| 本番の `AI_GATEWAY_ID` | `soko-kun-ai`。配信プラグイン倉庫くんと共有するゲートウェイで、その支出の上限で 2 つのサービスの Workers AI の費用を止める ([アーキテクチャ](../design/architecture.md)) |
 
 `production` 環境の `database_id` と KV の `id` には、2026-11-14 に作った本番のリソースの ID を書いています。Worker は `production` 環境の名前を付けた `audio-plugin-soko-kun-production` として配備されます。
 
@@ -142,7 +143,7 @@ npx wrangler secret put CONTACT_EMAIL --env production
 | `failed_<状態コード>` | GitHub API が失敗を返した。期限切れや権限の不足では `failed_401` か `failed_403` になる |
 | `failed_network` | GitHub API へ接続できなかった |
 
-起動に失敗し続けると、証明の検証は予備の schedule が動作したときにしか進みません。このとき、管理コマンド `npm run admin -- pending --remote` の `attestations_waiting` が 0 より大きいまま残ります。本番のログは、次のコマンドで追えます。
+起動に失敗し続けると、証明の検証は予備の schedule が動作したときにしか進みません。このとき、管理コマンド `npm run admin -- pending --remote` の `attestations_waiting`・`contents_waiting`・`macos_waiting` が 0 より大きいまま残ります。本番のログは、次のコマンドで追えます。
 
 ```sh
 npx wrangler tail --env production
@@ -178,13 +179,37 @@ npx wrangler tail --env production
 
 | 項目 | 設定 |
 | --- | --- |
-| ブランチ保護 | ruleset `main` で既定のブランチを保護する。ブランチの削除と force push を禁じる。PR を必須にし、マージには 1 名以上の承認と、`test`・`inspect-archive`・`actionlint`・`dependency-review`・`analyze` の成功を求める。依頼者の承認を得て `main` へ直接 push するときに限り、`gh` で ruleset を一時的に無効にし、push の後に有効へ戻す |
+| ブランチ保護 | ruleset `main` で既定のブランチを保護する。ブランチの削除と force push を禁じる。PR を必須にし、マージには 1 名以上の承認と、`test`・`inspect-archive`・`actionlint`・`dependency-review`・`analyze` の成功を求める。依頼者の承認を得て `main` へ直接 push するときに限り、`gh` で ruleset を一時的に無効にし、push の後に有効へ戻す。手順は「main への直接の push」に記載する |
 | タグの保護 | ruleset `release-tags` で、すべてのタグの作成・更新・削除を管理者に限る |
 | Secret scanning | 有効にする |
 | Push protection | 有効にする。秘密情報を含む push を拒否する |
 | Dependabot alerts と Dependabot security updates | 有効にする。security updates は、脆弱性のある依存を直す PR を、毎週の更新とは別に作る |
 | Private vulnerability reporting | 有効にする。`/report` で案内する非公開の通報の受付先である |
 | environment `production` | 承認を必須にする保護ルールを設定する。配備できるブランチを `main` に限る |
+
+### main への直接の push
+
+`main` へは、PR を通して反映します。依頼者が承認した場合に限り、ruleset `main` を一時的に無効にして直接 push します。タグの ruleset `release-tags` は変えません。
+
+1. ruleset `main` の ID と現在の設定を確かめ、設定を保存します。
+
+   ```sh
+   gh api repos/AllegroMoltoV/audio-plugin-soko-kun/rulesets --jq '.[] | {id, name, enforcement}'
+   gh api repos/AllegroMoltoV/audio-plugin-soko-kun/rulesets/<id>
+   ```
+
+2. ruleset を無効にします。
+
+   ```sh
+   gh api -X PUT repos/AllegroMoltoV/audio-plugin-soko-kun/rulesets/<id> -f enforcement=disabled --jq .enforcement
+   ```
+
+3. `main` へ push します。
+4. 直後に ruleset を有効へ戻し、出力が `active` であることを確かめます。push が失敗したときも戻します。
+
+   ```sh
+   gh api -X PUT repos/AllegroMoltoV/audio-plugin-soko-kun/rulesets/<id> -f enforcement=active --jq .enforcement
+   ```
 
 ### environment production の秘密情報と変数
 

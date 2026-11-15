@@ -7,7 +7,7 @@
 
 VST® is a registered trademark of Steinberg Media Technologies GmbH.
 
-D1 のテーブルと、掲載状態の算出規則の仕様です。スキーマの正は、本サービスのリポジトリの `migrations/` 配下の SQL ファイルになる予定です。
+D1 のテーブルと、掲載状態の算出規則の仕様です。スキーマの正は、本サービスのリポジトリの `migrations/` 配下の SQL ファイルです。
 
 配信プラグイン倉庫くんのテーブルを引き継ぎ、オーディオプラグインの配布物の判定に要る列と表を足しています。本サービスは新しく作るため、配信プラグイン倉庫くんの `legacy` の列のような移行のための列は持ちません。
 
@@ -26,7 +26,7 @@ D1 のテーブルと、掲載状態の算出規則の仕様です。スキー�
 | `plugin_image_previews` | 説明の画像を持つプラグイン 1 つにつき 1 行 |
 | `download_snapshots` | プラグインと日付の組 1 つにつき 1 行 |
 | `release_checks` | 新しい版の検査とレビューの結果。リリース 1 件につき 1 行 |
-| `attestation_checks` | 証明の検証の結果。アーカイブの配布物 1 件につき 1 行 |
+| `attestation_checks` | 証明の検証の結果。配布物 1 件につき 1 行。アーカイブでない配布物も含む |
 | `content_checks` | 中身の検査の結果。アーカイブの配布物 1 件につき 1 行 |
 | `macos_signing_checks` | 署名と公証の判定の結果。macOS 向けのバンドルを含む配布物 1 件につき 1 行 |
 | `listing_periods` | 掲載した配布物と掲載の期間。削除しない |
@@ -143,7 +143,7 @@ OAuth のクライアント・認可・トークンの情報は D1 ではなく 
 | 経路 | 対象のパス | 上限 |
 | --- | --- | --- |
 | `oauth` | `/authorize`・`/callback`・`/oauth/token`・`/oauth/register` | IP アドレスあたり 1 分 20 回 |
-| `public` | `/mcp` と Web カタログ | IP アドレスあたり 1 分 120 回 |
+| `public` | `oauth` と OAuth のメタデータ以外のすべてのパス。`/mcp`・Web カタログ・`/internal/` 配下を含む | IP アドレスあたり 1 分 120 回 |
 
 `/.well-known/oauth-authorization-server` と `/.well-known/oauth-protected-resource` で始まる OAuth のメタデータには、レート制限を設けません。それ以外の `/.well-known/` 配下は `public` の経路として数えます。送信元 IP アドレスは要求ヘッダー `CF-Connecting-IP` から得ます。上限を超えた要求には、429 と `Retry-After: 60` を返します。60 分より前の窓の行は、Cron の定期処理で削除します。
 
@@ -162,10 +162,10 @@ OAuth のクライアント・認可・トークンの情報は D1 ではなく 
 | `license_spdx` | TEXT | | 版のタグの時点で GitHub が検出したライセンスの SPDX 識別子。ライセンスが無いときは NULL |
 | `config_state` | TEXT | NOT NULL、既定値 `pending` | 宣言ファイルの判定。`pending`・`ok`・`missing`・`invalid`・`no_declared_assets`・`mismatch` のいずれか。`mismatch` は、宣言と中身の検査の結果が食い違うとき |
 | `config_fetched_at` | TEXT | | 版のタグの時点の宣言ファイルを取得した日時。NULL は未取得 |
-| `config_json` | TEXT | | 取得して検証した宣言を正規化した JSON。ファイルが無いときと未取得のときは NULL。中身の検査を終えてから照合するために持つ |
+| `config_json` | TEXT | | 取得して検証した宣言を正規化した JSON。宣言ファイルに書いた項目だけを持ち、省いた項目は保存しない。ファイルが無いときと未取得のときは NULL。中身の検査を終えてから照合するために持つ |
 | `review_state` | TEXT | NOT NULL、既定値 `pending` | `pending`・`done`・`failed` のいずれか |
-| `review_attempts` | INTEGER | NOT NULL、既定値 0 | レビューを試みた回数。Workers AI の無料枠の不足と混雑は数えない |
-| `review_wait_until` | TEXT | | Workers AI の無料枠を使い切ったとき、次にレビューを試す日時。不足を受けた 1 時間後 |
+| `review_attempts` | INTEGER | NOT NULL、既定値 0 | レビューを試みた回数。AI Gateway の支出の上限、Workers AI の無料枠の不足、混雑は数えない |
+| `review_wait_until` | TEXT | | AI Gateway の支出の上限か Workers AI の無料枠の不足でレビューを断られたとき、次にレビューを試す日時。断られた 1 時間後 |
 | `review_json` | TEXT | | レビューの指摘の JSON。説明と該当の箇所は外部データ |
 | `review_serious` | INTEGER | NOT NULL、既定値 0 | 重大な指摘の件数 |
 | `reviewed_at` | TEXT | | レビューした日時 |

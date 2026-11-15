@@ -196,13 +196,21 @@ sequenceDiagram
 | `license_not_open` | 版 | ライセンスが OSI の承認と FSF の自由なライセンスの認定のどちらも持たない | `author` |
 | `declaration_mismatch` | 版 | 宣言ファイルの宣言と中身の検査の結果が食い違う | `author` |
 | `content_check_pending` | 版 | 中身の検査が終わっていない | `system` |
+| `no_guided_asset` | 版 | 案内する条件を満たすアーカイブが無い。各配布物の `notGuidedBecause` を見て直すよう返す | `author` |
+| `license_pending` | 版 | 版のタグの時点のライセンスをまだ判定していない | `system` |
 | `macos_check_pending` | 版 | macOS の署名と公証の判定が終わっていない | `system` |
 | `macos_team_id_mismatch` | 版 | macOS 向けのバンドルの署名の Team ID が、バンドルによって食い違う | `admin` |
 | `check_retries_exhausted` | 版 | 証明の検証・中身の検査・macOS の判定のいずれかが 3 回続けて失敗した | `admin` |
 | `installer_not_guided` | 配布物 | インストーラーのため案内しない | `author` |
+| `not_archive` | 配布物 | zip のアーカイブでもインストーラーでもないため案内しない | `author` |
+| `content_not_passed` | 配布物 | 中身の検査に通っていない。理由は版の `blockers` に載る | `system` |
+| `attestation_not_passed` | 配布物 | 証明の検証に通っていない。理由は版の `blockers` に載る | `system` |
+| `macos_check_pending` | 配布物 | このアーカイブの macOS の署名と公証の判定が終わっていない | `system` |
 | `no_plugin_in_archive` | 配布物 | このアーカイブに規格のバンドルを検出しなかった。ソースコードのアーカイブでは対応は要らない | `author` |
 | `macos_not_signed`・`macos_adhoc`・`macos_not_developer_id` | 配布物 | macOS の署名と公証の判定に通らなかった。順に、署名が無い、アドホックの署名だけがある、Developer ID 以外の証明書で署名されている | `author` |
 | `macos_not_notarized` | 配布物 | Developer ID の署名があるのに、公証済みと判定されなかった。照会の失敗と却下を区別できないため 3 回まで判定し直し、その間は版の `macos_check_pending`、3 回目の後は版の `check_retries_exhausted` になる | `author` |
+| `macos_check_failed` | 配布物 | macOS の署名と公証の判定に、上の 3 つ以外の理由で通らなかった | `author` |
+| `macos_check_error` | 配布物 | macOS の署名と公証の判定を実行できなかった。配布物の取得の失敗、展開の前の確かめで見つけた危険な項目 (`unsafe_archive`) を含む | `system` |
 | `macos_lv2_not_guided` | 配布物 | macOS の LV2 のバンドルだけを含む。macOS の LV2 は Gatekeeper が判定しないため案内しない | `author` |
 | `not_declared` | 配布物 | 宣言ファイルがあり、この配布物が宣言に含まれない | `author` |
 
@@ -222,7 +230,7 @@ sequenceDiagram
 
 - 指摘の `id`、`title`、`fix`、`references` は、本サービスが項目ごとに用意した固定の文言です。LLM には書かせません
 - LLM で判定する項目では、`explanation` と `evidence` だけを LLM が書きます。作者のリポジトリの内容から作るため、`notes` でデータとして扱うよう明記します
-- ルールで判定する項目では、`explanation` も本サービスの固定の文で、`Checked by rules` で始まります。`evidence` はルールが当たったファイルと行です
+- ルールで判定する項目では、`explanation` も本サービスの固定の文で、`Checked by rules: ` で始まります。判定できなかった `unclear` の説明も同じです。`evidence` はルールが当たったファイルと行です
 - アーカイブの中のファイル名とパスも、配布物から取得した外部データです。`notes` でデータとして扱うよう明記します
 - `references` は、基準の正本 `docs/design/review-criteria.md` の該当の見出しへの GitHub のリンクです。リンク先のリポジトリは `AllegroMoltoV/audio-plugin-soko-kun` です
 
@@ -245,7 +253,7 @@ sequenceDiagram
 
 条件は最新のリリースで判定し、レビューは既定のブランチの最新のコミットのファイルで行います。中身の検査と macOS の署名と公証の判定は、確認のモードでは行わず、それぞれの条件の説明だけを返します。どちらも GitHub Actions で配布物を取得して行うためです。また、確認のモードを使う公開前のリリースには、まだ配布物がありません。通信の API の検出も新しい版にだけ行うため、確認のモードの `user-data-handling` は README とワークフローだけで判定します。
 
-Workers AI の無料枠の不足か混雑でレビューできなかったときは、`review` の `status` を `unavailable` にし、理由と、無料枠の不足なら再開の時刻 `resumesAt` を返します。この要求は回数に数えません。確認のモードは 1 人あたり 1 日 5 回までにします。
+AI Gateway の支出の上限、Workers AI の無料枠の不足、混雑でレビューできなかったときは、`review` の `status` を `unavailable` にし、理由を返します。支出の上限と無料枠の不足では、再開の時刻 `resumesAt` も返します。この要求は回数に数えません。確認のモードは 1 人あたり 1 日 5 回までにします。
 
 ## 管理者の確認待ちの版についての説明
 
