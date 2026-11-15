@@ -378,7 +378,7 @@ sequenceDiagram
 
 配信プラグイン倉庫くんの `/internal/attestations/pending` と `/internal/attestations/results` を、証明の検証と中身の検査を合わせて扱う形に改めています。
 
-`error` の試行が 3 回に達した配布物は、自動ではやり直しません。その版は、管理者が原因を確かめるまで確認待ちになります。
+`error` の試行が 3 回に達した配布物は、自動ではやり直しません。その版は、管理者が原因を確かめるまで確認待ちになります。管理者は、原因を確かめてから管理コマンド `retry-checks` で検査を待ちの状態に戻します ([管理コマンドと掲載停止](../operations/suspend.md))。
 
 すべての経路で、`Authorization: Bearer` の GitHub Actions の OIDC のトークンを求めます。Worker は、`https://token.actions.githubusercontent.com/.well-known/jwks` の鍵で RS256 の署名を確かめ、次をすべて満たすときだけ処理します。満たさなければ 401 を返します。
 

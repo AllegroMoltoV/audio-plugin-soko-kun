@@ -9,6 +9,7 @@
 //   npm run admin -- pending [--remote]
 //   npm run admin -- approve-release <owner/repo> <tag> [--remote]
 //   npm run admin -- suspend-release <owner/repo> <tag> "<告知の文>" [--remote]
+//   npm run admin -- retry-checks <owner/repo> <tag> [--remote]
 // --remote を付けないときはローカルの D1 を更新する。<owner/repo> は現在の名前と登録したときの名前のどちらでもよい。
 // 手順と表示の意味は docs/operations/suspend.md と docs/operations/incident-response.md に記載している。
 import { spawnSync } from 'node:child_process';
@@ -18,6 +19,9 @@ const REASON = /^[^\p{Cc}]{1,200}$/u;
 const TAG = /^[A-Za-z0-9._-]{1,100}$/;
 const NOTE = /^[^\p{Cc}]{1,500}$/u;
 const CATEGORIES = ['instrument', 'effect', 'analyzer', 'midi', 'utility'];
+// 試行の上限。src/domain/status.ts の MAX_CHECK_ATTEMPTS (証明の検証・中身の検査・macOS の判定) と MAX_REVIEW_ATTEMPTS に合わせる。
+const MAX_CHECK_ATTEMPTS = 3;
+const MAX_REVIEW_ATTEMPTS = 2;
 
 function fail(message) {
   console.error(message);
@@ -31,7 +35,8 @@ const USAGE =
   'usage: admin <suspend|resume|show|set-category|hide-images|show-images> <owner/repo> [reason|category] [--remote]\n' +
   '       admin pending [--remote]\n' +
   '       admin approve-release <owner/repo> <tag> [--remote]\n' +
-  '       admin suspend-release <owner/repo> <tag> "<note>" [--remote]';
+  '       admin suspend-release <owner/repo> <tag> "<note>" [--remote]\n' +
+  '       admin retry-checks <owner/repo> <tag> [--remote]';
 if (!command || (command !== 'pending' && !rawId)) fail(USAGE);
 
 const id = (rawId ?? '').toLowerCase();
@@ -76,7 +81,17 @@ if (command === 'suspend') {
             FROM json_each(json_extract(c.review_json, '$.findings')) f WHERE json_extract(f.value, '$.serious') = 1)
              AS serious_findings,
            (SELECT count(*) FROM attestation_checks t JOIN assets a ON a.github_asset_id = t.github_asset_id
-            WHERE a.release_id = r.github_release_id AND t.result IN ('pending', 'error')) AS attestations_waiting,
+            WHERE a.release_id = r.github_release_id
+              AND (t.result = 'pending' OR (t.result = 'error' AND t.attempts < ${MAX_CHECK_ATTEMPTS})))
+             AS attestations_waiting,
+           (SELECT count(*) FROM assets a
+              LEFT JOIN attestation_checks t ON t.github_asset_id = a.github_asset_id
+              LEFT JOIN content_checks k ON k.github_asset_id = a.github_asset_id
+              LEFT JOIN macos_signing_checks m ON m.github_asset_id = a.github_asset_id
+            WHERE a.release_id = r.github_release_id
+              AND ((t.result = 'error' AND t.attempts >= ${MAX_CHECK_ATTEMPTS})
+                OR (k.result = 'error' AND k.attempts >= ${MAX_CHECK_ATTEMPTS})
+                OR (m.result = 'error' AND m.attempts >= ${MAX_CHECK_ATTEMPTS}))) AS checks_exhausted,
            (SELECT count(*) FROM attestation_checks t JOIN assets a ON a.github_asset_id = t.github_asset_id
             WHERE a.release_id = r.github_release_id AND t.result = 'failed') AS attestations_failed
          FROM release_checks c JOIN releases r ON r.github_release_id = c.github_release_id JOIN plugins p ON p.id = r.plugin_id
@@ -101,6 +116,28 @@ if (command === 'suspend') {
            WHERE ${releaseOf(reason)} IS NOT NULL
            ON CONFLICT (github_release_id) DO UPDATE SET note = excluded.note;
          SELECT tag, reason, note, suspended_at FROM release_suspensions WHERE github_release_id = ${releaseOf(reason)};`;
+} else if (command === 'retry-checks') {
+  // 試行を使い切った検査を、待ちの状態に戻す。原因 (配布物の取得の失敗、Workers AI の障害など) を確かめてから使う。
+  // 証明の検証・中身の検査・macOS の判定は、次の verify.yaml と macos-verify.yaml の起動で検査し直す。
+  // 2 回失敗したレビューは、次の定期処理の新しい版の検査でやり直す。
+  // 通信の検出の試行切れは戻さない。掲載を止めず、レビューは検出の結果なしで進むため。
+  if (!reason || !TAG.test(reason)) fail('a release tag is required');
+  const assetsOf = `(SELECT github_asset_id FROM assets WHERE release_id = ${releaseOf(reason)})`;
+  const exhausted = `result = 'error' AND attempts >= ${MAX_CHECK_ATTEMPTS} AND github_asset_id IN ${assetsOf}`;
+  sql = `UPDATE attestation_checks SET result = 'pending', attempts = 0 WHERE ${exhausted};
+         UPDATE content_checks SET result = 'pending', attempts = 0 WHERE ${exhausted};
+         UPDATE macos_signing_checks SET result = 'pending', attempts = 0 WHERE ${exhausted};
+         UPDATE release_checks SET review_state = 'pending', review_attempts = 0, review_wait_until = NULL
+           WHERE github_release_id = ${releaseOf(reason)} AND review_state = 'failed'
+             AND review_attempts >= ${MAX_REVIEW_ATTEMPTS};
+         SELECT a.name, t.result AS attestation, t.attempts AS attestation_attempts,
+             k.result AS content, k.attempts AS content_attempts, m.result AS macos, m.attempts AS macos_attempts
+           FROM assets a
+           LEFT JOIN attestation_checks t ON t.github_asset_id = a.github_asset_id
+           LEFT JOIN content_checks k ON k.github_asset_id = a.github_asset_id
+           LEFT JOIN macos_signing_checks m ON m.github_asset_id = a.github_asset_id
+           WHERE a.release_id = ${releaseOf(reason)};
+         SELECT review_state, review_attempts FROM release_checks WHERE github_release_id = ${releaseOf(reason)};`;
 } else {
   fail(`unknown command: ${command}`);
 }

@@ -23,6 +23,7 @@
 | 確認待ちの版の一覧 | `npm run admin -- pending` |
 | 確認待ちの版の承認 | `npm run admin -- approve-release <owner/repo> <tag>` |
 | 版の停止 | `npm run admin -- suspend-release <owner/repo> <tag> "<告知の文>"` |
+| 試行を使い切った検査のやり直し | `npm run admin -- retry-checks <owner/repo> <tag>` |
 
 いずれのコマンドも、`--remote` を付けると本番の D1 を更新します。付けない場合はローカルの D1 を更新します。
 
@@ -56,10 +57,11 @@
 | `config_state` | 宣言ファイルの判定の状態 |
 | `review_state`・`review_attempts`・`review_serious` | LLM のレビューの状態・試行の回数・重大な指摘の件数 |
 | `serious_findings` | 重大な指摘の項目・説明・該当の箇所 |
-| `attestations_waiting` | 証明の検証を待っている配布物の件数。検証の試行が `error` で終わった配布物も数える |
+| `attestations_waiting` | 証明の検証を待っている配布物の件数。`error` で終わり、試行が 3 回に満たない配布物も数える |
+| `checks_exhausted` | 証明の検証・中身の検査・macOS の判定のいずれかが `error` のまま試行を 3 回使い切った配布物の件数。作者には `check_retries_exhausted` と返る |
 | `attestations_failed` | 証明の検証に失敗した配布物の件数 |
 
-`approve-release` は、乗っ取りの兆候・LLM のレビューの指摘・レビューの失敗・macOS の署名の Team ID の食い違いによる確認待ちを解きます。あわせて、同期で所有者の変更を検出したことによる確認待ちも解きます。証明・不変・配布の形・中身の検査・ライセンス・宣言ファイルの条件は解けません。証明の検証・中身の検査・macOS の判定が 3 回 `error` で終わった配布物を含む版も、承認だけでは掲載されません。確認待ちの理由と算出規則は [データモデル](../design/data-model.md) と [審査の基準](../design/review-criteria.md) に記載しています。
+`approve-release` は、乗っ取りの兆候・LLM のレビューの指摘・レビューの失敗・macOS の署名の Team ID の食い違いによる確認待ちを解きます。あわせて、同期で所有者の変更を検出したことによる確認待ちも解きます。証明・不変・配布の形・中身の検査・ライセンス・宣言ファイルの条件は解けません。証明の検証・中身の検査・macOS の判定が 3 回 `error` で終わった配布物を含む版も、承認だけでは掲載されません。原因を確かめてから `retry-checks` で検査し直します。確認待ちの理由と算出規則は [データモデル](../design/data-model.md) と [審査の基準](../design/review-criteria.md) に記載しています。
 
 `suspend-release` は版を止め、告知の文とともに `release_suspensions` に記録します。同じ版にもう一度実行すると、告知の文を書き換えます。指定したタグのリリースが無いときは何も記録せず、出力の行が空になります。侵害が疑われるときの手順は [侵害の対応](incident-response.md) に記載しています。
 
@@ -141,6 +143,31 @@
 3. 告知ページ `https://audio-soko-kun.allegromoltov.jp/notices` と詳細ページに、止めた版の警告が出ていることを確認します。
 
 止めた版の記録は削除できません。告知の文を直すときは、同じ版にもう一度 `suspend-release` を実行します。
+
+## 試行を使い切った検査のやり直し
+
+証明の検証・中身の検査・macOS の判定は、`error` で 3 回終わると自動ではやり直しません。LLM のレビューも、2 回失敗すると選ばれなくなります。配布物の取得の失敗や Workers AI の障害のように、原因が本サービスの側にあって解消したときに、管理者が検査を待ちの状態に戻します。
+
+1. `pending` で、`checks_exhausted` が 1 以上の版、または `review_state` が `failed` で `review_attempts` が 2 の版を探します。
+2. 定期処理のログと `verify.yaml` の実行の記録で、失敗の原因が解消したことを確かめます。
+3. 版の検査を待ちの状態に戻します。
+
+   ```sh
+   npm run admin -- retry-checks <owner/repo> <tag> --remote
+   ```
+
+4. 出力で、配布物ごとの結果が `pending` に、試行の回数が 0 に戻ったことを確認します。
+
+`retry-checks` が戻すのは、指定した版の次の検査です。
+
+| 検査 | 戻す条件 | 戻した後に検査する処理 |
+| --- | --- | --- |
+| 証明の検証 (`attestation_checks`) | `error` で試行が 3 回 | 次の `verify.yaml` の起動 |
+| 中身の検査 (`content_checks`) | `error` で試行が 3 回 | 次の `verify.yaml` の起動 |
+| macOS の判定 (`macos_signing_checks`) | `error` で試行が 3 回 | `macos-verify.yaml`。判定の経路は未実装のため、現在は `pending` のまま残る |
+| LLM のレビュー (`release_checks` の `review_state`) | `failed` で試行が 2 回 | 次の定期処理の新しい版の検査 |
+
+通信の検出 (`network_state`) の試行切れは戻しません。通信の検出の試行切れは掲載を止めず、レビューは検出の結果なしで進むためです。試行が残っている `error` と、結果が確定した検査は変えません。レビューの失敗による確認待ちは `approve-release` でも解けます。レビューの結果を得てから判断したいときに `retry-checks` を使います。
 
 ## 通報を受けたとき
 
