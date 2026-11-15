@@ -25,7 +25,7 @@
 | README の照合による確認待ちの解除 | `npm run admin -- approve-readme <owner/repo>` |
 | 版の停止 | `npm run admin -- suspend-release <owner/repo> <tag> "<告知の文>"` |
 | 試行を使い切った検査のやり直し | `npm run admin -- retry-checks <owner/repo> <tag>` |
-| 宣言ファイルの判定のやり直し | `npm run admin -- retry-declaration <owner/repo> <tag>`。本サービスの判定の不具合を直した後に、誤って `invalid` や `mismatch` にした版を戻す。次の定期処理で、タグの時点の宣言ファイルを取得し直して照合し直す |
+| 宣言ファイルの判定のやり直し | `npm run admin -- retry-declaration <owner/repo> <tag>`。本サービスの判定の不具合を直した後に、誤って `invalid` や `mismatch` にした版を戻す。次の定期処理で、タグの時点の宣言ファイルを取得し直して照合し直す。照合し直すまでの間 (15 分ほど) は、その版が掲載の条件を満たさないため、掲載中の版に使うと掲載が旧い版に移る。より新しい版に判定済みの宣言があれば、旧い版を照合し直しても表示名・カテゴリ・配布物の宣言は替わらない |
 
 いずれのコマンドも、`--remote` を付けると本番の D1 を更新します。付けない場合はローカルの D1 を更新します。
 

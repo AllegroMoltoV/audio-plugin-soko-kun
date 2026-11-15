@@ -12,6 +12,7 @@ import {
   matchesPattern,
   parseDeclaration,
   serializeDeclaration,
+  settleDeclarations,
 } from '../../src/domain/declaration';
 import { runReleaseChecks } from '../../src/domain/release-checks';
 import { submitPlugin } from '../../src/domain/submit';
@@ -202,5 +203,107 @@ describe('宣言の取得から照合までの通し', () => {
     expect(row?.config_state).toBe('ok');
     const view = await getPluginViewByInternalId(env, `${OWNER}/${REPO}`.toLowerCase());
     expect(view?.name).toBe('Simple White Noise');
+  });
+});
+
+describe('古い版の宣言の判定と、新しい版の判定済みの宣言', () => {
+  // 新しい版の判定の後に古い版を判定し直すと、古い版の値で plugins の表示名・カテゴリ・配布物の宣言を上書きしていた
+  // (2026-11-15、retry-declaration で simple-whitenoise のカテゴリが utility に戻った)。古い版の pattern が新しい版の
+  // ファイル名に合わないと、新しい版の配布物が案内から外れ、掲載が旧い版に移る。
+  const internalId = `${OWNER}/${REPO}`.toLowerCase();
+  const NEW_DECLARATION = {
+    name: 'New Name',
+    category: 'instrument',
+    assets: [
+      { pattern: 'audio-fixture-pitchshift-*-windows-x64.zip', os: 'windows', arch: ['x86_64'], formats: ['vst3'] },
+    ],
+  };
+  const OLD_DECLARATION = {
+    name: 'Old Name',
+    assets: [{ pattern: 'old-plugin-*-windows-x64.zip', os: 'windows', arch: ['x86_64'], formats: ['vst3'] }],
+  };
+
+  // 登録した版 7001 (v1.1.0) を掲載できる状態にし、配布物の名前を変えた旧い版 7000 (v1.0.0) を足す。
+  async function setup(): Promise<void> {
+    network.use(...githubHandlers());
+    const result = await submitPlugin(
+      env,
+      { githubUserId: 4242, githubToken: USER_TOKEN },
+      `https://github.com/${OWNER}/${REPO}`,
+    );
+    if (!result.ok) throw new Error(result.code);
+    network.resetHandlers();
+    await markListable(env.DB);
+    await env.DB.prepare("UPDATE release_checks SET admin_approved_at = '2026-11-15T00:00:00Z'").run();
+    const columns = async (table: string) =>
+      (await env.DB.prepare('SELECT name FROM pragma_table_info(?)').bind(table).all<{ name: string }>()).results.map(
+        (row) => row.name,
+      );
+    const copy = async (table: string, where: string, overrides: Record<string, string>) => {
+      const names = await columns(table);
+      const select = names.map((name) => overrides[name] ?? name).join(', ');
+      await env.DB.prepare(
+        `INSERT INTO ${table} (${names.join(', ')}) SELECT ${select} FROM ${table} WHERE ${where}`,
+      ).run();
+    };
+    await copy('releases', 'github_release_id = 7001', {
+      github_release_id: '7000',
+      tag: "'v1.0.0'",
+      published_at: "'2026-10-01T00:00:00Z'",
+    });
+    await copy('release_checks', 'github_release_id = 7001', { github_release_id: '7000' });
+    await copy('assets', 'release_id = 7001', {
+      github_asset_id: 'github_asset_id + 100000',
+      release_id: '7000',
+      name: "replace(name, 'audio-fixture-pitchshift-1.1.0', 'old-plugin-1.0.0')",
+    });
+    for (const table of ['attestation_checks', 'content_checks', 'macos_signing_checks']) {
+      await copy(table, 'github_asset_id IN (SELECT github_asset_id FROM assets WHERE release_id = 7001)', {
+        github_asset_id: 'github_asset_id + 100000',
+      });
+    }
+  }
+
+  const settle = async (releaseId: number, declaration: unknown) => {
+    await env.DB.prepare(
+      "UPDATE release_checks SET config_state = 'pending', config_fetched_at = '2026-11-15T00:00:00Z', config_json = ? WHERE github_release_id = ?",
+    )
+      .bind(JSON.stringify(declaration), releaseId)
+      .run();
+    await settleDeclarations(env, [releaseId]);
+  };
+  const plugin = () =>
+    env.DB.prepare('SELECT display_name, category, declared_assets FROM plugins').first<{
+      display_name: string | null;
+      category: string;
+      declared_assets: string | null;
+    }>();
+
+  it('新しい版の判定の後に古い版を判定し直しても、表示名・カテゴリ・配布物の宣言を書き換えない', async () => {
+    await setup();
+    await settle(7001, NEW_DECLARATION);
+    await settle(7000, OLD_DECLARATION);
+    expect(await plugin()).toEqual({
+      display_name: 'New Name',
+      category: 'instrument',
+      declared_assets: JSON.stringify(NEW_DECLARATION.assets),
+    });
+  });
+
+  it('古い版の pattern が新しい版のファイル名に合わなくても、新しい版の掲載が続く', async () => {
+    await setup();
+    await settle(7001, NEW_DECLARATION);
+    expect((await getPluginViewByInternalId(env, internalId))?.listedRelease?.tag).toBe('v1.1.0');
+    await settle(7000, OLD_DECLARATION);
+    expect((await getPluginViewByInternalId(env, internalId))?.listedRelease?.tag).toBe('v1.1.0');
+  });
+
+  it('対照: 新しい版が判定待ちなら、古い版の判定で書き換える', async () => {
+    await setup();
+    await env.DB.prepare(
+      "UPDATE release_checks SET config_state = 'pending', config_fetched_at = NULL WHERE github_release_id = 7001",
+    ).run();
+    await settle(7000, OLD_DECLARATION);
+    expect((await plugin())?.display_name).toBe('Old Name');
   });
 });

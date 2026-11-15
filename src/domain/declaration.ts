@@ -218,7 +218,8 @@ interface ArchiveRow {
 
 // 宣言を取得済みで config_state が pending の版について、すべてのアーカイブの中身の検査が終わっていれば判定を書く。
 // 新しい版の検査で宣言を取得したときと、中身の検査の結果を受け取ったときに呼ぶ。どちらが後になっても判定が行われる。
-// ok と missing では、plugins の表示名・配布物の宣言・カテゴリを、その版の値に替える。
+// ok と missing では、plugins の表示名・配布物の宣言・カテゴリを、その版の値に替える。ただし、より新しい版に
+// 判定済み (ok か missing) の宣言があれば替えない。古い版を後から判定しても、新しい版の値を残すため。
 export async function settleDeclarations(env: Env, releaseIds: readonly number[], budget?: Budget): Promise<number> {
   if (releaseIds.length === 0) return 0;
   const placeholders = releaseIds.map(() => '?').join(', ');
@@ -278,12 +279,20 @@ export async function settleDeclarations(env: Env, releaseIds: readonly number[]
       ).bind(judged.state, row.github_release_id),
     );
     if (judged.state === 'ok' || judged.state === 'missing') {
+      // より新しい版に判定済みの宣言があれば書き換えない。条件を書き込みの文に置き、読み込みとの間に別の呼び出しが
+      // 新しい版を判定しても古い値が残らないようにする。
       statements.push(
-        env.DB.prepare('UPDATE plugins SET display_name = ?, declared_assets = ?, category = ? WHERE id = ?').bind(
+        env.DB.prepare(
+          `UPDATE plugins SET display_name = ?, declared_assets = ?, category = ? WHERE id = ?
+             AND NOT EXISTS (SELECT 1 FROM releases r JOIN release_checks c ON c.github_release_id = r.github_release_id
+               WHERE r.plugin_id = ? AND r.published_at > ? AND c.config_state IN ('ok', 'missing'))`,
+        ).bind(
           declaration?.name ?? null,
           declaration?.assets ? JSON.stringify(declaration.assets) : null,
           judged.category,
           row.plugin_id,
+          row.plugin_id,
+          row.published_at,
         ),
       );
     }

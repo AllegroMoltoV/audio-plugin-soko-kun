@@ -124,6 +124,10 @@ MIT License です。[LICENSE](LICENSE) を参照してください。VST Compat
 
 ## 更新履歴
 
+### 0.1.14 (2026-11-15)
+
+- 古い版の宣言ファイルを後から判定し直すと、新しい版の宣言で決まった表示名・カテゴリ・配布物の宣言を古い版の値で上書きしていた不具合を直しました。より新しい版に判定済みの宣言があれば、プラグインの値を替えません。古い版の配布物の名前の型が新しい版のファイル名に合わないと、新しい版の配布物が案内から外れ、掲載が旧い版に移っていました。
+
 ### 0.1.13 (2026-11-15)
 
 - 公式の MCP Registry への登録の定義 `server.json` を足しました。名前は `io.github.AllegroMoltoV/audio-plugin-soko-kun` で、エンドポイントは `https://audio-soko-kun.allegromoltov.jp/mcp` です。登録と更新の手順を [公式 MCP Registry への登録](docs/operations/mcp-registry.md) に記載しました。

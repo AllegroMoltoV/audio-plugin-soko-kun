@@ -315,7 +315,7 @@ Cron の定期処理は、`release_checks` のうち未完了の行を、1 回�
 | `invalid` | JSON でない、または上の規則に合わない |
 | `no_declared_assets` | `assets` があり、どのアーカイブもどの `pattern` にも一致しない |
 | `mismatch` | `pattern` に一致したアーカイブの中身の検査の結果が、宣言の `os`・`arch`・`formats` と食い違う |
-| `ok` | 上のいずれにも当たらない。`plugins` の `display_name` と `declared_assets` を更新する |
+| `ok` | 上のいずれにも当たらない。`plugins` の `display_name`・`declared_assets`・`category` を更新する |
 
 `assets` の宣言がある場合は、宣言に一致したアーカイブだけを案内します。配信プラグイン倉庫くんで、作者が動作を確かめていない OS の配布物をテンプレートの CI が出していた件に対応するための規則で、同じ考え方を引き継ぎます。
 
@@ -325,7 +325,7 @@ Cron の定期処理は、`release_checks` のうち未完了の行を、1 回�
 
 1. 定期処理の順序 1 で宣言ファイルを取得する。形の誤りは、その場で `invalid` にする。それ以外は、取得した日時を `config_fetched_at` に、検証して正規化した宣言を `config_json` に書く。`config_json` には宣言ファイルに書いた項目だけを入れ、省いた項目を入れない (`serializeDeclaration`)。読み直すときに、省いた項目を不正な値とみなさないためである。ファイルが無ければ `config_json` を NULL にする
 2. 版のすべてのアーカイブの中身の検査が `pending` と `error` でなくなった時点で、`missing`・`no_declared_assets`・`mismatch`・`ok` のいずれかに決める。宣言の取得の後に中身の検査が終われば `POST /internal/checks/results` が、中身の検査の後に宣言を取得すれば定期処理が判定する
-3. `ok` と `missing` では、`plugins` の `display_name`・`declared_assets`・`category` をその版の値に替える。`missing` では `display_name` と `declared_assets` を NULL に戻す。作者が宣言ファイルを消した後も、古い宣言で配布物を絞り込まないためです
+3. `ok` と `missing` では、`plugins` の `display_name`・`declared_assets`・`category` をその版の値に替える。`missing` では `display_name` と `declared_assets` を NULL に戻す。作者が宣言ファイルを消した後も、古い宣言で配布物を絞り込まないためである。ただし、その版より `published_at` が新しい版に `ok` か `missing` の判定があれば替えない。古い版を後から判定し直しても、新しい版の値を残すためである。古い版の `pattern` で絞り込むと、新しい版の配布物が案内から外れ、掲載が旧い版に移る。この条件は書き込みの文に置き、判定の読み込みとの間に別の処理が新しい版を判定しても古い値が残らないようにする
 
 試行の上限に達した `error` のアーカイブを含む版は、管理者がやり直すまで `pending` のまま残ります。その版は `check_retries_exhausted` で掲載を止めているため、判定を待っても掲載の可否は変わりません。
 
