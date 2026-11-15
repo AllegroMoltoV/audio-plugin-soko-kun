@@ -51,6 +51,7 @@
 
 | 列 | 内容 |
 | --- | --- |
+| `waiting_minutes` | 版の公開からの経過時間 (分)。同期で見つけた版の宣言ファイル・ライセンス・差分の検査は、次の起動で始まる。レビューは通信の検出の結果を版の公開から最大 6 時間待つ。これを超えても `diff_state` や `review_state` が `pending` のままなら、定期処理のログの `releasesChecked`・`releaseChecksSkipped`・`stoppedBy` を確かめる |
 | `diff_state`・`diff_hits` | 差分から判定した乗っ取りの兆候と、当たった項目 |
 | `config_state` | 宣言ファイルの判定の状態 |
 | `review_state`・`review_attempts`・`review_serious` | LLM のレビューの状態・試行の回数・重大な指摘の件数 |

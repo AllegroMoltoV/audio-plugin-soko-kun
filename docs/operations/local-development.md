@@ -79,6 +79,7 @@ curl "http://localhost:8787/__scheduled?cron=*/15+*+*+*+*"
 | `scanned` | MalwareBazaar へ照会した件数 |
 | `synced`・`failed` | 同期した件数と、同期に失敗した件数 |
 | `releasesChecked` | 新しい版の検査を行った件数 |
+| `releaseChecksSkipped` | 新しい版の検査を打ち切った理由。予算の超過は `budget`、GitHub の異常は `github_` で始まる。検査を打ち切っても後段の同期は進む |
 | `downloadsRecorded` | ダウンロード数を記録した件数 |
 | `translated` | 説明文を翻訳した件数 |
 | `previews` | 説明の画像から詳細ページ向けの軽い画像を作った件数 |
