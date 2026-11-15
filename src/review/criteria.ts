@@ -65,7 +65,7 @@ export const CRITERIA: Criterion[] = [
     kind: 'condition',
     judgedBy: 'rule',
     title: 'macOS bundles are signed with a Developer ID and notarized',
-    fix: 'Sign the macOS bundles with a Developer ID certificate and notarize them, then publish a new release. macOS files without notarization are not guided to users.',
+    fix: 'Sign the macOS bundles with a Developer ID certificate and notarize them, then publish a new release. macOS files without notarization are not guided to users. LV2 bundles for macOS are not guided because Gatekeeper does not assess them.',
   },
   {
     id: 'declaration',

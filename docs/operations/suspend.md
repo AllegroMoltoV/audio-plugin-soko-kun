@@ -164,7 +164,7 @@
 | --- | --- | --- |
 | 証明の検証 (`attestation_checks`) | `error` で試行が 3 回 | 次の `verify.yaml` の起動 |
 | 中身の検査 (`content_checks`) | `error` で試行が 3 回 | 次の `verify.yaml` の起動 |
-| macOS の判定 (`macos_signing_checks`) | `error` で試行が 3 回 | `macos-verify.yaml`。判定の経路は未実装のため、現在は `pending` のまま残る |
+| macOS の判定 (`macos_signing_checks`) | `error` で試行が 3 回 | 次の `macos-verify.yaml` の起動 |
 | LLM のレビュー (`release_checks` の `review_state`) | `failed` で試行が 2 回 | 次の定期処理の新しい版の検査 |
 
 通信の検出 (`network_state`) の試行切れは戻しません。通信の検出の試行切れは掲載を止めず、レビューは検出の結果なしで進むためです。試行が残っている `error` と、結果が確定した検査は変えません。レビューの失敗による確認待ちは `approve-release` でも解けます。レビューの結果を得てから判断したいときに `retry-checks` を使います。

@@ -10,6 +10,7 @@ GitHub Actions のワークフローの目的と権限、依存の更新、本�
 | `codeql.yml` | CodeQL によるコードの脆弱性の検査 | PR、`main` への push、毎週月曜 04:23 UTC | ワークフローは `contents: read`。ジョブに `security-events: write` と `actions: read` を加える |
 | `deploy.yml` | 本番への D1 のマイグレーションの適用と Worker の配備 | 手動実行 `workflow_dispatch` だけ | `contents: read`。environment `production` の秘密情報を使う |
 | `verify.yaml` | 配布物の証明の検証とアーカイブの中身の検査。結果を Worker へ送る | Worker の定期処理からの `workflow_dispatch`、予備の schedule (毎時 7・22・37・52 分) | `contents: read` と `id-token: write` |
+| `macos-verify.yaml` | macOS 向けのバンドルの Developer ID の署名と Apple の公証の判定。結果を Worker へ送る | Worker の定期処理からの `workflow_dispatch`、予備の schedule (毎時 12・27・42・57 分) | `contents: read` と `id-token: write` |
 | `macos-signing-probe.yaml` | macOS の署名と公証の判定の方法を、標本の配布物で確かめる検証用のワークフロー | 手動実行 `workflow_dispatch` だけ | `contents: read` |
 
 ### ci.yml
@@ -19,13 +20,13 @@ GitHub Actions のワークフローの目的と権限、依存の更新、本�
 | ジョブ | 内容 |
 | --- | --- |
 | `test` | Node.js 24 で `npm ci`・`npm run lint`・`npm run typecheck`・`npm test` を実行する |
-| `inspect-archive` | `.github/scripts/` の中身の検査のスクリプトのテストを、Python の `unittest` で実行する。標本の配布物はリポジトリに含めないため、標本との突き合わせは行わない |
+| `inspect-archive` | `.github/scripts/` の中身の検査のスクリプトと macOS の判定のスクリプトのテストを、Python の `unittest` で実行する。標本の配布物はリポジトリに含めないため、標本の配布物との突き合わせは行わない。macOS の判定のテストは、検証 A2 と V2 の `codesign` と `spctl` の出力の抜粋をリポジトリに置いて使う |
 | `actionlint` | ワークフローの記述を actionlint で検査する |
 | `dependency-review` | PR だけで実行する。PR が追加する依存に重大度 high 以上の脆弱性があれば失敗する |
 
 ### codeql.yml
 
-`codeql.yml` は、`javascript-typescript` と `python` をビルドなしで解析します。`python` は、第三者の zip を読む `.github/scripts/inspect_archive.py` を対象にするためです。必須のチェック `analyze` の名前を保つため、2 つの言語を 1 つのジョブで解析します。結果は GitHub の Code scanning に送ります。
+`codeql.yml` は、`javascript-typescript` と `python` をビルドなしで解析します。`python` は、第三者の zip を読む `.github/scripts/inspect_archive.py` と `.github/scripts/macos_judge.py` を対象にするためです。必須のチェック `analyze` の名前を保つため、2 つの言語を 1 つのジョブで解析します。結果は GitHub の Code scanning に送ります。
 
 ### deploy.yml
 
@@ -45,11 +46,17 @@ GitHub Actions のワークフローの目的と権限、依存の更新、本�
 
 Worker の定期処理は、15 分ごとの起動の最後に、検証を待つ配布物があるときだけ `verify.yaml` を起動します。起動には、後述の `GITHUB_DISPATCH_TOKEN` を使います。
 
-### macOS の署名と公証の判定
+### macos-verify.yaml
 
-`macos-signing-probe.yaml` は、macOS のランナーで標本の配布物を取得し、`codesign`・`spctl`・`xcrun stapler` の出力を Actions の成果物 `macos-signing-probe` として保存します。結果を Worker へ送りません。
+`macos-verify.yaml` は、macOS の判定を待つ配布物の一覧を Worker の `/internal/macos-checks/pending` から受け取り、`macos-latest` のランナーで配布物ごとに SHA-256 の照合・zip の項目の確かめ・`ditto -x -k` による展開・バンドルごとの `codesign` と `spctl` の判定を行います。結果は `/internal/macos-checks/results` へまとめて 1 回で送ります。トークンの `aud` と、`main` で起動したときだけ実行する条件は `verify.yaml` と同じです。Worker は `macos-verify.yaml` のトークンだけを受け付け、`verify.yaml` のトークンでは macOS の結果を書けません。
 
-macOS の署名と公証の判定を本番で行うワークフロー `macos-verify.yaml` は、まだリポジトリにありません。それまでの間、macOS 向けのバンドルを含むアーカイブは判定待ちのまま残り、そのアーカイブを含む版は掲載されません。
+配布物は 1 件ずつ最大 2 GiB まで取得し、展開したフォルダーとともに処理を終えるたびに削除します。ジョブの最初にランナーの空き容量を確かめ、7 GiB に満たなければその回の処理を行いません。ジョブの時間の上限は 40 分で、開始から 25 分を過ぎたら新しい配布物を取得しません。同時に 1 つだけ実行し、実行中の判定を取り消しません。秘密情報は使いません。配布物の中のコードは実行しません。ログに出すバンドルのパスと `spctl` の出力は外部データのため、`::stop-commands::` でワークフローのコマンドとして解釈させません。判定の規則は [検査と同期](../design/scanning.md) の「署名と公証の判定」に記載しています。
+
+Worker の定期処理は、`verify.yaml` の起動を確かめた後に、macOS の判定を待つ配布物があるときだけ `macos-verify.yaml` を起動します。
+
+### macos-signing-probe.yaml
+
+`macos-signing-probe.yaml` は、検証 A2 と V2 で使った検証用のワークフローです。macOS のランナーで標本の配布物を取得し、`codesign`・`spctl`・`xcrun stapler` の出力を Actions の成果物 `macos-signing-probe` として保存します。結果を Worker へ送りません。
 
 ## fork の PR の扱い
 
@@ -99,7 +106,7 @@ Worker の秘密情報は、`wrangler secret put` で本番の Worker に設定�
 | `GITHUB_CLIENT_ID` | 必須 | GitHub OAuth App の Client ID |
 | `GITHUB_CLIENT_SECRET` | 必須 | GitHub OAuth App の Client secret |
 | `MALWAREBAZAAR_AUTH_KEY` | 任意 | MalwareBazaar の Auth-Key。無いと照会を行わず、登録したプラグインは検査待ちのまま残る |
-| `GITHUB_DISPATCH_TOKEN` | 任意 | `verify.yaml` を起動するトークン。無いと Worker から起動せず、予備の schedule だけが残る |
+| `GITHUB_DISPATCH_TOKEN` | 任意 | `verify.yaml` と `macos-verify.yaml` を起動するトークン。無いと Worker から起動せず、予備の schedule だけが残る |
 | `CONTACT_EMAIL` | 任意 | 開発者の連絡先。無いと、連絡先を表示するボタンは準備中である旨を表示する |
 
 ```sh
@@ -112,9 +119,9 @@ npx wrangler secret put CONTACT_EMAIL --env production
 
 本番用の GitHub OAuth App の Authorization callback URL には、`https://audio-soko-kun.allegromoltov.jp/callback` を指定します。認可の流れは [認証と認可](../design/auth.md) に記載しています。
 
-### 証明の検証のワークフローを起動するトークン
+### 検証のワークフローを起動するトークン
 
-`GITHUB_DISPATCH_TOKEN` は、Worker の定期処理が `verify.yaml` を `workflow_dispatch` で起動するためのトークンです。GitHub の Settings の Developer settings で、fine-grained personal access token を次の設定で作ります。
+`GITHUB_DISPATCH_TOKEN` は、Worker の定期処理が `verify.yaml` と `macos-verify.yaml` を `workflow_dispatch` で起動するためのトークンです。2 つのワークフローは同じリポジトリにあるため、1 つのトークンで起動できます。GitHub の Settings の Developer settings で、fine-grained personal access token を次の設定で作ります。
 
 | 項目 | 設定 |
 | --- | --- |
@@ -125,12 +132,12 @@ npx wrangler secret put CONTACT_EMAIL --env production
 
 作ったトークンを `npx wrangler secret put GITHUB_DISPATCH_TOKEN --env production` で設定します。期限の 2 週間前に、同じ設定で新しいトークンを作って設定し直し、古いトークンを削除します。
 
-定期処理は、起動のたびに `{"event":"cron",...}` の形のログを 1 行出力します。このログの `verifyDispatch` が起動の結果を示します。
+定期処理は、起動のたびに `{"event":"cron",...}` の形のログを 1 行出力します。このログの `verifyDispatch` が `verify.yaml` の、`macosVerifyDispatch` が `macos-verify.yaml` の起動の結果を示します。
 
 | 値 | 意味 |
 | --- | --- |
 | `dispatched` | 起動した |
-| `skipped_no_pending` | 検証を待つ配布物が無いため起動しなかった |
+| `skipped_no_pending` | 検証を待つ配布物が無いため起動しなかった。`macosVerifyDispatch` では、macOS の判定を待つ配布物が無い |
 | `skipped_no_token` | `GITHUB_DISPATCH_TOKEN` が設定されていない |
 | `failed_<状態コード>` | GitHub API が失敗を返した。期限切れや権限の不足では `failed_401` か `failed_403` になる |
 | `failed_network` | GitHub API へ接続できなかった |

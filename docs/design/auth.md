@@ -93,7 +93,7 @@ GitHub API を認証なしで呼ぶと、Workers の共有の送信元 IP アド
 
 `/internal/` 配下の 4 つの経路は、本サービスのリポジトリの GitHub Actions のワークフローだけが使います。`/internal/checks/` の 2 つの経路は `verify.yaml` が、`/internal/macos-checks/` の 2 つの経路は `macos-verify.yaml` が使います。OAuth のアクセストークンではなく、`Authorization: Bearer` の GitHub Actions の OIDC のトークンを求めます。Worker は GitHub が公開する鍵でトークンの署名を確かめ、`iss`・`aud`・`repository`・`job_workflow_ref`・`exp` を照合します。満たさない要求には 401 を返します。照合するクレームの値は [検査と同期](scanning.md) の「Worker の経路」に記載します。
 
-`job_workflow_ref` はワークフローのファイルごとの値で、同じファイルの 2 つのジョブを区別できません。そのため、macOS の判定は別のファイル `macos-verify.yaml` に置き、Worker は経路ごとに期待する `job_workflow_ref` を持ちます。一方のワークフローが乗っ取られても、もう一方の経路には結果を書けません。
+`job_workflow_ref` はワークフローのファイルごとの値で、同じファイルの 2 つのジョブを区別できません。そのため、macOS の判定は別のファイル `macos-verify.yaml` に置き、Worker は経路ごとに期待する `job_workflow_ref` を持ちます。`src/checks/oidc.ts` の `VERIFY_WORKFLOW_REF` と `MACOS_VERIFY_WORKFLOW_REF` で、`/internal/checks/` は `src/checks/route.ts`、`/internal/macos-checks/` は `src/checks/macos-route.ts` が照合します。一方のワークフローが乗っ取られても、もう一方の経路には結果を書けません。
 
 この認証のために Worker が保存しておく鍵や秘密情報はありません。
 
@@ -106,7 +106,7 @@ GitHub API を認証なしで呼ぶと、Workers の共有の送信元 IP アド
 | `GITHUB_CLIENT_ID` | GitHub OAuth App の Client ID |
 | `GITHUB_CLIENT_SECRET` | GitHub OAuth App の Client secret |
 | `MALWAREBAZAAR_AUTH_KEY` | MalwareBazaar の Auth-Key。配信プラグイン倉庫くんと同じ鍵を使う |
-| `GITHUB_DISPATCH_TOKEN` | 配布物の検証のワークフロー `verify.yaml` を起動するための fine-grained personal access token。対象は本サービスのリポジトリだけで、権限は Actions の Read and write だけ |
+| `GITHUB_DISPATCH_TOKEN` | 配布物の検証のワークフロー `verify.yaml` と `macos-verify.yaml` を起動するための fine-grained personal access token。対象は本サービスのリポジトリだけで、権限は Actions の Read and write だけ |
 | `CONTACT_EMAIL` | 開発者の連絡先のメールアドレス。収集を防ぐためソースコードに書かず、秘密情報と同じ方法で設定する |
 
 `GITHUB_DISPATCH_TOKEN` は省略できます。省略した場合は Worker からワークフローを起動せず、ワークフローの schedule と手動の起動だけに頼ります。`MALWAREBAZAAR_AUTH_KEY` は省略できます。省略した場合は照会を行わず、検査結果は `pending` のまま残ります。

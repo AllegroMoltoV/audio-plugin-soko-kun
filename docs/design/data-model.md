@@ -219,16 +219,18 @@ OAuth のクライアント・認可・トークンの情報は D1 ではなく 
 | `undetermined` | アーカイブの中のインストーラーや入れ子のアーカイブのように、中を調べられないものを含む。VST 2 を含まないことを確かめられない |
 | `error` | 取得・展開・解析に失敗した。展開の上限を超えた場合を含む |
 
+`formats`・`os`・`arches` は検出した事実で、宣言ファイルとの照合に使います。画面と MCP に示す規格・OS・アーキテクチャと、案内と掲載状態の算出に使う OS (以下、案内に使う OS) は、`bundles` から macOS の LV2 を除いて求めます。LV2 のバンドルの OS から `macos` を除き、OS が残らない LV2 のバンドルを数えません。規則は [検査と同期](scanning.md) の「署名と公証の判定」に記載します。
+
 ## macos_signing_checks
 
-署名と公証の判定の結果を保存します。行を作るのは、`content_checks` の `os` に `macos` を含む配布物だけです。判定の規則は [検査と同期](scanning.md) に記載します。
+署名と公証の判定の結果を保存します。行を作るのは、中身の検査で macOS 向けのバンドルを検出した配布物だけです。macOS の LV2 のバンドルは判定せず案内しないため、macOS の LV2 だけを含む配布物には行を作りません。判定の規則は [検査と同期](scanning.md) に記載します。署名の種類は、`result` と `reason` で表します。`passed` と `not_notarized` は Developer ID、`not_developer_id` は Developer ID 以外の証明書、`adhoc` はアドホック、`not_signed` は署名なしです。
 
 | 列 | 型 | 制約 | 内容 |
 | --- | --- | --- | --- |
 | `github_asset_id` | INTEGER | 主キー、`assets.github_asset_id` を参照、親の削除で連鎖削除 | 配布物の ID |
 | `result` | TEXT | NOT NULL、既定値 `pending` | `pending`・`passed`・`failed`・`error` のいずれか。`passed` は、macOS 向けのすべてのバンドルに Developer ID の署名と Apple の公証があるとき |
-| `team_id` | TEXT | | 署名の Team ID。複数のバンドルで食い違う場合は、すべての値を JSON の配列で記録する |
-| `reason` | TEXT | | `failed` と `error` の理由のコード。`not_signed`・`adhoc`・`not_developer_id`・`not_notarized`・`check_error` のいずれか |
+| `team_id` | TEXT | | 署名の Team ID。判定したバンドルの値が 1 つならその値を、複数のバンドルで食い違う場合は、すべての値を並べ替えた JSON の配列で記録する |
+| `reason` | TEXT | | 理由のコード。`failed` では `not_signed`・`adhoc`・`not_developer_id`、`error` では `not_notarized`・`check_error`・`unsafe_archive` のいずれか |
 | `attempts` | INTEGER | NOT NULL、既定値 0 | 判定を試みた回数 |
 | `checked_at` | TEXT | | 最後に判定した日時 |
 
@@ -299,7 +301,8 @@ OAuth のクライアント・認可・トークンの情報は D1 ではなく 
 - `kind` が `archive` である。
 - `content_checks` の結果が `passed` である。
 - `attestation_checks` の結果が `passed` である。
-- `content_checks` の `os` に `macos` を含む場合は、`macos_signing_checks` の結果が `passed` である。
+- 案内に使う OS に `macos` を含む場合は、`macos_signing_checks` の結果が `passed` である。
+- 案内に使う OS が 1 つ以上ある。macOS の LV2 だけを含むアーカイブは案内しない。
 - 宣言ファイルの配布物の宣言がある場合は、その宣言に含まれる。
 
 `undetermined` のアーカイブは、`passed` でないため案内しません。macOS の判定に通らない配布物は、案内しないだけで、版の掲載を止めません。同じ版の Windows や Linux の配布物は、条件を満たせば案内します。macOS の配布物だけを持つ版は、案内する配布物が無くなるため掲載しません。インストーラーと案内しない配布物は、画面と MCP のダウンロード先に出しません。
@@ -311,7 +314,7 @@ OAuth のクライアント・認可・トークンの情報は D1 ではなく 
 - 案内する配布物を 1 件以上持つ。
 - すべての配布物について、MalwareBazaar の結果が確定である。インストーラーと案内しない配布物も含む。
 - すべてのアーカイブの `content_checks` の結果が `pending` と `error` でない。また、`vst2_detected` と `undetermined` のアーカイブが無い。
-- macOS 向けのバンドルを含むすべてのアーカイブの `macos_signing_checks` の結果が `pending` と `error` でない。
+- 案内に使う OS に `macos` を含むすべてのアーカイブの `macos_signing_checks` の結果が `pending` と `error` でない。
 - すべての配布物の `attestation_checks` の結果が `passed` である。インストーラーと案内しない配布物も含む。
 - `license_state` が `passed` である。
 - `release_suspensions` に記録されていない。

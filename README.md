@@ -17,7 +17,7 @@ This project is an unofficial service that is not affiliated with Steinberg Medi
 
 ### Background
 
-Malware disguised as cracked audio plugins has been reported repeatedly, and in 2026 an OBS Studio plugin forum saw author accounts taken over and published files replaced. Audio Plugin Soko-kun does not host files. It links to the files that authors publish on GitHub Releases, and lists a version only if the release is immutable, every listed archive has a build provenance attestation from the repository's own release workflow, no file is a known malware sample in MalwareBazaar, and macOS bundles are signed with a Developer ID and notarized. Until the macOS check is implemented, archives with macOS bundles are not linked. It also reviews the repository's development practices against published [review criteria](docs/design/review-criteria.md) (in Japanese). Passing the checks does not guarantee that a plugin is safe.
+Malware disguised as cracked audio plugins has been reported repeatedly, and in 2026 an OBS Studio plugin forum saw author accounts taken over and published files replaced. Audio Plugin Soko-kun does not host files. It links to the files that authors publish on GitHub Releases, and lists a version only if the release is immutable, every listed archive has a build provenance attestation from the repository's own release workflow, no file is a known malware sample in MalwareBazaar, and macOS bundles are signed with a Developer ID and notarized. LV2 bundles for macOS are not linked, because Gatekeeper does not assess them. It also reviews the repository's development practices against published [review criteria](docs/design/review-criteria.md) (in Japanese). Passing the checks does not guarantee that a plugin is safe.
 
 ### Usage
 
@@ -75,7 +75,7 @@ Steinberg Media Technologies GmbH、CLAP のプロジェクト、Apple、LV2 の
 - リリースが不変 (immutable release) である
 - 案内するアーカイブのすべてに、そのリポジトリのリリースのワークフローによる build provenance の証明がある
 - どのファイルも、MalwareBazaar に既知のマルウェアとして登録されていない
-- macOS 向けのバンドルに、Developer ID の署名と Apple の公証がある。この判定を実装するまでは、macOS 向けのバンドルを含むアーカイブを案内しない
+- macOS 向けのバンドルに、Developer ID の署名と Apple の公証がある。macOS の LV2 のバンドルは、Gatekeeper が判定しないため案内しない
 
 あわせて、公開した[審査の基準](docs/design/review-criteria.md)にしたがって、リポジトリの開発の実践をレビューします。検査を通っても、プラグインの安全を保証するものではありません。
 
@@ -121,6 +121,13 @@ codex mcp add audio-plugin-soko-kun --url https://audio-soko-kun.allegromoltov.j
 MIT License です。[LICENSE](LICENSE) を参照してください。VST Compatible ロゴの画像 (`docs/images/VST_Compatible_Logo_Steinberg*.png` と、その複製の `public/images/vst-compatible*.png`) は Steinberg Media Technologies GmbH の商標で、MIT License の対象外です。
 
 ## 更新履歴
+
+### 0.1.4 (2026-11-15)
+
+- macOS 向けのバンドルの署名と公証の判定を始めました。新しいワークフロー `macos-verify.yaml` が macOS のランナーで配布物を判定し、`spctl --assess --type install` が `source=Notarized Developer ID` を返したバンドルだけを案内します。ステープルの有無は問いません。署名が無いもの、アドホックの署名だけのもの、Developer ID 以外の証明書で署名したものは案内しません。Developer ID の署名があるのに公証済みと判定されないものは、Apple への照会の失敗と区別できないため 3 回まで判定し直し、その後は管理者の確認を待ちます。
+- macOS の LV2 のバンドルは、Gatekeeper が判定しないため案内しないことにしました。Linux のバイナリも持つ LV2 のバンドルは、Linux 向けとして案内します。
+- `ditto` で展開する前に zip の項目を確かめ、絶対パス・`..`・バンドルの外を指すシンボリックリンクを含むアーカイブは展開しないようにしました。フレームワークの中を指すシンボリックリンクは許します。
+- Worker に、`macos-verify.yaml` のトークンだけを受け付ける受け口 `/internal/macos-checks/pending` と `/internal/macos-checks/results` を加え、定期処理から `macos-verify.yaml` も起動するようにしました。版の macOS のバンドルの Team ID が食い違うときは、管理者の確認を待ちます。
 
 ### 0.1.3 (2026-11-15)
 

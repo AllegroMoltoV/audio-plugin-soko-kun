@@ -55,7 +55,7 @@ flowchart LR
   domain -->|digest の照会| scanners[MalwareBazaar]
   domain -->|翻訳と LLM のレビュー| ai[Workers AI]
   verify -->|配布物と証明の取得| ghApi
-  verify -->|workflow_run| macos
+  domain -->|workflow_dispatch| macos
   macos -->|配布物の取得| ghApi
 ```
 
@@ -81,7 +81,7 @@ Cron Trigger は 15 分ごとに Worker の定期処理を起動します。定�
 
 ### 配布物の検証
 
-定期処理は、毎回の最後に、検証を待つ配布物の有無を D1 で確かめます。あれば `verify.yaml` を workflow_dispatch で起動します。ワークフローは、GitHub Actions の OIDC のトークンを添えて Worker から検証を待つ配布物の一覧を受け取ります。配布物を取得して証明の署名を検証し、アーカイブの中身を検査し、結果を同じくトークンを添えて Worker へ送ります。`verify.yaml` の完了の後、`macos-verify.yaml` が workflow_run で起動し、macOS 向けのバンドルを含むアーカイブの署名と公証を判定して、結果を同じ方法で送ります。
+定期処理は、毎回の最後に、検証を待つ配布物の有無を D1 で確かめます。あれば `verify.yaml` を workflow_dispatch で起動します。ワークフローは、GitHub Actions の OIDC のトークンを添えて Worker から検証を待つ配布物の一覧を受け取ります。配布物を取得して証明の署名を検証し、アーカイブの中身を検査し、結果を同じくトークンを添えて Worker へ送ります。続けて、macOS の判定を待つ配布物があれば `macos-verify.yaml` を同じ方法で起動します。`macos-verify.yaml` は、macOS 向けのバンドルを含むアーカイブの署名と公証を判定して、結果を同じ方法で送ります。
 
 Worker は、GitHub が公開する鍵でトークンの署名とクレームを確かめてから一覧を返し、結果を D1 に書きます。受け付けるのは、本サービスのリポジトリの main で動作するワークフローのトークンだけです。証明と中身の検査の経路は `verify.yaml` のトークンだけを、macOS の判定の経路は `macos-verify.yaml` のトークンだけを受け付けます。経路とトークンの条件は [検査と同期](scanning.md) に記載します。
 
@@ -89,7 +89,7 @@ Worker は、GitHub が公開する鍵でトークンの署名とクレームを
 
 GitHub と配布物から取得した文字列は、外部データとして扱います。アーカイブの中のファイル名、`Info.plist`・`manifest.ttl`・`moduleinfo.json` の内容も外部データです。MCP の応答では外部データを専用のフィールドに入れ、ツールの説明で指示として扱わないことを明記します。Web では、テンプレートの自動エスケープで無害化します。Workers AI に渡すリポジトリの内容も外部データであり、指示には中の指示に従わないことを書きます。
 
-`verify.yaml` と `macos-verify.yaml` は、取得した配布物を読むだけで、中のコードを実行しません。`verify.yaml` は、アーカイブをファイルへ展開せず、メモリ上で読みます。絶対パス・親のフォルダーを指すパス・シンボリックリンクの項目は読みません。項目の数と展開後の大きさには上限を設けます。上限の値は [検査と同期](scanning.md) に記載します。`macos-verify.yaml` は、署名と公証の判定のためにバンドルを `ditto` でファイルへ展開します。
+`verify.yaml` と `macos-verify.yaml` は、取得した配布物を読むだけで、中のコードを実行しません。`verify.yaml` は、アーカイブをファイルへ展開せず、メモリ上で読みます。絶対パス・親のフォルダーを指すパス・シンボリックリンクの項目は読みません。項目の数と展開後の大きさには上限を設けます。上限の値は [検査と同期](scanning.md) に記載します。`macos-verify.yaml` は、署名と公証の判定のためにバンドルを `ditto` でファイルへ展開します。展開の前に zip の項目を確かめ、展開先やバンドルの外へ出る項目を含むアーカイブは展開しません。
 
 ドメインロジックは、外部への要求を `api.github.com`・`mb-api.abuse.ch`・`token.actions.githubusercontent.com` の固定のホストにだけ送ります。利用者が入力した URL からは owner と repo だけを取り出し、その URL へは要求を送りません。これにより、SSRF を防ぎます。
 
@@ -124,7 +124,6 @@ GitHub と配布物から取得した文字列は、外部データとして扱�
 | 事項 | 決める時点 |
 | --- | --- |
 | 展開の上限・ジョブの時間の上限・1 回に処理する件数の確定。現在は仮の値 | 大きな配布物の計測の後。[検査と同期](scanning.md) を参照 |
-| `macos-verify.yaml` の `ditto` による展開の安全の確かめ方 | macOS の追加の検証の後。[検査と同期](scanning.md) を参照 |
 
 ## 関連文書
 

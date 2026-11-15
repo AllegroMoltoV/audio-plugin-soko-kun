@@ -76,7 +76,7 @@ sequenceDiagram
 
 ### 応答の構造
 
-次の例は、架空のプラグイン example-delay が Windows の zip と macOS の zip を出した版で、macOS の zip に公証が無い場合です。Windows の zip は案内し、macOS の zip は案内しません。
+次の例は、架空のプラグイン example-delay が Windows の zip と macOS の zip を出した版で、macOS の zip のバンドルにアドホックの署名だけがある場合です。Windows の zip は案内し、macOS の zip は案内しません。
 
 ```json
 {
@@ -110,9 +110,9 @@ sequenceDiagram
               "os": ["macos"],
               "arches": ["x86_64", "arm64"],
               "notGuidedBecause": {
-                "code": "macos_not_notarized",
-                "message": "The macOS bundles are signed with a Developer ID but not notarized.",
-                "fix": "Notarize the bundles with notarytool in the release workflow before creating the zip. Users would otherwise have to bypass Gatekeeper.",
+                "code": "macos_adhoc",
+                "message": "The macOS bundles have only an ad-hoc signature.",
+                "fix": "Sign the bundles with a Developer ID certificate and notarize them in the release workflow before creating the zip.",
                 "waitsFor": "author"
               }
             }
@@ -201,7 +201,9 @@ sequenceDiagram
 | `check_retries_exhausted` | 版 | 証明の検証・中身の検査・macOS の判定のいずれかが 3 回続けて失敗した | `admin` |
 | `installer_not_guided` | 配布物 | インストーラーのため案内しない | `author` |
 | `no_plugin_in_archive` | 配布物 | このアーカイブに規格のバンドルを検出しなかった。ソースコードのアーカイブでは対応は要らない | `author` |
-| `macos_not_signed`・`macos_adhoc`・`macos_not_developer_id`・`macos_not_notarized` | 配布物 | macOS の署名と公証の判定に通らなかった。順に、署名が無い、アドホックの署名だけがある、Developer ID 以外の証明書で署名されている、公証が無い | `author` |
+| `macos_not_signed`・`macos_adhoc`・`macos_not_developer_id` | 配布物 | macOS の署名と公証の判定に通らなかった。順に、署名が無い、アドホックの署名だけがある、Developer ID 以外の証明書で署名されている | `author` |
+| `macos_not_notarized` | 配布物 | Developer ID の署名があるのに、公証済みと判定されなかった。照会の失敗と却下を区別できないため 3 回まで判定し直し、その間は版の `macos_check_pending`、3 回目の後は版の `check_retries_exhausted` になる | `author` |
+| `macos_lv2_not_guided` | 配布物 | macOS の LV2 のバンドルだけを含む。macOS の LV2 は Gatekeeper が判定しないため案内しない | `author` |
 | `not_declared` | 配布物 | 宣言ファイルがあり、この配布物が宣言に含まれない | `author` |
 
 配信プラグイン倉庫くんの `not_obs_plugin` と `installer_not_allowed` は使いません。

@@ -144,22 +144,22 @@ Cron Trigger は `*/15 * * * *` で、15 分ごとに起動します。1 回の�
 | 順序 | 処理 | 1 回の起動での上限 |
 | --- | --- | --- |
 | 1 | MalwareBazaar へのハッシュ照会と照会し直し | 10 件 |
-| 2 | 新しい版の検査 | 1 件のリリース。外部呼び出しは 1 件あたり最大 25 件 (`RELEASE_CHECK_COST`)。検査の間は、同期 1 件の分 (外部呼び出し 6 件、D1 のクエリ 3 件) と順序 8 の 1 件を後段に残す |
+| 2 | 新しい版の検査 | 1 件のリリース。外部呼び出しは 1 件あたり最大 25 件 (`RELEASE_CHECK_COST`)。検査の間は、同期 1 件の分 (外部呼び出し 6 件、D1 のクエリ 3 件) と順序 8 の 2 件を後段に残す |
 | 3 | 同期 | 20 件のプラグイン。外部呼び出しの予算の残りが 6 件 (`SYNC_COST`) 未満、または D1 のクエリの予算の残りが 3 件未満になった時点で止める |
 | 4 | 掲載の期間と、マルウェアを検出した版の記録 | |
 | 5 | ダウンロード数の記録 | 10 件のプラグイン |
 | 6 | 説明文の機械翻訳 | 6 件 |
 | 7 | 説明の画像の表示用の画像の作成 | 2 件 |
-| 8 | 配布物の検証のワークフロー `verify.yaml` の起動。検証を待つ配布物か、通信の検出を待つ版があるときだけ | 1 件 |
+| 8 | 検証のワークフローの起動。`verify.yaml` は検証を待つ配布物か通信の検出を待つ版があるときだけ、続けて `macos-verify.yaml` は macOS の判定を待つ配布物があるときだけ起動する | 各 1 件 |
 | 9 | 60 分より前の `rate_limit` の行の削除と、OAuth の期限切れデータの掃除 (`purgeExpiredData()`) | |
 
 新しい版の検査は掲載に直接つながるため、量がプラグインの数に比例する同期より先に行います。同期で見つけた新しいリリースの検査は、次の起動で始まります。検査の失敗では後段を止めません。検査の途中で予算を超えたときは、その起動の検査を打ち切り、定期処理のログの `releaseChecksSkipped` に `budget` を記録して後段へ進みます。予算の超過は、差分の失敗、未読のファイル、レビューの試行のいずれとしても記録しません。検査が GitHub のレート制限を受けたときも、`github_rate_limited` を記録して後段へ進みます。本当のレート制限や障害なら、同期が自分の最初の呼び出しで検知して止まります。
 
-同期が GitHub のレート制限か障害で止まった起動では、順序 5 を行いません。予算に達した時点で処理を止め、残りを次回の起動へ持ち越します。予算による停止とレート制限による停止の後も、順序 8 と 9 を実行します。順序 8 のために、定期処理は最初に外部呼び出し 1 件と D1 のクエリ 1 件を予算から取り分けておきます。それ以外の例外で順序 1 から 7 が中断した場合、その起動は失敗として終わります。
+同期が GitHub のレート制限か障害で止まった起動では、順序 5 を行いません。予算に達した時点で処理を止め、残りを次回の起動へ持ち越します。予算による停止とレート制限による停止の後も、順序 8 と 9 を実行します。順序 8 のために、定期処理は最初に外部呼び出し 2 件と D1 のクエリ 2 件を予算から取り分けておきます (`DISPATCH_RESERVE`)。1 つのワークフローの起動で、待ちの有無の確かめに D1 のクエリ 1 件、起動に外部呼び出し 1 件を使います。それ以外の例外で順序 1 から 7 が中断した場合、その起動は失敗として終わります。
 
-検査の前に予算を使うのは順序 1 の照会だけです。照会が上限の 10 件を使っても、予算 45 件から順序 8 と同期 1 件の取り分け 7 件と照会の 10 件を引いた 28 件が残り、検査 1 件の 25 件が収まります。同期は `last_synced_at` の古い順に回ります。新しい版の検査が無い起動では約 20 件、検査がある起動では検査の残りの分を同期します。プラグインの数が 1 回で同期できる件数を超えると、止まるのではなく、それぞれのプラグインの同期の間隔が延びます。間隔の目安は実測していません。
+検査の前に予算を使うのは順序 1 の照会だけです。照会が上限の 10 件を使っても、予算 45 件から順序 8 と同期 1 件の取り分け 8 件と照会の 10 件を引いた 27 件が残り、検査 1 件の 25 件が収まります。同期は `last_synced_at` の古い順に回ります。新しい版の検査が無い起動では約 20 件、検査がある起動では検査の残りの分を同期します。プラグインの数が 1 回で同期できる件数を超えると、止まるのではなく、それぞれのプラグインの同期の間隔が延びます。間隔の目安は実測していません。
 
-1 件の処理の外部呼び出しの件数 (`RELEASE_CHECK_COST`、`REVIEW_FILES_COST`、`SYNC_COST`、`MALWAREBAZAAR_PER_RUN`) を変えるときは、この表と、`test/domain/cron.test.ts` の「新しい版の検査と同期の優先」のテストを直してください。派生元の配信プラグイン倉庫くんでは、2026-11-15 に、同期を検査より先に行っていたために、同期の後に検査の分が残らず検査が始まらない不具合が起きました。
+1 件の処理の外部呼び出しの件数 (`RELEASE_CHECK_COST`、`REVIEW_FILES_COST`、`SYNC_COST`、`MALWAREBAZAAR_PER_RUN`) と `DISPATCH_RESERVE` を変えるときは、この表と、`test/domain/cron.test.ts` の「新しい版の検査と同期の優先」のテストを直してください。派生元の配信プラグイン倉庫くんでは、2026-11-15 に、同期を検査より先に行っていたために、同期の後に検査の分が残らず検査が始まらない不具合が起きました。
 
 ### 照会の対象
 
@@ -224,7 +224,7 @@ Cron Trigger は `*/15 * * * *` で、15 分ごとに起動します。1 回の�
 | 不変 | 最新リリースの API の応答の `immutable` を `immutable` に保存する |
 | 配布物の種類 | 配布物の名前の拡張子から `kind` を決める |
 | 差分の起点 | その時点の掲載対象のリリースを `base_release_id` に保存する。無ければ `diff_state` を `skipped` にする |
-| 配布物の検証 | すべての配布物に `attestation_checks` の行を、アーカイブには `content_checks` の行も、`pending` で作る。`macos_signing_checks` の行は、中身の検査で macOS 向けのバンドルを検出したときに作る |
+| 配布物の検証 | すべての配布物に `attestation_checks` の行を、アーカイブには `content_checks` の行も、`pending` で作る。`macos_signing_checks` の行は、中身の検査で macOS 向けのバンドルを検出したときに作る。macOS の LV2 のバンドルは数えない |
 
 ### 定期処理で行う検査
 
@@ -339,16 +339,18 @@ sequenceDiagram
         L->>L: 通信の API を文字列で探す
     end
     L->>W: POST /internal/checks/results (OIDC)
-    G->>M: verify.yaml の完了の後に workflow_run で起動
+    W->>G: workflow_dispatch (macOS の判定を待つ配布物があるとき)
+    G->>M: 起動
     M->>W: GET /internal/macos-checks/pending (OIDC)
     loop macOS 向けのバンドルを含むアーカイブごと
         M->>G: 配布物を取得
-        M->>M: SHA-256 の照合、署名と公証の判定
+        M->>M: SHA-256 の照合、zip の項目の確かめ、ditto -x -k で展開
+        M->>M: バンドルごとに codesign と spctl で判定
     end
     M->>W: POST /internal/macos-checks/results (OIDC)
 ```
 
-`macos-verify.yaml` を `verify.yaml` の後に動作させるのは、macOS 向けのバンドルを含むアーカイブが、中身の検査を終えて初めて分かるためです。
+macOS の判定を待つ配布物は、`verify.yaml` が中身の検査の結果を送ったときに生まれます。定期処理は `verify.yaml` の次に `macos-verify.yaml` の起動を確かめるため、中身の検査の結果を受けた後の定期処理の起動で `macos-verify.yaml` が動作します。
 
 ### 取得と処理の上限
 
@@ -356,17 +358,17 @@ sequenceDiagram
 
 | 項目 | 上限 |
 | --- | --- |
-| 配布物の取得 | 1 件あたり 2 GiB。超えた配布物は取得を打ち切り、`error` として記録する。ジョブの最初に `df` でランナーの空き容量を確かめ、足りなければその回の処理を行わない |
+| 配布物の取得 | 1 件あたり 2 GiB。超えた配布物は取得を打ち切り、`error` として記録する。ジョブの最初に `df` でランナーの空き容量を確かめ、足りなければその回の処理を行わない。求める空き容量は、`verify.yaml` では 3 GiB、ファイルへ展開する `macos-verify.yaml` では展開後の合計の上限を足した 7 GiB |
 | アーカイブの項目の数 | 100,000 |
 | 展開後の合計の大きさ | 4 GiB |
 | 1 項目の展開後の大きさ | 256 MiB |
 | ジョブの時間 | 40 分。通信の検出のソースの取得の時間を見込んで、配信プラグイン倉庫くんの 20 分から延ばした |
-| 新しい配布物の取得を始める期限 | ジョブの開始から 25 分。過ぎたら残りの配布物と通信の検出を取得せず、次の回に回す。結果は最後にまとめて送るため、ジョブが時間切れになるとその回の結果をすべて失う。これを避けるためである |
+| 新しい配布物の取得を始める期限 | ジョブの開始から 25 分 (`FETCH_DEADLINE_SECONDS`)。2 つのワークフローで同じ値にする。過ぎたら残りの配布物と通信の検出を取得せず、次の回に回す。結果は最後にまとめて送るため、ジョブが時間切れになるとその回の結果をすべて失う。これを避けるためである |
 | 1 回に処理する件数 | 50 件 |
 
 取得の上限を 2 GiB にするのは、オーディオプラグインの 23 件のリポジトリの配布物 167 件を調べた最大が 1,102.9 MiB で、1 GiB では DISTRHO/Cardinal を掲載できないためです (非公開の調査記録)。項目の数と展開後の合計の上限は、2026-11-15 に DISTRHO/Cardinal 26.02 の win64 の zip の中央ディレクトリを読んで決めました。項目は 57,218、展開後の合計は 3.29 GiB、最大の項目は 100 MiB でした。同じ形の合成の zip (1.41 GiB) では、アーカイブの中身の検査は手元で 3.4 秒で終わりました。中身の検査は、すべてのファイルの先頭 4 バイトと実行形式だけを読むためです。1 件の処理時間の大半は、取得と証明の検証とみています。ランナーでの所要時間は測っていません。
 
-`verify.yaml` は、アーカイブをファイルへ展開せず、メモリ上で読みます。絶対パス・親のフォルダーを指す `..` を含むパス・シンボリックリンクの項目は読みません。`macos-verify.yaml` は、`spctl` と `codesign` をバンドルに当てるため、`ditto -x -k` でファイルへ展開します。シンボリックリンクと `..` を含む zip を `ditto` で展開したときの挙動と、その確かめ方は、macOS の追加の検証で確定します。
+`verify.yaml` は、アーカイブをファイルへ展開せず、メモリ上で読みます。絶対パス・親のフォルダーを指す `..` を含むパス・シンボリックリンクの項目は読みません。`macos-verify.yaml` は、`spctl` と `codesign` をバンドルに当てるため、`ditto -x -k` で配布物ごとの新しいフォルダーへ展開します。展開の前に zip の項目を確かめ、展開先の外へ出る項目を含むアーカイブは展開しません。規則は「署名と公証の判定」の「展開の前の確かめ」に記載します。
 
 ### Worker の経路
 
@@ -374,8 +376,8 @@ sequenceDiagram
 | --- | --- |
 | `GET /internal/checks/pending` | `attestation_checks` か `content_checks` の結果が `pending` か、`error` で試行が 3 回未満の配布物を、最大 50 件返す。各件に、配布物の ID・`kind`・ダウンロード URL・`digest`・リポジトリ・リポジトリ ID・旧い名前の一覧・タグ・タグのコミット・記録したリリースのワークフローを含める。あわせて、通信の検出を待つ版 (`release_checks` の `network_state` が `pending` か、`error` で試行が 3 回未満) を、版の ID・現在のリポジトリ・版のコミットとともに最大 5 件返す |
 | `POST /internal/checks/results` | 配布物ごとの証明の検証の結果と、アーカイブの中身の検査の結果を受け取り、`attestation_checks` と `content_checks` に書く。中身の検査の結果には、カテゴリの手がかり `categories` を含む。中身の検査で macOS 向けのバンドルを検出した配布物には、`macos_signing_checks` の行を `pending` で作る。宣言ファイルとの照合が残っていれば行う。通信の検出の結果 (`networkScans`) を受け取り、`release_checks` の `network_state` と `network_hits` に書く。版の重なり・5 件を超える件数・形の合わない版の結果は、要求全体を 400 で拒否する。当たりは 50 件までとし、ファイルは 200 文字、行の文字列は 160 文字に切る。決まった API の名前でない当たりと、形の合わない当たりは捨てる |
-| `GET /internal/macos-checks/pending` | `macos_signing_checks` の結果が `pending` か、`error` で試行が 3 回未満の配布物を、最大 50 件返す。各件に、配布物の ID・ダウンロード URL・`digest`・macOS 向けのバンドルのアーカイブの中のパスを含める |
-| `POST /internal/macos-checks/results` | 配布物ごとの署名と公証の判定の結果を受け取り、`macos_signing_checks` に書く |
+| `GET /internal/macos-checks/pending` | `macos_signing_checks` の結果が `pending` か、`error` で試行が 3 回未満の配布物を、最大 50 件返す。各件に、配布物の ID・ダウンロード URL・`digest`・リポジトリ・タグと、判定するバンドルのアーカイブの中のパス `bundles` を含める。`bundles` は `content_checks` の `bundles` のうち、macOS 向けで LV2 でないものに限り、パスの規則をもう一度確かめる。この条件は `src/checks/macos-route.ts` の `PENDING_MACOS_FROM` に 1 か所で定め、定期処理の起動の判定と共有する |
+| `POST /internal/macos-checks/results` | 配布物ごとの結果 `{assetId, result, reason, teamIds}` を受け取り、`macos_signing_checks` の `result`・`reason`・`team_id` に書き、`attempts` を 1 増やす。`result` と `reason` の組は「署名と公証の判定」の表のものだけを受け付け、`passed` には Team ID を 1 件以上求める。Team ID は英大文字と数字の 10 文字で、10 件まで。形の合わない結果、または同じ配布物の結果を 2 つ含む要求は、全体を 400 で拒否する。行の無い配布物には行を作らない。結果が確定した行と、試行を 3 回使い切った `error` の行は書き換えない |
 
 配信プラグイン倉庫くんの `/internal/attestations/pending` と `/internal/attestations/results` を、証明の検証と中身の検査を合わせて扱う形に改めています。
 
@@ -391,7 +393,7 @@ sequenceDiagram
 | `job_workflow_ref` | `/internal/checks/` の経路では `AllegroMoltoV/audio-plugin-soko-kun/.github/workflows/verify.yaml@refs/heads/main`。`/internal/macos-checks/` の経路では `AllegroMoltoV/audio-plugin-soko-kun/.github/workflows/macos-verify.yaml@refs/heads/main` |
 | `exp` | 現在より後 |
 
-`verify.yaml` は、Worker の定期処理が workflow_dispatch で起動します。起動の条件は、`GET /internal/checks/pending` が返す配布物か版があることです。起動には秘密情報 `GITHUB_DISPATCH_TOKEN` を使います。配信プラグイン倉庫くんでは、GitHub の schedule による起動が一度も起きなかったため、Worker から起動する形に改めた経緯があります。schedule は予備として残します。`macos-verify.yaml` は、`verify.yaml` の完了を workflow_run で受けて起動します。
+`verify.yaml` は、Worker の定期処理が workflow_dispatch で起動します。起動の条件は、`GET /internal/checks/pending` が返す配布物か版があることです。起動には秘密情報 `GITHUB_DISPATCH_TOKEN` を使います。配信プラグイン倉庫くんでは、GitHub の schedule による起動が一度も起きなかったため、Worker から起動する形に改めた経緯があります。schedule は予備として残します。`macos-verify.yaml` も、同じトークンで定期処理が workflow_dispatch で起動します。起動の条件は、`GET /internal/macos-checks/pending` が返す配布物があることです。schedule は予備として、`verify.yaml` の 5 分後の `12,27,42,57 * * * *` に置きます。
 
 ### 証明の検証
 
@@ -425,41 +427,56 @@ VST 3 SDK を使わずに VST 3 のインターフェースを実装したプラ
 
 ### 署名と公証の判定
 
-macOS 向けのバンドルについて、Developer ID の署名と Apple の公証を判定します。規則は次のとおりです。検証 A2 で、本サービスのリポジトリで macOS のランナーのワークフローを動作させ、この規則で陽性の標本と陰性の標本を取り違えずに分けられることを確かめています。
+macOS 向けのバンドルについて、Developer ID の署名と Apple の公証を判定します。`macos-verify.yaml` がコマンドを実行し、出力の読み取りと判定は `.github/scripts/macos_judge.py` が行います。規則は次のとおりです。検証 A2 で、この規則で陽性の標本と陰性の標本を取り違えずに分けられることを確かめ、macOS の追加の検証 (V2) の結果を受けて確定しました。`macos_judge.py` のテストは、A2 と V2 で macOS のランナーが出した出力を入力にして、両方の検証の結果と一致することを確かめています。
 
 | 判定 | 規則 |
 | --- | --- |
-| 公証 | `spctl --assess -vvv --type install`、または `spctl --assess -vvv --type open --context context:primary-signature` を当て、終了コードが 0 で、出力が `source=Notarized Developer ID` のとき合格とする。`--type execute` は、アプリ以外のバンドルを Developer ID の署名があっても却下するため使わない |
-| 署名の種類と Team ID | `codesign -dv --verbose=4` の Authority と TeamIdentifier で、Developer ID・Apple Development・アドホック・署名なしを分けて記録する |
-| 署名の検証 | `codesign --verify --deep --strict` の結果は記録だけにし、合格の条件に使わない |
-| ステープル | `xcrun stapler validate` の結果は記録だけにし、合格の条件に使わない。ステープルの有無だけを示し、公証の判定に使えないため |
+| 公証 | `spctl --assess -vvv --type install` の終了コードが 0 で、出力に `source=Notarized Developer ID` の行があるときだけ合格とする。ステープルの有無は問わない。`--type execute` は、アプリ以外のバンドルを Developer ID の署名があっても却下するため使わない |
+| 署名の種類と Team ID | `codesign -dv --verbose=4` の最初の `Authority` の行で、Developer ID・Apple Development・そのほかの証明書を分ける。`Authority` の行が無く `Signature=adhoc` の行があればアドホック、終了コードが 0 でなく `code object is not signed at all` を出せば署名なしとする。Team ID は `TeamIdentifier` の行から読む |
+| 署名の検証 | `codesign --verify --deep --strict` の終了コードはログに残すだけにし、合格の条件に使わない |
+| ステープル | `xcrun stapler validate` の終了コードはログに残すだけにし、合格の条件に使わない。ステープルの有無だけを示し、公証の判定に使えないため |
 
 公証の照会に認証情報は要りません。検証 A2 では、秘密情報を参照しないワークフローで、公証済みの標本が `source=Notarized Developer ID` を返しました。
 
-1 つのアーカイブのすべての macOS 向けのバンドルが合格のとき、`macos_signing_checks` の結果を `passed` にします。不合格の理由は次のコードで記録します。
+バンドルごとの判定と理由のコードは次のとおりです。
 
-| 理由コード | 意味 |
-| --- | --- |
-| `not_signed` | 署名が無い |
-| `adhoc` | アドホックの署名だけがある |
-| `not_developer_id` | Apple Development など、Developer ID 以外の証明書で署名されている |
-| `not_notarized` | Developer ID の署名があり、公証が無い |
-| `check_error` | 判定のコマンドが失敗した。結果は `error` にする |
+| 署名の種類 | `spctl` | 結果 | 理由コード |
+| --- | --- | --- | --- |
+| 署名なし | | `failed` | `not_signed` |
+| アドホック | | `failed` | `adhoc` |
+| Apple Development などの Developer ID 以外の証明書 | | `failed` | `not_developer_id` |
+| Developer ID | 終了コード 0 で `source=Notarized Developer ID` | `passed` | |
+| Developer ID | 終了コード 3 (却下)、または終了コード 0 で `source=Notarized Developer ID` が無い | `error` | `not_notarized` |
+| Developer ID | 終了コードが 0 と 3 以外 | `error` | `check_error` |
+| 読み取れない。Developer ID で Team ID が読めないものを含む | | `error` | `check_error` |
 
-複数のバンドルで Team ID が食い違う場合は、その版を管理者の確認待ちにします。乗っ取ったアカウントで別の証明書を使った兆候になりうるためで、乗っ取りの兆候と同じ扱いにします。
+Developer ID の署名がありながら公証済みと判定されないものを `failed` にせず `error` にするのは、Apple への照会の失敗と却下を出力で区別できないためです。V2 では、照会先の `api.apple-cloudkit.com` を止めても公証済みの判定が返り、照会の失敗を示す出力は得られませんでした。`error` は 3 回まで試行し、3 回目も `error` なら管理者の確認を待ちます。Developer ID の署名だけがあり公証の無い標本は見つかっておらず、この組み合わせは実例で確かめていません。
+
+アーカイブの結果は、判定したすべてのバンドルの結果をまとめて決めます。1 件でも `failed` があれば `failed`、`failed` が無く `error` があれば `error`、すべてが `passed` なら `passed` です。理由コードは、該当する最初のバンドルのものを記録します。配布物の取得の失敗、`digest` の不一致、展開の失敗、Worker から受け取ったバンドルがアーカイブに無いときは、`error` の `check_error` にします。
+
+Team ID は、判定したすべてのバンドルの値を記録します。版の macOS のアーカイブの Team ID が 1 つにそろわない場合は、その版を管理者の確認待ちにします。1 つのアーカイブの中の食い違いも含みます。乗っ取ったアカウントで別の証明書を使った兆候になりうるためで、乗っ取りの兆候と同じ扱いにします。
+
+#### 展開の前の確かめ
+
+`ditto -x -k` は、`../` を含む項目を展開先の中へ書き換えますが、展開先の外を指すシンボリックリンクはそのまま作ります (V2)。そのため、展開の前に zip の項目を確かめ、次のどれかを含むアーカイブは展開せず、`error` の `unsafe_archive` にします。
+
+- 絶対パス、親のフォルダーを指す `..`、制御文字を含む項目。判定は中身の検査の `inspect_archive.py` と同じ関数で行う
+- 絶対パスを指すシンボリックリンク
+- 行き先がバンドルの外になるシンボリックリンク。行き先は、zip の中のほかのシンボリックリンクもたどって求める。バンドルの外にあるシンボリックリンクは、行き先がアーカイブの中に収まれば許す
+
+フレームワークの `Versions/Current` のように、バンドルの中を指すシンボリックリンクは許します。シンボリックリンクの判定は、作成元の OS の欄を問わず、項目の Unix の mode で行います。展開の上限は中身の検査と同じ値を、zip に記録された大きさで確かめます。
+
+#### macOS の LV2
+
+macOS の LV2 のバンドルは判定せず、案内しません。V2 で、`spctl` と `codesign` が LV2 のフォルダーを `bundle format unrecognized` として判定の対象にしないことを確かめました。中のバイナリは判定できますが、Developer ID の LV2 のバイナリが合格する例を確かめられていません。
+
+この規則は、中身の検査の結果ではなく、Worker の案内の算出で適用します。中身の検査は検出した事実をそのまま `content_checks` に記録し、宣言ファイルとの照合もその事実で行います。Worker は、案内に使う規格・OS・アーキテクチャを `content_checks` の `bundles` から求めるとき、LV2 のバンドルの OS から `macos` を除き、OS が残らない LV2 のバンドルを数えません。規則は `src/domain/metadata.ts` の `guidedPlatforms` と `isMacosJudged` の 1 か所に置き、`macos_signing_checks` の行を作る条件、`GET /internal/macos-checks/pending` が返すバンドル、掲載状態の算出、画面と MCP の表示が同じ規則を使います。
+
+- macOS の LV2 だけを含むアーカイブは案内しない。作者には `macos_lv2_not_guided` を返す
+- macOS の VST 3 などと macOS の LV2 を含むアーカイブは、LV2 以外のバンドルの判定で決め、表示する規格に LV2 を含めない
+- Linux と macOS の両方のバイナリを持つ LV2 のバンドルは、Linux の LV2 として案内する
 
 Linux の rcodesign は使いません。rcodesign の verify は Mach-O だけを対象にし、不具合があることを自ら警告しています (非公開の調査記録)。
-
-Developer ID の署名だけがあり、公証の無い標本は、検証 A2 で見つかっていません。この組み合わせの判定は実例で確かめていません。
-
-macOS の追加の検証で、次の事柄を確かめます。結果を受けて、判定の規則を確定します。
-
-- ステープルの無い公証済みのバンドルを、照会の記録が無い状態で判定した結果。検証 A2 では元のバンドルを先に判定しており、オンラインの照会だけで合格になるとは言い切れません
-- Apple への照会の失敗と却下を、終了コードと出力で区別する方法。区別できない結果は `failed` にせず `error` として扱います
-- macOS の LV2 のバンドルに `spctl` を当てた結果。検証 A2 の対象は `.vst3`・`.clap`・`.component` だけでした。判定できなければ、macOS の LV2 のバンドルを含むアーカイブを案内しない規則にします
-- `ditto -x -k` の展開の安全
-
-`macos-verify.yaml` を運用に入れるまでは、macOS 向けのバンドルを含むアーカイブの `macos_signing_checks` は `pending` のまま残り、そのアーカイブを案内しません。[データモデル](data-model.md) の算出規則により、そのアーカイブを含む版は掲載しません。
 
 ### 通信の検出
 
@@ -528,6 +545,4 @@ Cloudflare Workers の無料プランの上限に対し、本サービスは次�
 
 ## 未決定の事項
 
-| 事項 | 節 | 決める時点 |
-| --- | --- | --- |
-| ステープルの無い公証済みのバンドルの判定、照会の失敗と却下の区別、macOS の LV2 のバンドルの判定、`ditto` の展開の安全 | 署名と公証の判定 | macOS の追加の検証の後 |
+現在、未決定の事項はありません。

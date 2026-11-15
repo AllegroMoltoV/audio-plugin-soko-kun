@@ -123,7 +123,13 @@ jobs:
                   spctl_exit=$?
                   python3 -I "${judge}" bundle "${dir}/${n}.codesign.txt" "${codesign_exit}" \
                     "${dir}/${n}.spctl.txt" "${spctl_exit}" > "${dir}/${n}.json"
-                  echo "  ${bundle}: $(jq -c '{result, reason, signing, teamId}' "${dir}/${n}.json") (codesign ${codesign_exit}, spctl ${spctl_exit})"
+                  # codesign --verify と stapler validate は合格の条件に使わず、ログに残すだけにする (D10)。
+                  codesign --verify --deep --strict "${target}" > /dev/null 2>&1
+                  verify_exit=$?
+                  xcrun stapler validate "${target}" > /dev/null 2>&1
+                  stapler_exit=$?
+                  echo "  ${bundle}: $(jq -c '{result, reason, signing, teamId}' "${dir}/${n}.json")" \
+                    "(codesign ${codesign_exit}, spctl ${spctl_exit}, verify ${verify_exit}, stapler ${stapler_exit})"
                   sed 's/^/    /' "${dir}/${n}.spctl.txt" | head -5
                   cat "${dir}/${n}.json" >> "${dir}/verdicts.jsonl"
                 done
