@@ -122,6 +122,11 @@ MIT License です。[LICENSE](LICENSE) を参照してください。VST Compat
 
 ## 更新履歴
 
+### 0.1.6 (2026-11-15)
+
+- レビューの README を、GitHub がリポジトリの画面に表示するものを GitHub の README の API で取得し、そのパスで照合するようにしました。`README.md` 以外の名前の README や、`.github` と `docs` に置いた README で、`no-security-bypass` と `no-terminal-paste` の照合を逃れられた欠陥を直しました。README の上限は 128 KB のままで、LLM には先頭の 32,768 文字だけを渡します。配信プラグイン倉庫くん 0.2.9 と同じ実装です。
+- AI Gateway のログで配信プラグイン倉庫くんと消費を区別できるよう、Workers AI の呼び出しにサービス名 `audio-plugin-soko-kun` のメタデータを付けました。
+
 ### 0.1.5 (2026-11-15)
 
 - README を最初に 128 KB まで読み、`no-security-bypass` と `no-terminal-paste` で全文を照合するようにしました。読めなかった README は、無い README と同じに扱わず、重大の指摘にします。LLM には README の先頭 32 KB だけを渡します。配信プラグイン倉庫くん 0.2.7 と 0.2.8 と同じ実装です。

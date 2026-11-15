@@ -95,9 +95,12 @@ export function githubHandlers(fixture: RepoFixture = {}, calls: string[] = []) 
       if (missing) return new HttpResponse(null, { status: 404 });
       return HttpResponse.json({ attestations: [{ bundle: null, bundle_url: 'https://example.invalid/bundle' }] });
     }),
-    http.get(`${base}/readme`, () => {
+    // 登録のときの概要は raw で、レビューは JSON (path と size と base64 の中身) で受ける。
+    http.get(`${base}/readme`, ({ request }) => {
       track('readme');
-      return HttpResponse.text('# Title\n\nA pitch shift effect.\n');
+      const text = '# Title\n\nA pitch shift effect.\n';
+      if (request.headers.get('Accept')?.includes('raw')) return HttpResponse.text(text);
+      return HttpResponse.json({ path: 'README.md', size: text.length, encoding: 'base64', content: btoa(text) });
     }),
   ];
 }
@@ -111,6 +114,7 @@ export function releaseCheckHandlers() {
     http.get(`${base}/license`, () => HttpResponse.json({ license: { spdx_id: 'MIT' } })),
     http.get(`${base}/git/trees/:ref`, () => HttpResponse.json({ tree: [], truncated: false })),
     http.get(`${base}/contents/:file`, missing),
+    http.get(`${base}/readme`, missing),
     // 版のコミットの位置は、既定のブランチにあるものとして返す。差分の比較は 404。
     http.get(`${base}/compare/:range`, ({ params }) =>
       String(params.range).startsWith('HEAD...')

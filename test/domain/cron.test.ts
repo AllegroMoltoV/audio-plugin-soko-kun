@@ -276,12 +276,11 @@ describe('runCron の新しい版の検査と同期の優先', () => {
         }
         return serve();
       };
-    // レビューが読むファイルはワークフロー 6、README 1、ルートのビルド系のファイル 5、CONTRIBUTING 1、PR テンプレート 1 の 14 件。
+    // レビューが読むファイルは README の API 1、ワークフロー 6、ルートのビルド系のファイル 5、CONTRIBUTING 1、PR テンプレート 1 の 14 件。
     // 検査の取得は、宣言ファイル・ライセンス・版のコミットの位置・ファイルの一覧・14 件・ruleset の一覧の 19 回で、
     // 3 倍の 57 件になる。検査に使える残り (45 − 取り分け 8 − 照会) を、ファイルの取得の途中で超える。
     const paths = [
       ...Array.from({ length: 6 }, (_, i) => `.github/workflows/w${i}.yaml`),
-      'README.md',
       'CMakeLists.txt',
       'Cargo.toml',
       'vcpkg.json',
@@ -297,6 +296,10 @@ describe('runCron の新しい版の検査と同期の優先', () => {
       ),
       http.get(
         `${base}/contents/*`,
+        redirected(() => new HttpResponse(null, { status: 404 })),
+      ),
+      http.get(
+        `${base}/readme`,
         redirected(() => new HttpResponse(null, { status: 404 })),
       ),
       http.get(

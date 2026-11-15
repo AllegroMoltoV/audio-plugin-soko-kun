@@ -26,12 +26,14 @@ const goodWorkflow = [
   '          persist-credentials: false',
 ].join('\n');
 
+// README は、本番では GitHub の README の API が返したパスを readmePath に入れる。テストでは README.md を置いたときに入れる。
 function snapshot(files: Record<string, string>, extraPaths: string[] = [], truncated = false): RepositorySnapshot {
   return {
     paths: [...Object.keys(files), ...extraPaths],
     truncated,
     files: Object.entries(files).map(([path, content]) => ({ path, content })),
     unreadFiles: [],
+    readmePath: 'README.md' in files ? 'README.md' : null,
   };
 }
 
@@ -61,20 +63,29 @@ describe('judgeByRules', () => {
     expect(result(findings, 'ci-hardening')).toBe('unclear');
     expect(result(findings, 'hermetic-build')).toBe('unclear');
     expect(result(findings, 'contribution-compliance')).toBe('unclear');
-    // README が一覧に無いと断定できないため、README の案内の型の判定も unclear にする。
-    expect(result(findings, 'no-security-bypass')).toBe('unclear');
   });
 
-  it('README.md が大きくて読めなかったら、README の案内の型の判定を重大の not_met にする', () => {
-    // README を大きくするだけで重大の判定を逃れられないことを確かめる (配信プラグイン倉庫くん 0.2.7 と同じ実装)。
-    const unread: RepositorySnapshot = { ...snapshot({}, ['README.md']), unreadFiles: ['README.md'] };
+  it('README が大きくて読めなかったら、README の案内の型の判定を重大の not_met にする', () => {
+    // README を大きくするだけで重大の判定を逃れられないことを確かめる (配信プラグイン倉庫くん 0.2.9 と同じ実装)。
+    const unread: RepositorySnapshot = { ...snapshot({}), unreadFiles: ['README'], readmeUnread: true };
     for (const id of ['no-security-bypass', 'no-terminal-paste']) {
       const finding = judgeByRules(unread).find((entry) => entry.id === id);
       expect(finding).toMatchObject({ result: 'not_met', serious: true });
       expect(finding?.explanation.startsWith('Checked by rules: ')).toBe(true);
     }
-    // README が本当に無いときは、従来どおり met。
+    // README が本当に無いときは met。
     expect(result(judgeByRules(snapshot({})), 'no-security-bypass')).toBe('met');
+  });
+
+  // 危険側: README の名前を変えると、照合を逃れられること。README は GitHub が表示するものを API で取り、そのパスで照合する。
+  it('README.md 以外の名前の README も照合する', () => {
+    for (const path of ['readme.md', '.GitHub/README.md', 'docs/README.rst', 'README']) {
+      const findings = judgeByRules({ ...snapshot({ [path]: 'xattr -cr Plugin.vst3' }), readmePath: path });
+      expect(
+        findings.find((entry) => entry.id === 'no-security-bypass'),
+        path,
+      ).toMatchObject({ result: 'not_met', serious: true, evidence: [{ file: path }] });
+    }
   });
 
   it('dependency-pinning: コミットしたバイナリと、固定していない FetchContent は not_met', () => {
@@ -214,7 +225,7 @@ describe('LLM に渡す情報', () => {
 
   it('規則だけが読むファイルは LLM に渡さない', () => {
     const files = llmFiles(
-      snapshot({ 'README.md': '', 'CMakeLists.txt': '', '.github/workflows/a.yaml': '', 'CONTRIBUTING.md': '' }).files,
+      snapshot({ 'README.md': '', 'CMakeLists.txt': '', '.github/workflows/a.yaml': '', 'CONTRIBUTING.md': '' }),
     );
     expect(files.map((entry) => entry.path).sort()).toEqual(['.github/workflows/a.yaml', 'README.md']);
   });
@@ -289,9 +300,8 @@ describe('reviewFilePlan', () => {
       '.github/ISSUE_TEMPLATE/bug.yml',
       'CONTRIBUTING.md',
     ]);
-    // README を最初に読む。先に読むファイルで合計の上限を使い切られ、README の照合を逃れられないようにするため。
+    // README は README の API で別に取得するため、ここには含めない。
     expect(plan.fetch).toEqual([
-      'README.md',
       ...Array.from({ length: 6 }, (_, i) => `.github/workflows/w${i}.yaml`),
       'CMakeLists.txt',
       '.gitmodules',
@@ -299,18 +309,19 @@ describe('reviewFilePlan', () => {
       'CONTRIBUTING.md',
     ]);
     expect(plan.skipped).toEqual(['.github/workflows/w6.yaml']);
-    expect(plan.fetch.length + 1).toBeLessThanOrEqual(REVIEW_FILES_COST);
+    // ファイルの一覧 1 と README の API 1 を足す。
+    expect(plan.fetch.length + 2).toBeLessThanOrEqual(REVIEW_FILES_COST);
   });
 });
 
 describe('llmFiles', () => {
   it('README は先頭の MAX_LLM_README_CHARS 文字だけを LLM に渡し、残りを渡していないことを書く', () => {
     const long = 'a'.repeat(MAX_LLM_README_CHARS + 10);
-    const entry = llmFiles([{ path: 'README.md', content: long }])[0];
+    const entry = llmFiles(snapshot({ 'README.md': long }))[0];
     if (!entry) throw new Error('README.md was dropped');
     expect(entry.content.startsWith('a'.repeat(MAX_LLM_README_CHARS))).toBe(true);
-    expect(entry.content.endsWith('[The rest of README.md is not provided because of the size limits.]')).toBe(true);
-    expect(llmFiles([{ path: 'README.md', content: 'short' }])[0]?.content).toBe('short');
+    expect(entry.content.endsWith('[The rest of the README is not provided because of the size limits.]')).toBe(true);
+    expect(llmFiles(snapshot({ 'README.md': 'short' }))[0]?.content).toBe('short');
   });
 });
 
