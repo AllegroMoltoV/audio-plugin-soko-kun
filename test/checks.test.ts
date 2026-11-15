@@ -281,6 +281,26 @@ describe('配布物の検証の結果', () => {
     }
   });
 
+  it('I12 同じ配布物の結果を 2 つ含む要求は 400 で拒否し、どの行も書かない', async () => {
+    await register();
+    const response = await post([
+      { assetId: ARCHIVE_ID, attestation: { result: 'failed', reason: 'verification_failed' } },
+      { assetId: ARCHIVE_ID, attestation: signer, content: passedWindows },
+    ]);
+    expect(response.status).toBe(400);
+    expect(await attestationOf(ARCHIVE_ID)).toMatchObject({ result: 'pending' });
+    expect(await contentOf(ARCHIVE_ID)).toMatchObject({ result: 'pending' });
+  });
+
+  it('I08 の対照: macOS の LV2 のバンドルだけの結果では、macOS の判定の行を作らない', async () => {
+    await register();
+    const lv2 = { path: 'Fixture.lv2', format: 'lv2', os: ['macos'], arches: ['arm64'] };
+    const content = { ...passedMac, bundles: [lv2], formats: ['lv2'], arches: ['arm64'] };
+    expect((await post([{ assetId: ARCHIVE_ID, content }])).status).toBe(200);
+    expect(await contentOf(ARCHIVE_ID)).toMatchObject({ result: 'passed', os: '["macos"]' });
+    expect(await macosRows()).toEqual([]);
+  });
+
   it('I08 中身の検査の結果の os に macos を含めば、macOS の判定の行を pending で作る', async () => {
     await register();
     expect((await post([{ assetId: ARCHIVE_ID, content: passedMac }])).status).toBe(200);
