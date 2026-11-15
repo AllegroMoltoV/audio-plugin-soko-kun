@@ -30,6 +30,9 @@ export interface PageMeta {
   vst?: boolean;
 }
 
+// 姉妹サービスの配信プラグイン倉庫くん。言語の選び方 (?lang と同じ 7 言語) が同じため、表示中の言語を引き継ぐ。
+const SISTER_ORIGIN = 'https://soko-kun.allegromoltov.jp';
+
 export function withLang(path: string, lang: Lang): string {
   const url = new URL(path, 'http://x');
   url.searchParams.set('lang', lang);
@@ -261,6 +264,11 @@ export const Layout: FC<{ meta: PageMeta; side: Child; sideNarrow: Child; childr
                   {t.nav.sponsor}
                 </a>
               </div>
+              <p>
+                {t.sister.before}
+                <a href={`${SISTER_ORIGIN}${withLang('/', lang)}`}>{t.sister.name}</a>
+                {t.sister.after}
+              </p>
               <p class="copyright">© 2026 AllegroMoltoV</p>
             </div>
           </footer>

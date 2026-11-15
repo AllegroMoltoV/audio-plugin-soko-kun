@@ -37,6 +37,12 @@ describe('Web', () => {
     expect(csp).not.toContain('script-src');
   });
 
+  // 姉妹サービスへ移っても、利用者が選んだ言語のまま読めること。
+  it('フッターの姉妹サービスへのリンクは表示中の言語を引き継ぐ', async () => {
+    const html = await (await SELF.fetch(`${ORIGIN}/?lang=ko`)).text();
+    expect(html).toContain('href="https://soko-kun.allegromoltov.jp/?lang=ko"');
+  });
+
   it('検査待ちのプラグインを一覧に出さず、詳細にもダウンロードの案内を出さない', async () => {
     await register();
     const list = await (await SELF.fetch(`${ORIGIN}/?lang=en`)).text();
