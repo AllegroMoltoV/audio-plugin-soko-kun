@@ -5,6 +5,8 @@ import { describe, expect, it } from 'vitest';
 import { Budget } from '../../src/budget';
 import {
   DISPATCH_RESERVE,
+  FINAL_QUERIES,
+  FINAL_RESERVE,
   MALWAREBAZAAR_PER_RUN,
   recordListings,
   runCron,
@@ -239,11 +241,11 @@ describe('runCron の新しい版の検査と同期の優先', () => {
   // 1 件の処理の外部呼び出しの件数を変えたら、この不等式が崩れないことと docs/design/scanning.md の表を確かめる。
   it('照会を上限まで行っても、同期 1 件の分を残して新しい版の検査 1 件の予算が残る', () => {
     const budget = new Budget();
-    expect(budget.maxSubrequests - (DISPATCH_RESERVE + SYNC_COST) - MALWAREBAZAAR_PER_RUN).toBeGreaterThanOrEqual(
+    expect(budget.maxSubrequests - (FINAL_RESERVE + SYNC_COST) - MALWAREBAZAAR_PER_RUN).toBeGreaterThanOrEqual(
       RELEASE_CHECK_COST,
     );
     // 照会は D1 のクエリを 2 件使う。検査は開始の時点で 6 件を求める (runReleaseChecks)。
-    expect(budget.maxD1Queries - (DISPATCH_RESERVE + SYNC_QUERIES) - 2).toBeGreaterThanOrEqual(6);
+    expect(budget.maxD1Queries - (FINAL_QUERIES + SYNC_QUERIES) - 2).toBeGreaterThanOrEqual(6);
   });
 
   // 同期 1 件は外部呼び出しを 2 件使う。同期を先に行うと、21 件の同期で検査 1 件の分 (RELEASE_CHECK_COST) が残らない。
@@ -278,7 +280,7 @@ describe('runCron の新しい版の検査と同期の優先', () => {
       };
     // レビューが読むファイルは README の API 1、ワークフロー 6、ルートのビルド系のファイル 5、CONTRIBUTING 1、PR テンプレート 1 の 14 件。
     // 検査の取得は、宣言ファイル・ライセンス・版のコミットの位置・ファイルの一覧・14 件・ruleset の一覧の 19 回で、
-    // 3 倍の 57 件になる。検査に使える残り (45 − 取り分け 8 − 照会) を、ファイルの取得の途中で超える。
+    // 3 倍の 57 件になる。検査に使える残り (45 − 取り分け 9 − 照会) を、ファイルの取得の途中で超える。
     const paths = [
       ...Array.from({ length: 6 }, (_, i) => `.github/workflows/w${i}.yaml`),
       'CMakeLists.txt',

@@ -33,6 +33,7 @@ D1 のテーブルと、掲載状態の算出規則の仕様です。スキー�
 | `release_suspensions` | 管理者が止めた版とマルウェアを検出した版。削除しない |
 | `plugin_aliases` | プラグインの旧い URL の ID 1 つにつき 1 行 |
 | `check_log` | `submit_plugin` の確認のモードの要求 1 件につき 1 行 |
+| `admin_notifications` | Discord へ通知した管理者の確認待ちの理由 1 つにつき 1 行 |
 
 OAuth のクライアント・認可・トークンの情報は D1 ではなく KV の `OAUTH_KV` に置きます。KV の形式は `@cloudflare/workers-oauth-provider` が管理します。
 
@@ -290,6 +291,15 @@ OAuth のクライアント・認可・トークンの情報は D1 ではなく 
 | `created_at` | TEXT | NOT NULL | 要求の日時 |
 
 確認のモードの上限は、利用者ごとに直近 24 時間で 5 件です。
+
+## admin_notifications
+
+| 列 | 型 | 制約 | 内容 |
+| --- | --- | --- | --- |
+| `key` | TEXT | 主キー | 確認待ちの理由のキー。版の単位の理由は `r:<github_release_id>:<理由>`、プラグインの全版に付く理由 (`readme_held`・`owner_changed`) は `p:<内部のプラグイン ID>:<理由>` |
+| `notified_at` | TEXT | NOT NULL | 通知した日時 |
+
+定期処理は、毎回の最後に、2 つの検証のワークフローの起動を終えてから、管理者の確認を待つ理由を掲載の位置と関係なく全リリースについて求めます。対象は [作者へのレビューの返し方](author-feedback.md) の `waitsFor` が `"admin"` の理由で、管理者が止めた版と、削除と管理停止のプラグインは除きます。求めた理由のうち、この表に無いものだけを Discord へ送ります。送信が成功したら行を足し、理由が解けたら行を消します。同じ理由で確認待ちに戻ったときは、改めて送ります。
 
 ## 掲載状態の算出規則
 

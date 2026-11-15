@@ -86,6 +86,9 @@ curl "http://localhost:8787/__scheduled?cron=*/15+*+*+*+*"
 | `subrequests`・`d1Queries` | 使った外部呼び出しと D1 のクエリの件数 |
 | `stoppedBy` | 処理を途中で止めた理由。GitHub の異常は `github_` で、予算の不足は `budget_` で始まる |
 | `verifyDispatch`・`macosVerifyDispatch` | `verify.yaml` と `macos-verify.yaml` の起動の結果。ローカルでは `skipped_no_token` になる |
+| `adminNotify` | 管理者の確認待ちの通知の結果。値の意味は [管理コマンドと掲載停止](suspend.md) に記載する。`.dev.vars` に `DISCORD_WEBHOOK_URL` が無いと `skipped_no_url` になる |
+
+`.dev.vars` に `DISCORD_WEBHOOK_URL` を置くと、ローカルの定期処理も Discord へ通知します。本番と同じ URL を置くと本番の通知と混ざるため、置かないか、試しのチャンネルの URL を置きます。テストはこの値を読みません。
 
 ## テストと静的検査
 

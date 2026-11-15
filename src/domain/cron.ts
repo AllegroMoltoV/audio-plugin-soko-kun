@@ -9,6 +9,7 @@ import { checkImage, expectedType, IMAGE_LIMITS, type ImageKind } from '../image
 import { runPreviews } from '../previews';
 import { ScannerRateLimitedError, scanWithMalwareBazaar } from '../scanners';
 import { runTranslations } from '../translate';
+import { type AdminNotify, NOTIFY_QUERIES, NOTIFY_RESERVE, notifyAdmin } from './admin-notify';
 import { loadAllViews } from './catalog';
 import { type AssetKind, assetKind } from './metadata';
 import { type ReadmeFetch, readmeWatchStatement } from './readme-watch';
@@ -36,6 +37,7 @@ export interface CronReport {
   stoppedBy?: string;
   verifyDispatch?: VerifyDispatch;
   macosVerifyDispatch?: VerifyDispatch;
+  adminNotify?: AdminNotify;
 }
 
 function now(): string {
@@ -109,6 +111,9 @@ export const SYNC_QUERIES = 3;
 // 検証のワークフローの起動 (verify.yaml と macos-verify.yaml の 2 つ) に取り分ける外部呼び出しと D1 のクエリ。
 // 1 つの起動で、待ちの有無の確かめに D1 のクエリ 1 件と、起動に外部呼び出し 1 件を使う。
 export const DISPATCH_RESERVE = 2;
+// 定期処理の最後の処理 (2 つの検証のワークフローの起動と、管理者の確認待ちの通知) に取り分ける外部呼び出しと D1 のクエリ。
+export const FINAL_RESERVE = DISPATCH_RESERVE + NOTIFY_RESERVE;
+export const FINAL_QUERIES = DISPATCH_RESERVE + NOTIFY_QUERIES;
 
 async function syncOne(env: Env, budget: Budget, github: GitHubClient, row: SyncRow): Promise<void> {
   const timestamp = now();
@@ -557,14 +562,14 @@ export async function runCron(env: Env, budget = new Budget()): Promise<CronRepo
     subrequests: 0,
     d1Queries: 0,
   };
-  // 後段のループが予算を使い切っても、最後に 2 つの検証のワークフローを起動できるよう取り分けておく。
-  budget.reserve(DISPATCH_RESERVE, DISPATCH_RESERVE);
+  // 後段のループが予算を使い切っても、最後に 2 つの検証のワークフローの起動と管理者への通知ができるよう取り分けておく。
+  budget.reserve(FINAL_RESERVE, FINAL_QUERIES);
   try {
     await runScans(env, budget, report);
     // 新しい版の検査は掲載に直接つながるため、量がプラグインの数に比例する同期より先に行う (ADR 0007)。
     // 検査の間は同期 1 件の分を後段に残し、検査が予算を使い切っても同期が進むようにする。検査で失敗しても後段は止めない。
     // 本当のレート制限や障害なら、同期が自分の最初の呼び出しで検知して止まる。
-    budget.reserve(DISPATCH_RESERVE + SYNC_COST, DISPATCH_RESERVE + SYNC_QUERIES);
+    budget.reserve(FINAL_RESERVE + SYNC_COST, FINAL_QUERIES + SYNC_QUERIES);
     try {
       report.releasesChecked = await runReleaseChecks(env, budget);
     } catch (error) {
@@ -572,7 +577,7 @@ export async function runCron(env: Env, budget = new Budget()): Promise<CronRepo
       else if (error instanceof GitHubError) report.releaseChecksSkipped = `github_${error.kind}`;
       else throw error;
     }
-    budget.reserve(DISPATCH_RESERVE, DISPATCH_RESERVE);
+    budget.reserve(FINAL_RESERVE, FINAL_QUERIES);
     await runSync(env, budget, report);
     await recordListings(env, budget);
     if (!report.stoppedBy) await runDownloads(env, budget, report);
@@ -598,6 +603,8 @@ export async function runCron(env: Env, budget = new Budget()): Promise<CronRepo
     'macos-verify.yaml',
     env.DB.prepare(`SELECT 1 ${PENDING_MACOS_FROM} LIMIT 1`).bind(...PENDING_MACOS_BINDINGS),
   );
+  // 通知は起動の後に置き、通知の失敗で起動が止まらないようにする。notifyAdmin は例外を投げない。
+  report.adminNotify = await notifyAdmin(env, budget);
   report.subrequests = budget.subrequests;
   report.d1Queries = budget.d1Queries;
   return report;

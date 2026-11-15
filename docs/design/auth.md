@@ -108,8 +108,9 @@ GitHub API を認証なしで呼ぶと、Workers の共有の送信元 IP アド
 | `MALWAREBAZAAR_AUTH_KEY` | MalwareBazaar の Auth-Key。配信プラグイン倉庫くんと同じ鍵を使う |
 | `GITHUB_DISPATCH_TOKEN` | 配布物の検証のワークフロー `verify.yaml` と `macos-verify.yaml` を起動するための fine-grained personal access token。対象は本サービスのリポジトリだけで、権限は Actions の Read and write だけ |
 | `CONTACT_EMAIL` | 開発者の連絡先のメールアドレス。収集を防ぐためソースコードに書かず、秘密情報と同じ方法で設定する |
+| `DISCORD_WEBHOOK_URL` | 管理者の確認待ちを知らせる、管理者だけが見られる Discord のチャンネルの webhook の URL。配信プラグイン倉庫くんとは別の URL を使う。設定は [CI と配備](../operations/ci-cd.md) に記載 |
 
-`GITHUB_DISPATCH_TOKEN` は省略できます。省略した場合は Worker からワークフローを起動せず、ワークフローの schedule と手動の起動だけに頼ります。`MALWAREBAZAAR_AUTH_KEY` は省略できます。省略した場合は照会を行わず、検査結果は `pending` のまま残ります。
+`GITHUB_DISPATCH_TOKEN` は省略できます。省略した場合は Worker からワークフローを起動せず、ワークフローの schedule と手動の起動だけに頼ります。`MALWAREBAZAAR_AUTH_KEY` は省略できます。省略した場合は照会を行わず、検査結果は `pending` のまま残ります。`DISCORD_WEBHOOK_URL` は省略できます。省略した場合と、`https://discord.com/api/webhooks/` で始まらない場合は通知しません。この URL が漏れた場合にできるのは、そのチャンネルへの投稿です。Worker はこの URL をログに出しません。
 
 macOS の公証の判定は Apple への照会を伴いますが、照会に認証情報は要りません。検証 A2 では、秘密情報を参照しないワークフローで、公証済みの標本が公証済みと判定されました。そのため、`macos-verify.yaml` に秘密情報を置きません。
 

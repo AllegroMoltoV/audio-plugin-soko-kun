@@ -56,6 +56,7 @@ flowchart LR
   domain -->|リポジトリとリリースの情報| ghApi[GitHub API]
   domain -->|digest の照会| scanners[MalwareBazaar]
   domain -->|翻訳と LLM のレビュー| ai[Workers AI]
+  domain -->|管理者の確認待ちの通知| discord[Discord webhook]
   verify -->|配布物と証明の取得| ghApi
   domain -->|workflow_dispatch| macos
   macos -->|配布物の取得| ghApi
@@ -93,7 +94,7 @@ GitHub と配布物から取得した文字列は、外部データとして扱�
 
 `verify.yaml` と `macos-verify.yaml` は、取得した配布物を読むだけで、中のコードを実行しません。`verify.yaml` は、アーカイブをファイルへ展開せず、メモリ上で読みます。絶対パス・親のフォルダーを指すパス・シンボリックリンクの項目は読みません。項目の数と展開後の大きさには上限を設けます。上限の値は [検査と同期](scanning.md) に記載します。`macos-verify.yaml` は、署名と公証の判定のためにバンドルを `ditto` でファイルへ展開します。展開の前に zip の項目を確かめ、展開先やバンドルの外へ出る項目を含むアーカイブは展開しません。
 
-ドメインロジックは、外部への要求を `api.github.com`・`mb-api.abuse.ch`・`token.actions.githubusercontent.com` の固定のホストにだけ送ります。利用者が入力した URL からは owner と repo だけを取り出し、その URL へは要求を送りません。これにより、SSRF を防ぎます。
+ドメインロジックは、外部への要求を `api.github.com`・`mb-api.abuse.ch`・`token.actions.githubusercontent.com`・`discord.com` の固定のホストにだけ送ります。`discord.com` へは、秘密情報 `DISCORD_WEBHOOK_URL` の webhook にだけ送ります。利用者が入力した URL からは owner と repo だけを取り出し、その URL へは要求を送りません。これにより、SSRF を防ぎます。
 
 例外は、認可サーバーが取得する CIMD の文書です。CIMD の文書の URL は MCP クライアントが指定します。Worker の互換性フラグ `global_fetch_strictly_public` を有効にし、公開されたインターネット上のホストにだけ要求を送るようにしています。
 

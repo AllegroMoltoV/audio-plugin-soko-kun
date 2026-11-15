@@ -109,6 +109,7 @@ Worker の秘密情報は、`wrangler secret put` で本番の Worker に設定�
 | `MALWAREBAZAAR_AUTH_KEY` | 任意 | MalwareBazaar の Auth-Key。無いと照会を行わず、登録したプラグインは検査待ちのまま残る |
 | `GITHUB_DISPATCH_TOKEN` | 任意 | `verify.yaml` と `macos-verify.yaml` を起動するトークン。無いと Worker から起動せず、予備の schedule だけが残る |
 | `CONTACT_EMAIL` | 任意 | 開発者の連絡先。無いと、連絡先を表示するボタンは準備中である旨を表示する |
+| `DISCORD_WEBHOOK_URL` | 任意 | 管理者の確認待ちを知らせる Discord の webhook の URL。無いと通知しない |
 
 ```sh
 npx wrangler secret put GITHUB_CLIENT_ID --env production
@@ -116,7 +117,10 @@ npx wrangler secret put GITHUB_CLIENT_SECRET --env production
 npx wrangler secret put MALWAREBAZAAR_AUTH_KEY --env production
 npx wrangler secret put GITHUB_DISPATCH_TOKEN --env production
 npx wrangler secret put CONTACT_EMAIL --env production
+npx wrangler secret put DISCORD_WEBHOOK_URL --env production
 ```
+
+`DISCORD_WEBHOOK_URL` は、依頼者が Discord で管理者だけが見られるチャンネルを作り、そのチャンネルの連携サービスの設定で作った webhook の URL です。URL はチャットやファイルに残さず、依頼者が直接設定します。
 
 本番用の GitHub OAuth App の Authorization callback URL には、`https://audio-soko-kun.allegromoltov.jp/callback` を指定します。認可の流れは [認証と認可](../design/auth.md) に記載しています。
 
