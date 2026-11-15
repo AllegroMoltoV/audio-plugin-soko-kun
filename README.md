@@ -51,6 +51,7 @@ The listing conditions, the security policy, and how to report a problem are on 
 | `test/` | Automated tests |
 | `.github/workflows/` | CI, deployment and verification workflows run on GitHub Actions |
 | `server.json` | Listing definition for the official MCP Registry |
+| `glama.json` | Maintainer of the Glama listing |
 | `LICENSE` | MIT License |
 
 ### AI disclosure
@@ -96,6 +97,7 @@ Steinberg Media Technologies GmbH、CLAP のプロジェクト、Apple、LV2 の
 | `test/` | 自動テスト |
 | `.github/workflows/` | GitHub Actions で実行する CI・配備・検証のワークフロー |
 | `server.json` | 公式の MCP Registry への登録の定義 |
+| `glama.json` | Glama の掲載の保守者 |
 | `LICENSE` | MIT License |
 
 ### 使い方
