@@ -7,6 +7,7 @@ export const EXPECTED_REPOSITORY = 'AllegroMoltoV/audio-plugin-soko-kun';
 // job_workflow_ref はワークフローのファイルごとの値で、同じファイルの 2 つのジョブを区別できない。
 // そのため /internal/checks/ と /internal/macos-checks/ は別のファイルのワークフローに受け持たせる。
 export const VERIFY_WORKFLOW_REF = `${EXPECTED_REPOSITORY}/.github/workflows/verify.yaml@refs/heads/main`;
+export const MACOS_VERIFY_WORKFLOW_REF = `${EXPECTED_REPOSITORY}/.github/workflows/macos-verify.yaml@refs/heads/main`;
 
 // 鍵の一覧は isolate の中で 1 時間だけ使い回す。鍵の入れ替えに追従できるよう、知らない kid では取り直す。
 const JWKS_TTL_MS = 60 * 60 * 1000;

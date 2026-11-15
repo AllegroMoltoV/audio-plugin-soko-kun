@@ -4,6 +4,7 @@ import {
   type AssetForStatus,
   computeStatus,
   guidedAssets,
+  notGuidedReason,
   type ReleaseChecks,
   type ReleaseForStatus,
   type ScanLookup,
@@ -103,7 +104,7 @@ describe('掲載状態の算出: 中身の検査', () => {
 
 describe('掲載状態の算出: macOS の署名と公証', () => {
   it('S05: macOS のアーカイブが failed なら、版を掲載して Windows のアーカイブだけを案内する', () => {
-    const mac = macArchive('mac.zip', { result: 'failed', attempts: 1, teamIds: [], reason: 'not_notarized' });
+    const mac = macArchive('mac.zip', { result: 'failed', attempts: 1, teamIds: [], reason: 'not_developer_id' });
     const target = release([windows, mac]);
     expect(listed(target)).toBe(true);
     expect(guidedNames(target)).toEqual(['win.zip']);
@@ -128,6 +129,25 @@ describe('掲載状態の算出: macOS の署名と公証', () => {
     // 3 回目の error は管理者の確認を待つ。管理者の承認だけでは掲載しない。
     const exhausted = macArchive('mac.zip', { result: 'error', attempts: 3, teamIds: [], reason: 'check_error' });
     expect(listed(release([windows, exhausted], { adminApproved: true }))).toBe(false);
+  });
+
+  it('Developer ID の署名があり公証済みと判定されない error は、試行中も公証の欠けとして作者に示す', () => {
+    const mac = macArchive('mac.zip', {
+      result: 'error',
+      attempts: 1,
+      teamIds: ['TEAM000001'],
+      reason: 'not_notarized',
+    });
+    expect(notGuidedReason(mac)).toBe('macos_not_notarized');
+    expect(notGuidedReason({ ...mac, macos: { ...signed(), result: 'error', reason: 'check_error' } })).toBe(
+      'macos_check_error',
+    );
+  });
+
+  it('案内に使う OS が残らない (macOS の LV2 だけを含む) アーカイブを案内しない', () => {
+    const lv2 = archive('lv2.zip', { content: { ...passed, os: [] } });
+    expect(notGuidedReason(lv2)).toBe('macos_lv2_not_guided');
+    expect(listed(release([lv2]))).toBe(false);
   });
 
   it('S28: 2 つの macOS のアーカイブの Team ID が食い違えば、管理者の承認があるまで版を掲載しない', () => {

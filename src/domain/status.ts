@@ -41,6 +41,7 @@ export interface AssetForStatus {
   kind: AssetKind;
   // 行が無い検査は、どれも結果が出ていないものとして扱う。
   attestation?: CheckRow<AttestationResult>;
+  // os は案内に使う OS で、metadata.ts の guidedPlatforms で macOS の LV2 を除いた値。
   content?: CheckRow<ContentResult> & { os: Os[] };
   macos?: CheckRow<MacosResult> & { teamIds: string[]; reason: string | null };
   // 宣言ファイルの配布物の宣言から外れた配布物は false。宣言が無ければ省く。
@@ -143,6 +144,7 @@ export type NotGuidedCode =
   | 'attestation_not_passed'
   | 'content_not_passed'
   | 'no_plugin_in_archive'
+  | 'macos_lv2_not_guided'
   | 'macos_check_pending'
   | 'macos_not_signed'
   | 'macos_adhoc'
@@ -163,27 +165,29 @@ export interface StatusResult {
 
 const includesMacos = (asset: AssetForStatus) => asset.content?.os.includes('macos') === true;
 
+const MACOS_FAILED_REASONS = ['not_signed', 'adhoc', 'not_developer_id'] as const;
+
 // 配布物を案内しない理由。null なら案内する。行が無い検査を passed と扱わない。
 export function notGuidedReason(asset: AssetForStatus): NotGuidedCode | null {
   if (asset.kind === 'installer') return 'installer_not_guided';
   if (asset.kind !== 'archive') return 'not_archive';
   if (asset.content?.result === 'no_plugin') return 'no_plugin_in_archive';
   if (asset.content?.result !== 'passed') return 'content_not_passed';
+  // passed のアーカイブはバンドルを 1 件以上持つ。案内に使う OS が残らないのは、macOS の LV2 だけを含むとき。
+  if (asset.content.os.length === 0) return 'macos_lv2_not_guided';
   if (asset.attestation?.result !== 'passed') return 'attestation_not_passed';
   if (includesMacos(asset) && asset.macos?.result !== 'passed') {
+    const reason = asset.macos?.reason ?? null;
     if (asset.macos?.result === 'failed') {
-      const reason = asset.macos.reason;
-      if (
-        reason === 'not_signed' ||
-        reason === 'adhoc' ||
-        reason === 'not_developer_id' ||
-        reason === 'not_notarized'
-      ) {
-        return `macos_${reason}`;
-      }
-      return 'macos_check_failed';
+      return (MACOS_FAILED_REASONS as readonly (string | null)[]).includes(reason)
+        ? (`macos_${reason}` as NotGuidedCode)
+        : 'macos_check_failed';
     }
-    return asset.macos?.result === 'error' ? 'macos_check_error' : 'macos_check_pending';
+    if (asset.macos?.result === 'error') {
+      // Developer ID の署名があり公証済みと判定されなかったものは、照会の失敗と却下を区別できないため error で試行する。
+      return reason === 'not_notarized' ? 'macos_not_notarized' : 'macos_check_error';
+    }
+    return 'macos_check_pending';
   }
   if (asset.declared === false) return 'not_declared';
   return null;

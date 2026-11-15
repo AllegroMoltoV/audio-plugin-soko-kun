@@ -1,15 +1,16 @@
 // 配布物の検証の受け口 /internal/checks/ のアクセス権限と結果の受け取り (docs/design/testing.md の P20〜P34、I01〜I04・I06〜I09・C14)。
 // 本サービスのリポジトリの main の verify.yaml 以外のトークンを 401 で拒否することと、
 // 受け取った結果で掲載の条件をすり抜けられないことを確かめる (software-test スキル: 拒否の側を表で書く)。
-// P35 と I05 は /internal/macos-checks/ の経路のテストで、macOS の判定の実装で足す。
+// P35 と I05 は /internal/macos-checks/ の経路のテスト (macos-checks.test.ts) で確かめる。
 import { env, SELF } from 'cloudflare:test';
 import { HttpResponse, http } from 'msw';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { Budget } from '../src/budget';
-import { ACTIONS_JWKS_URL, clearJwksCache, EXPECTED_REPOSITORY, VERIFY_WORKFLOW_REF } from '../src/checks/oidc';
+import { VERIFY_WORKFLOW_REF } from '../src/checks/oidc';
 import { runReleaseChecks } from '../src/domain/release-checks';
 import { submitPlugin } from '../src/domain/submit';
 import { githubHandlers, OWNER, REPO, REPO_ID, releaseCheckHandlers, USER_TOKEN } from './fixtures/github';
+import { encode, installActionsJwks, sign, signHs256WithPublicKey, validClaims, workflowRef } from './fixtures/oidc';
 import { network } from './setup';
 
 const ORIGIN = 'http://localhost:8787';
@@ -18,66 +19,12 @@ const RESULTS = `${ORIGIN}/internal/checks/results`;
 const ARCHIVE_ID = 8001;
 const SOURCE_ID = 8002;
 
-const encode = (value: unknown) =>
-  btoa(typeof value === 'string' ? value : JSON.stringify(value))
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
-const encodeBytes = (buffer: ArrayBuffer) => encode(String.fromCharCode(...new Uint8Array(buffer)));
+const valid = () => validClaims(VERIFY_WORKFLOW_REF);
 
-let keyPair: CryptoKeyPair;
-let otherKeyPair: CryptoKeyPair;
-
-async function sign(claims: Record<string, unknown>, keys = keyPair, kid = 'test-key'): Promise<string> {
-  const head = encode({ alg: 'RS256', typ: 'JWT', kid });
-  const body = encode(claims);
-  const signature = await crypto.subtle.sign(
-    'RSASSA-PKCS1-v1_5',
-    keys.privateKey,
-    new TextEncoder().encode(`${head}.${body}`),
-  );
-  return `${head}.${body}.${encodeBytes(signature)}`;
-}
-
-// 公開鍵を HMAC の秘密鍵とみなして署名したトークン。RS256 と HS256 の取り違えを突く攻撃の形。
-async function signHs256WithPublicKey(claims: Record<string, unknown>): Promise<string> {
-  const head = encode({ alg: 'HS256', typ: 'JWT', kid: 'test-key' });
-  const body = encode(claims);
-  const spki = await crypto.subtle.exportKey('spki', keyPair.publicKey);
-  const key = await crypto.subtle.importKey('raw', spki, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-  const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`${head}.${body}`));
-  return `${head}.${body}.${encodeBytes(signature)}`;
-}
-
-const valid = () => ({
-  iss: 'https://token.actions.githubusercontent.com',
-  aud: 'audio-soko-kun',
-  repository: EXPECTED_REPOSITORY,
-  job_workflow_ref: VERIFY_WORKFLOW_REF,
-  ref: 'refs/heads/main',
-  exp: Math.floor(Date.now() / 1000) + 300,
-});
-
-async function generate(): Promise<CryptoKeyPair> {
-  return (await crypto.subtle.generateKey(
-    { name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' },
-    true,
-    ['sign', 'verify'],
-  )) as CryptoKeyPair;
-}
-
-beforeEach(async () => {
-  clearJwksCache();
-  keyPair ??= await generate();
-  otherKeyPair ??= await generate();
-  const jwk = (await crypto.subtle.exportKey('jwk', keyPair.publicKey)) as JsonWebKey;
-  network.use(
-    http.get(ACTIONS_JWKS_URL, () => HttpResponse.json({ keys: [{ ...jwk, kid: 'test-key', alg: 'RS256' }] })),
-  );
-});
+installActionsJwks();
 
 describe('配布物の検証の受け口のアクセス権限', () => {
-  const workflow = (file: string, ref = 'refs/heads/main') => `${EXPECTED_REPOSITORY}/.github/workflows/${file}@${ref}`;
+  const workflow = workflowRef;
   const rejected: Array<[string, () => Promise<string>]> = [
     ['P20 トークンが無い', async () => ''],
     [
@@ -108,7 +55,7 @@ describe('配布物の検証の受け口のアクセス権限', () => {
     ['P26 期限切れ', async () => sign({ ...valid(), exp: Math.floor(Date.now() / 1000) - 10 })],
     ['P27 宛先 (aud) が違う', async () => sign({ ...valid(), aud: 'sigstore' })],
     ['P28 発行者が違う', async () => sign({ ...valid(), iss: 'https://example.com' })],
-    ['P29 公開されていない鍵で署名', async () => sign(valid(), otherKeyPair)],
+    ['P29 公開されていない鍵で署名', async () => sign(valid(), true)],
     [
       'P30 署名のあとでクレームを書き換えた',
       async () => {

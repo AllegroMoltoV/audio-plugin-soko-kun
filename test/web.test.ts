@@ -238,7 +238,10 @@ describe('Web', () => {
   it('VST 3 のバンドルを検出しなかったプラグインは、VST 3 の絞り込みに出さず、詳細ページに VST の語もロゴも出さない', async () => {
     await register();
     await markListable(env.DB);
-    await env.DB.prepare(`UPDATE content_checks SET formats = '["clap"]'`).run();
+    await env.DB.prepare(
+      `UPDATE content_checks SET formats = '["clap"]',
+         bundles = '[{"path":"Fixture.clap","format":"clap","os":["windows"],"arches":["x86_64"]}]'`,
+    ).run();
     // 右の列の新着は絞り込みに関係なく出るため、本文だけを見る。
     const main = async (query: string) =>
       (await (await SELF.fetch(`${ORIGIN}/?lang=en&${query}`)).text()).split('<main')[1]?.split('</main>')[0] ?? '';

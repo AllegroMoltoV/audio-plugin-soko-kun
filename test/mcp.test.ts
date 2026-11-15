@@ -114,7 +114,10 @@ describe('アクセス権限', () => {
   it('VST 3 の絞り込みは中身の検査で検出した規格で行い、CLAP だけのプラグインを含めない', async () => {
     await registerPendingFixture();
     await markListable(env.DB);
-    await env.DB.prepare(`UPDATE content_checks SET formats = '["clap"]'`).run();
+    await env.DB.prepare(
+      `UPDATE content_checks SET formats = '["clap"]',
+         bundles = '[{"path":"Fixture.clap","format":"clap","os":["windows"],"arches":["x86_64"]}]'`,
+    ).run();
     const vst3 = await toolResult(await SELF.fetch(toolCall('search_plugins', { format: 'vst3' })));
     expect(vst3.payload.total).toBe(0);
     const clap = await toolResult(await SELF.fetch(toolCall('search_plugins', { format: 'clap' })));

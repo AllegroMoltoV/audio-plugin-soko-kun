@@ -6,9 +6,9 @@ import { GitHubClient, GitHubError } from '../github';
 import { CRITERIA_BY_ID, referenceOf } from '../review/criteria';
 import type { DiffHit } from '../review/diff-rules';
 import type { Finding } from '../review/llm';
-import { getPluginViewByInternalId, parseOs, parseTeamIds } from './catalog';
+import { getPluginViewByInternalId, parseTeamIds } from './catalog';
 import { CONFIG_DIR, type DeclaredAsset, isDeclared, parseDeclaredAssets } from './declaration';
-import type { AssetKind } from './metadata';
+import { type AssetKind, guidedPlatforms, parseBundles } from './metadata';
 import {
   type AssetForStatus,
   type AttestationResult,
@@ -258,8 +258,8 @@ export async function authorReport(env: Env, internalId: string, includeOlder: b
     ).bind(internalId),
     env.DB.prepare(
       `SELECT a.release_id, a.github_asset_id, a.name, a.digest, a.kind, t.result AS attestation,
-         t.attempts AS attestation_attempts, c.result AS content, c.attempts AS content_attempts, c.os, c.formats,
-         c.arches, c.vst2_files, m.result AS macos, m.attempts AS macos_attempts, m.team_id, m.reason AS macos_reason,
+         t.attempts AS attestation_attempts, c.result AS content, c.attempts AS content_attempts, c.bundles,
+         c.vst2_files, m.result AS macos, m.attempts AS macos_attempts, m.team_id, m.reason AS macos_reason,
          s.result AS scan
        FROM assets a JOIN releases r ON r.github_release_id = a.release_id
        LEFT JOIN attestation_checks t ON t.github_asset_id = a.github_asset_id
@@ -344,7 +344,9 @@ export async function authorReport(env: Env, internalId: string, includeOlder: b
               ? 'pending'
               : releaseAssets.some(({ status }) => status.macos?.result === 'failed')
                 ? 'failed'
-                : 'passed',
+                : releaseAssets.some(({ status }) => status.macos?.result === 'error')
+                  ? 'error'
+                  : 'passed',
           },
           declaration: { result: check?.config_state ?? 'pending' },
           malwarebazaar: { result: blockers.includes('scan_pending') ? 'pending' : 'passed' },
@@ -379,9 +381,7 @@ interface AssetRow {
   attestation_attempts: number | null;
   content: ContentResult | null;
   content_attempts: number | null;
-  os: string | null;
-  formats: string | null;
-  arches: string | null;
+  bundles: string | null;
   vst2_files: string | null;
   macos: MacosResult | null;
   macos_attempts: number | null;
@@ -391,7 +391,7 @@ interface AssetRow {
 }
 
 function toStatusAsset(row: AssetRow, declaredAssets: DeclaredAsset[] | null): AssetForStatus {
-  const os = parseOs(row.os);
+  const { os } = guidedPlatforms(parseBundles(row.bundles));
   return {
     name: row.name,
     digest: row.digest,
@@ -439,6 +439,12 @@ const NOT_GUIDED_TEXT: Record<NotGuidedCode, { message: string; fix: string; wai
     fix: 'No action is needed for a source code archive.',
     waitsFor: 'author',
   },
+  macos_lv2_not_guided: {
+    message:
+      'This archive contains only LV2 bundles for macOS. LV2 bundles for macOS are not guided because Gatekeeper does not assess LV2 bundles.',
+    fix: 'Add VST 3, CLAP, or Audio Unit bundles for macOS, signed with a Developer ID certificate and notarized.',
+    waitsFor: 'author',
+  },
   macos_check_pending: {
     message: 'The macOS code signing and notarization check of this archive has not finished yet.',
     fix: 'No action is needed.',
@@ -460,7 +466,8 @@ const NOT_GUIDED_TEXT: Record<NotGuidedCode, { message: string; fix: string; wai
     waitsFor: 'author',
   },
   macos_not_notarized: {
-    message: 'The macOS bundles are signed with a Developer ID but not notarized.',
+    message:
+      'The macOS bundles are signed with a Developer ID, but Gatekeeper did not assess them as notarized. The check is retried up to 3 times because a failed lookup cannot be told apart from a rejection, and then waits for the administrator.',
     fix: 'Notarize the bundles with notarytool in the release workflow before creating the zip. Users would otherwise have to bypass Gatekeeper.',
     waitsFor: 'author',
   },
@@ -488,13 +495,14 @@ function parseList(text: string | null): string[] {
 
 function assetView(row: AssetRow, status: AssetForStatus) {
   const code = notGuidedReason(status);
+  const guided = guidedPlatforms(parseBundles(row.bundles));
   const vst2Files = parseList(row.vst2_files);
   return {
     name: row.name,
     guided: code === null,
-    formats: parseList(row.formats),
-    os: status.content?.os ?? [],
-    arches: parseList(row.arches),
+    formats: guided.formats,
+    os: guided.os,
+    arches: guided.arches,
     ...(vst2Files.length > 0 ? { vst2Files } : {}),
     ...(code ? { notGuidedBecause: { code, ...NOT_GUIDED_TEXT[code] } } : {}),
   };

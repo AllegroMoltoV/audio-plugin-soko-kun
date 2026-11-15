@@ -1,6 +1,7 @@
 // 15 分ごとの定期処理。無料プランの 1 回の上限に収めるため、予算を使い切ったら次回へ持ち越す。
 
 import { Budget, BudgetExceededError, budgetedFetch } from '../budget';
+import { PENDING_MACOS_BINDINGS, PENDING_MACOS_FROM } from '../checks/macos-route';
 import { PENDING_CHECKS_BINDINGS, PENDING_CHECKS_FROM, PENDING_SCANS_FROM } from '../checks/route';
 import type { Env } from '../env';
 import { GitHubClient, GitHubError, type GitHubRelease } from '../github';
@@ -32,6 +33,7 @@ export interface CronReport {
   releaseChecksSkipped?: string;
   stoppedBy?: string;
   verifyDispatch?: VerifyDispatch;
+  macosVerifyDispatch?: VerifyDispatch;
 }
 
 function now(): string {
@@ -102,8 +104,9 @@ interface SyncRow {
 export const SYNC_COST = 6;
 // 同期 1 件の D1 のクエリの上限。
 export const SYNC_QUERIES = 3;
-// 証明の検証のワークフローの起動 (dispatchVerify) に取り分ける外部呼び出しと D1 のクエリ。
-export const DISPATCH_RESERVE = 1;
+// 検証のワークフローの起動 (verify.yaml と macos-verify.yaml の 2 つ) に取り分ける外部呼び出しと D1 のクエリ。
+// 1 つの起動で、待ちの有無の確かめに D1 のクエリ 1 件と、起動に外部呼び出し 1 件を使う。
+export const DISPATCH_RESERVE = 2;
 
 async function syncOne(env: Env, budget: Budget, github: GitHubClient, row: SyncRow): Promise<void> {
   const timestamp = now();
@@ -466,25 +469,25 @@ export async function recordListings(env: Env, budget: Budget): Promise<void> {
   await env.DB.batch(statements);
 }
 
-const VERIFY_DISPATCH_URL =
-  'https://api.github.com/repos/AllegroMoltoV/audio-plugin-soko-kun/actions/workflows/verify.yaml/dispatches';
+const WORKFLOWS_URL = 'https://api.github.com/repos/AllegroMoltoV/audio-plugin-soko-kun/actions/workflows';
 
 export type VerifyDispatch = 'dispatched' | 'skipped_no_token' | 'skipped_no_pending' | `failed_${string}`;
 
-// 証明の検証と中身の検査のワークフローを起動する (ADR 0014)。GitHub の schedule は起動しないことがあるため、Worker から起動する。
-// 対象の条件は、ワークフローが読む GET /internal/checks/pending と同じにする (検証を待つ配布物と、通信の検出を待つ版)。
-async function dispatchVerify(env: Env, budget: Budget): Promise<VerifyDispatch> {
+// 検証のワークフローを起動する (ADR 0014)。GitHub の schedule は起動しないことがあるため、Worker から起動する。
+// 待ちの条件は、ワークフローが読む経路と同じものを使う。verify.yaml は GET /internal/checks/pending
+// (検証を待つ配布物と、通信の検出を待つ版)、macos-verify.yaml は GET /internal/macos-checks/pending。
+async function dispatchWorkflow(
+  env: Env,
+  budget: Budget,
+  file: 'verify.yaml' | 'macos-verify.yaml',
+  pending: D1PreparedStatement,
+): Promise<VerifyDispatch> {
   const token = env.GITHUB_DISPATCH_TOKEN;
   if (!token) return 'skipped_no_token';
   budget.takeD1Query();
-  const pending = await env.DB.prepare(
-    `SELECT 1 ${PENDING_CHECKS_FROM} UNION ALL SELECT 1 ${PENDING_SCANS_FROM} LIMIT 1`,
-  )
-    .bind(...PENDING_CHECKS_BINDINGS)
-    .first();
-  if (!pending) return 'skipped_no_pending';
+  if (!(await pending.first())) return 'skipped_no_pending';
   try {
-    const response = await budgetedFetch(budget, VERIFY_DISPATCH_URL, {
+    const response = await budgetedFetch(budget, `${WORKFLOWS_URL}/${file}/dispatches`, {
       method: 'POST',
       headers: {
         Accept: 'application/vnd.github+json',
@@ -497,10 +500,10 @@ async function dispatchVerify(env: Env, budget: Budget): Promise<VerifyDispatch>
     });
     await response.body?.cancel();
     if (response.ok) return 'dispatched';
-    console.error(`verify.yaml dispatch failed: ${response.status}`);
+    console.error(`${file} dispatch failed: ${response.status}`);
     return `failed_${response.status}`;
   } catch (error) {
-    console.error(`verify.yaml dispatch failed: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(`${file} dispatch failed: ${error instanceof Error ? error.message : String(error)}`);
     return 'failed_network';
   }
 }
@@ -516,7 +519,7 @@ export async function runCron(env: Env, budget = new Budget()): Promise<CronRepo
     subrequests: 0,
     d1Queries: 0,
   };
-  // 後段のループが予算を使い切っても、最後に証明の検証のワークフローを起動できるよう取り分けておく。
+  // 後段のループが予算を使い切っても、最後に 2 つの検証のワークフローを起動できるよう取り分けておく。
   budget.reserve(DISPATCH_RESERVE, DISPATCH_RESERVE);
   try {
     await runScans(env, budget, report);
@@ -542,7 +545,21 @@ export async function runCron(env: Env, budget = new Budget()): Promise<CronRepo
     report.stoppedBy = `budget_${error.kind}`;
   }
   budget.release();
-  report.verifyDispatch = await dispatchVerify(env, budget);
+  report.verifyDispatch = await dispatchWorkflow(
+    env,
+    budget,
+    'verify.yaml',
+    env.DB.prepare(`SELECT 1 ${PENDING_CHECKS_FROM} UNION ALL SELECT 1 ${PENDING_SCANS_FROM} LIMIT 1`).bind(
+      ...PENDING_CHECKS_BINDINGS,
+    ),
+  );
+  // macOS の判定は、中身の検査で macOS 向けのバンドルを検出してから待ちになるため、verify.yaml の後に起動する。
+  report.macosVerifyDispatch = await dispatchWorkflow(
+    env,
+    budget,
+    'macos-verify.yaml',
+    env.DB.prepare(`SELECT 1 ${PENDING_MACOS_FROM} LIMIT 1`).bind(...PENDING_MACOS_BINDINGS),
+  );
   report.subrequests = budget.subrequests;
   report.d1Queries = budget.d1Queries;
   return report;

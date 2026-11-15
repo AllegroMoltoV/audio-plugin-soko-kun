@@ -278,7 +278,7 @@ describe('runCron の新しい版の検査と同期の優先', () => {
       };
     // レビューが読むファイルはワークフロー 6、README 1、ルートのビルド系のファイル 5、CONTRIBUTING 1、PR テンプレート 1 の 14 件。
     // 検査の取得は、宣言ファイル・ライセンス・版のコミットの位置・ファイルの一覧・14 件・ruleset の一覧の 19 回で、
-    // 3 倍の 57 件になる。検査に使える残り (45 − 取り分け 7 − 照会) を、ファイルの取得の途中で超える。
+    // 3 倍の 57 件になる。検査に使える残り (45 − 取り分け 8 − 照会) を、ファイルの取得の途中で超える。
     const paths = [
       ...Array.from({ length: 6 }, (_, i) => `.github/workflows/w${i}.yaml`),
       'README.md',
@@ -688,9 +688,11 @@ describe('新しい版の検査の版のコミットの位置', () => {
   });
 });
 
-describe('証明の検証のワークフローの起動', () => {
+describe('検証のワークフローの起動', () => {
   const DISPATCH_URL =
     'https://api.github.com/repos/AllegroMoltoV/audio-plugin-soko-kun/actions/workflows/verify.yaml/dispatches';
+  const MACOS_DISPATCH_URL =
+    'https://api.github.com/repos/AllegroMoltoV/audio-plugin-soko-kun/actions/workflows/macos-verify.yaml/dispatches';
   const withToken = { ...env, GITHUB_DISPATCH_TOKEN: 'test-dispatch-token' };
 
   it('検証待ちの配布物があれば、同期が止まっても main を指定して起動する', async () => {
@@ -712,19 +714,47 @@ describe('証明の検証のワークフローの起動', () => {
     expect(bodies).toEqual([{ ref: 'main' }]);
   });
 
-  it('ほかの処理が外部呼び出しの予算を使い切っても、取り分けた 1 件で起動する', async () => {
+  it('ほかの処理が外部呼び出しの予算を使い切っても、取り分けた 2 件で 2 つのワークフローを起動する', async () => {
     await registerFixture();
+    // 中身の検査で macOS 向けのバンドルを検出した配布物があり、macOS の判定も待っている
+    await env.DB.prepare("INSERT INTO macos_signing_checks (github_asset_id, result) VALUES (8001, 'pending')").run();
+    const dispatched: string[] = [];
     network.use(
       repoById(),
       ...githubHandlers(),
       ...scannerHandlers({ mb: 0 }),
-      http.post(DISPATCH_URL, () => HttpResponse.json({ workflow_run_id: 1 })),
+      http.post(DISPATCH_URL, () => {
+        dispatched.push('verify.yaml');
+        return HttpResponse.json({ workflow_run_id: 1 });
+      }),
+      http.post(MACOS_DISPATCH_URL, async ({ request }) => {
+        expect(await request.json()).toEqual({ ref: 'main' });
+        dispatched.push('macos-verify.yaml');
+        return HttpResponse.json({ workflow_run_id: 2 });
+      }),
     );
     const budget = new Budget();
-    for (let i = 0; i < 44; i += 1) budget.takeSubrequest();
+    for (let i = 0; i < 45 - DISPATCH_RESERVE; i += 1) budget.takeSubrequest();
     const report = await runCron(withToken, budget);
     expect(report.verifyDispatch).toBe('dispatched');
+    expect(report.macosVerifyDispatch).toBe('dispatched');
+    expect(dispatched).toEqual(['verify.yaml', 'macos-verify.yaml']);
     expect(report.subrequests).toBe(45);
+  });
+
+  it('macOS の判定を待つ配布物が無ければ macos-verify.yaml を起動せず、試行を使い切った error も待ちに数えない', async () => {
+    await registerFixture();
+    await env.DB.prepare(
+      "INSERT INTO macos_signing_checks (github_asset_id, result, attempts) VALUES (8001, 'error', 3)",
+    ).run();
+    network.use(
+      repoById(503),
+      ...scannerHandlers({ mb: 0 }),
+      ...releaseCheckHandlers(),
+      http.post(DISPATCH_URL, () => HttpResponse.json({ workflow_run_id: 1 })),
+    );
+    const report = await runCron(withToken);
+    expect(report.macosVerifyDispatch).toBe('skipped_no_pending');
   });
 
   it('検証待ちが無ければ起動しない', async () => {

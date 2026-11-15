@@ -1,0 +1,737 @@
+[
+ {
+  "run": "a2",
+  "file": "dexed-original-Dexed.clap.txt",
+  "sample": "dexed",
+  "variant": "original",
+  "expected": "adhoc-or-unsigned",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=clap-juce-mac-arm64.out\nFormat=bundle with Mach-O universal (x86_64 arm64)\nSignature=adhoc\nTeamIdentifier=not set"
+  },
+  "spctl": {
+   "exit": 3,
+   "text": "Dexed.clap: rejected\nsource=no usable signature"
+  }
+ },
+ {
+  "run": "a2",
+  "file": "dexed-original-Dexed.component.txt",
+  "sample": "dexed",
+  "variant": "original",
+  "expected": "adhoc-or-unsigned",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=com.digitalsuburban.Dexed\nFormat=bundle with Mach-O universal (x86_64 arm64)\nSignature=adhoc\nTeamIdentifier=not set"
+  },
+  "spctl": {
+   "exit": 3,
+   "text": "Dexed.component: rejected"
+  }
+ },
+ {
+  "run": "a2",
+  "file": "dexed-original-Dexed.vst3.txt",
+  "sample": "dexed",
+  "variant": "original",
+  "expected": "adhoc-or-unsigned",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=com.digitalsuburban.Dexed\nFormat=bundle with Mach-O universal (x86_64 arm64)\nSignature=adhoc\nTeamIdentifier=not set"
+  },
+  "spctl": {
+   "exit": 3,
+   "text": "Dexed.vst3: rejected"
+  }
+ },
+ {
+  "run": "a2",
+  "file": "gate12-original-GATE-12.component.txt",
+  "sample": "gate12",
+  "variant": "original",
+  "expected": "adhoc",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=com.tilr.gate12\nFormat=bundle with Mach-O universal (x86_64 arm64)\nSignature=adhoc\nTeamIdentifier=not set"
+  },
+  "spctl": {
+   "exit": 3,
+   "text": "GATE-12.component: rejected"
+  }
+ },
+ {
+  "run": "a2",
+  "file": "gate12-original-GATE-12.vst3.txt",
+  "sample": "gate12",
+  "variant": "original",
+  "expected": "adhoc",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=com.tilr.gate12\nFormat=bundle with Mach-O universal (x86_64 arm64)\nSignature=adhoc\nTeamIdentifier=not set"
+  },
+  "spctl": {
+   "exit": 3,
+   "text": "GATE-12.vst3: rejected"
+  }
+ },
+ {
+  "run": "a2",
+  "file": "hamburger-original-Hamburger.clap.txt",
+  "sample": "hamburger",
+  "variant": "original",
+  "expected": "developer-id-notarized",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=com.AviaryAudio.Hamburger\nFormat=bundle with Mach-O thin (arm64)\nAuthority=Developer ID Application: (redacted) (W2SYD24Y7B)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nNotarization Ticket=stapled\nTeamIdentifier=W2SYD24Y7B"
+  },
+  "spctl": {
+   "exit": 0,
+   "text": "Hamburger.clap: accepted\nsource=Notarized Developer ID\norigin=Developer ID Application: (redacted) (W2SYD24Y7B)"
+  }
+ },
+ {
+  "run": "a2",
+  "file": "hamburger-original-Hamburger.component.txt",
+  "sample": "hamburger",
+  "variant": "original",
+  "expected": "developer-id-notarized",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=com.AviaryAudio.Hamburger\nFormat=bundle with Mach-O thin (arm64)\nAuthority=Developer ID Application: (redacted) (W2SYD24Y7B)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nNotarization Ticket=stapled\nTeamIdentifier=W2SYD24Y7B"
+  },
+  "spctl": {
+   "exit": 0,
+   "text": "Hamburger.component: accepted\nsource=Notarized Developer ID\norigin=Developer ID Application: (redacted) (W2SYD24Y7B)"
+  }
+ },
+ {
+  "run": "a2",
+  "file": "hamburger-original-Hamburger.vst3.txt",
+  "sample": "hamburger",
+  "variant": "original",
+  "expected": "developer-id-notarized",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=com.AviaryAudio.Hamburger\nFormat=bundle with Mach-O thin (arm64)\nAuthority=Developer ID Application: (redacted) (W2SYD24Y7B)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nNotarization Ticket=stapled\nTeamIdentifier=W2SYD24Y7B"
+  },
+  "spctl": {
+   "exit": 0,
+   "text": "Hamburger.vst3: accepted\nsource=Notarized Developer ID\norigin=Developer ID Application: (redacted) (W2SYD24Y7B)"
+  }
+ },
+ {
+  "run": "a2",
+  "file": "hamburger-unstapled-Hamburger.clap.txt",
+  "sample": "hamburger",
+  "variant": "unstapled",
+  "expected": "developer-id-notarized",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=com.AviaryAudio.Hamburger\nFormat=bundle with Mach-O thin (arm64)\nAuthority=Developer ID Application: (redacted) (W2SYD24Y7B)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nTeamIdentifier=W2SYD24Y7B"
+  },
+  "spctl": {
+   "exit": 0,
+   "text": "Hamburger.clap: accepted\nsource=Notarized Developer ID\norigin=Developer ID Application: (redacted) (W2SYD24Y7B)"
+  }
+ },
+ {
+  "run": "a2",
+  "file": "hamburger-unstapled-Hamburger.component.txt",
+  "sample": "hamburger",
+  "variant": "unstapled",
+  "expected": "developer-id-notarized",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=com.AviaryAudio.Hamburger\nFormat=bundle with Mach-O thin (arm64)\nAuthority=Developer ID Application: (redacted) (W2SYD24Y7B)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nTeamIdentifier=W2SYD24Y7B"
+  },
+  "spctl": {
+   "exit": 0,
+   "text": "Hamburger.component: accepted\nsource=Notarized Developer ID\norigin=Developer ID Application: (redacted) (W2SYD24Y7B)"
+  }
+ },
+ {
+  "run": "a2",
+  "file": "hamburger-unstapled-Hamburger.vst3.txt",
+  "sample": "hamburger",
+  "variant": "unstapled",
+  "expected": "developer-id-notarized",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=com.AviaryAudio.Hamburger\nFormat=bundle with Mach-O thin (arm64)\nAuthority=Developer ID Application: (redacted) (W2SYD24Y7B)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nTeamIdentifier=W2SYD24Y7B"
+  },
+  "spctl": {
+   "exit": 0,
+   "text": "Hamburger.vst3: accepted\nsource=Notarized Developer ID\norigin=Developer ID Application: (redacted) (W2SYD24Y7B)"
+  }
+ },
+ {
+  "run": "a2",
+  "file": "kr106-original-Ultramaster_KR-106.clap.txt",
+  "sample": "kr106",
+  "variant": "original",
+  "expected": "developer-id-notarized",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=org.kayrock.kr106\nFormat=bundle with Mach-O universal (x86_64 arm64)\nAuthority=Developer ID Application: (redacted) (D39XBP2326)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nNotarization Ticket=stapled\nTeamIdentifier=D39XBP2326"
+  },
+  "spctl": {
+   "exit": 0,
+   "text": "Ultramaster KR-106.clap: accepted\nsource=Notarized Developer ID\norigin=Developer ID Application: (redacted) (D39XBP2326)"
+  }
+ },
+ {
+  "run": "a2",
+  "file": "kr106-original-Ultramaster_KR-106.component.txt",
+  "sample": "kr106",
+  "variant": "original",
+  "expected": "developer-id-notarized",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=com.Kayrock.KR106\nFormat=bundle with Mach-O universal (x86_64 arm64)\nAuthority=Developer ID Application: (redacted) (D39XBP2326)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nNotarization Ticket=stapled\nTeamIdentifier=D39XBP2326"
+  },
+  "spctl": {
+   "exit": 0,
+   "text": "Ultramaster KR-106.component: accepted\nsource=Notarized Developer ID\norigin=Developer ID Application: (redacted) (D39XBP2326)"
+  }
+ },
+ {
+  "run": "a2",
+  "file": "kr106-original-Ultramaster_KR-106.vst3.txt",
+  "sample": "kr106",
+  "variant": "original",
+  "expected": "developer-id-notarized",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=com.Kayrock.KR106\nFormat=bundle with Mach-O universal (x86_64 arm64)\nAuthority=Developer ID Application: (redacted) (D39XBP2326)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nNotarization Ticket=stapled\nTeamIdentifier=D39XBP2326"
+  },
+  "spctl": {
+   "exit": 0,
+   "text": "Ultramaster KR-106.vst3: accepted\nsource=Notarized Developer ID\norigin=Developer ID Application: (redacted) (D39XBP2326)"
+  }
+ },
+ {
+  "run": "a2",
+  "file": "kr106-unstapled-Ultramaster_KR-106.clap.txt",
+  "sample": "kr106",
+  "variant": "unstapled",
+  "expected": "developer-id-notarized",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=org.kayrock.kr106\nFormat=bundle with Mach-O universal (x86_64 arm64)\nAuthority=Developer ID Application: (redacted) (D39XBP2326)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nTeamIdentifier=D39XBP2326"
+  },
+  "spctl": {
+   "exit": 0,
+   "text": "Ultramaster KR-106.clap: accepted\nsource=Notarized Developer ID\norigin=Developer ID Application: (redacted) (D39XBP2326)"
+  }
+ },
+ {
+  "run": "a2",
+  "file": "kr106-unstapled-Ultramaster_KR-106.component.txt",
+  "sample": "kr106",
+  "variant": "unstapled",
+  "expected": "developer-id-notarized",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=com.Kayrock.KR106\nFormat=bundle with Mach-O universal (x86_64 arm64)\nAuthority=Developer ID Application: (redacted) (D39XBP2326)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nTeamIdentifier=D39XBP2326"
+  },
+  "spctl": {
+   "exit": 0,
+   "text": "Ultramaster KR-106.component: accepted\nsource=Notarized Developer ID\norigin=Developer ID Application: (redacted) (D39XBP2326)"
+  }
+ },
+ {
+  "run": "a2",
+  "file": "kr106-unstapled-Ultramaster_KR-106.vst3.txt",
+  "sample": "kr106",
+  "variant": "unstapled",
+  "expected": "developer-id-notarized",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=com.Kayrock.KR106\nFormat=bundle with Mach-O universal (x86_64 arm64)\nAuthority=Developer ID Application: (redacted) (D39XBP2326)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nTeamIdentifier=D39XBP2326"
+  },
+  "spctl": {
+   "exit": 0,
+   "text": "Ultramaster KR-106.vst3: accepted\nsource=Notarized Developer ID\norigin=Developer ID Application: (redacted) (D39XBP2326)"
+  }
+ },
+ {
+  "run": "a2",
+  "file": "orchestra-original-ORchestra.component.txt",
+  "sample": "orchestra",
+  "variant": "original",
+  "expected": "apple-development",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=com.Spektakel.ORchestra_AU\nFormat=bundle with Mach-O thin (arm64)\nAuthority=Apple Development: (redacted) (B4U634SG93)\nAuthority=Apple Worldwide Developer Relations Certification Authority\nAuthority=Apple Root CA\nTeamIdentifier=R5Y7P9P4KU"
+  },
+  "spctl": {
+   "exit": 3,
+   "text": "ORchestra.component: rejected\norigin=Apple Development: (redacted) (B4U634SG93)"
+  }
+ },
+ {
+  "run": "a2",
+  "file": "orchestra-original-ORchestra.vst3.txt",
+  "sample": "orchestra",
+  "variant": "original",
+  "expected": "apple-development",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=com.Spektakel.ORchestra_VST\nFormat=bundle with Mach-O thin (arm64)\nAuthority=Apple Development: (redacted) (B4U634SG93)\nAuthority=Apple Worldwide Developer Relations Certification Authority\nAuthority=Apple Root CA\nTeamIdentifier=R5Y7P9P4KU"
+  },
+  "spctl": {
+   "exit": 3,
+   "text": "ORchestra.vst3: rejected\norigin=Apple Development: (redacted) (B4U634SG93)"
+  }
+ },
+ {
+  "run": "a2",
+  "file": "retroplug-original-RetroPlug.vst3.txt",
+  "sample": "retroplug",
+  "variant": "original",
+  "expected": "developer-id-notarized",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=net.tommitytom.retroplug\nFormat=bundle with Mach-O universal (x86_64 arm64)\nAuthority=Developer ID Application: (redacted) (438VFJA7VR)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nNotarization Ticket=stapled\nTeamIdentifier=438VFJA7VR"
+  },
+  "spctl": {
+   "exit": 0,
+   "text": "RetroPlug.vst3: accepted\nsource=Notarized Developer ID\norigin=Developer ID Application: (redacted) (438VFJA7VR)"
+  }
+ },
+ {
+  "run": "a2",
+  "file": "retroplug-unstapled-RetroPlug.vst3.txt",
+  "sample": "retroplug",
+  "variant": "unstapled",
+  "expected": "developer-id-notarized",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=net.tommitytom.retroplug\nFormat=bundle with Mach-O universal (x86_64 arm64)\nAuthority=Developer ID Application: (redacted) (438VFJA7VR)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nTeamIdentifier=438VFJA7VR"
+  },
+  "spctl": {
+   "exit": 0,
+   "text": "RetroPlug.vst3: accepted\nsource=Notarized Developer ID\norigin=Developer ID Application: (redacted) (438VFJA7VR)"
+  }
+ },
+ {
+  "run": "v2",
+  "file": "dexed-original-Dexed.clap.txt",
+  "sample": "dexed",
+  "variant": "original",
+  "expected": "adhoc-or-unsigned",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=clap-juce-mac-arm64.out\nFormat=bundle with Mach-O universal (x86_64 arm64)\nSignature=adhoc\nTeamIdentifier=not set"
+  },
+  "spctl": {
+   "exit": 3,
+   "text": "Dexed.clap: rejected\nsource=no usable signature"
+  }
+ },
+ {
+  "run": "v2",
+  "file": "dexed-original-Dexed.component.txt",
+  "sample": "dexed",
+  "variant": "original",
+  "expected": "adhoc-or-unsigned",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=com.digitalsuburban.Dexed\nFormat=bundle with Mach-O universal (x86_64 arm64)\nSignature=adhoc\nTeamIdentifier=not set"
+  },
+  "spctl": {
+   "exit": 3,
+   "text": "Dexed.component: rejected"
+  }
+ },
+ {
+  "run": "v2",
+  "file": "dexed-original-Dexed.vst3.txt",
+  "sample": "dexed",
+  "variant": "original",
+  "expected": "adhoc-or-unsigned",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=com.digitalsuburban.Dexed\nFormat=bundle with Mach-O universal (x86_64 arm64)\nSignature=adhoc\nTeamIdentifier=not set"
+  },
+  "spctl": {
+   "exit": 3,
+   "text": "Dexed.vst3: rejected"
+  }
+ },
+ {
+  "run": "v2",
+  "file": "gate12-original-GATE-12.component.txt",
+  "sample": "gate12",
+  "variant": "original",
+  "expected": "adhoc",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=com.tilr.gate12\nFormat=bundle with Mach-O universal (x86_64 arm64)\nSignature=adhoc\nTeamIdentifier=not set"
+  },
+  "spctl": {
+   "exit": 3,
+   "text": "GATE-12.component: rejected"
+  }
+ },
+ {
+  "run": "v2",
+  "file": "gate12-original-GATE-12.vst3.txt",
+  "sample": "gate12",
+  "variant": "original",
+  "expected": "adhoc",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=com.tilr.gate12\nFormat=bundle with Mach-O universal (x86_64 arm64)\nSignature=adhoc\nTeamIdentifier=not set"
+  },
+  "spctl": {
+   "exit": 3,
+   "text": "GATE-12.vst3: rejected"
+  }
+ },
+ {
+  "run": "v2",
+  "file": "hamburger-original-Hamburger.clap.txt",
+  "sample": "hamburger",
+  "variant": "original",
+  "expected": "developer-id-notarized",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=com.AviaryAudio.Hamburger\nFormat=bundle with Mach-O thin (arm64)\nAuthority=Developer ID Application: (redacted) (W2SYD24Y7B)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nNotarization Ticket=stapled\nTeamIdentifier=W2SYD24Y7B"
+  },
+  "spctl": {
+   "exit": 0,
+   "text": "Hamburger.clap: accepted\nsource=Notarized Developer ID\norigin=Developer ID Application: (redacted) (W2SYD24Y7B)"
+  }
+ },
+ {
+  "run": "v2",
+  "file": "hamburger-original-Hamburger.component.txt",
+  "sample": "hamburger",
+  "variant": "original",
+  "expected": "developer-id-notarized",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=com.AviaryAudio.Hamburger\nFormat=bundle with Mach-O thin (arm64)\nAuthority=Developer ID Application: (redacted) (W2SYD24Y7B)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nNotarization Ticket=stapled\nTeamIdentifier=W2SYD24Y7B"
+  },
+  "spctl": {
+   "exit": 0,
+   "text": "Hamburger.component: accepted\nsource=Notarized Developer ID\norigin=Developer ID Application: (redacted) (W2SYD24Y7B)"
+  }
+ },
+ {
+  "run": "v2",
+  "file": "hamburger-original-Hamburger.vst3.txt",
+  "sample": "hamburger",
+  "variant": "original",
+  "expected": "developer-id-notarized",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=com.AviaryAudio.Hamburger\nFormat=bundle with Mach-O thin (arm64)\nAuthority=Developer ID Application: (redacted) (W2SYD24Y7B)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nNotarization Ticket=stapled\nTeamIdentifier=W2SYD24Y7B"
+  },
+  "spctl": {
+   "exit": 0,
+   "text": "Hamburger.vst3: accepted\nsource=Notarized Developer ID\norigin=Developer ID Application: (redacted) (W2SYD24Y7B)"
+  }
+ },
+ {
+  "run": "v2",
+  "file": "hamburger-unstapled-Hamburger.clap.txt",
+  "sample": "hamburger",
+  "variant": "unstapled",
+  "expected": "developer-id-notarized",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=com.AviaryAudio.Hamburger\nFormat=bundle with Mach-O thin (arm64)\nAuthority=Developer ID Application: (redacted) (W2SYD24Y7B)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nTeamIdentifier=W2SYD24Y7B"
+  },
+  "spctl": {
+   "exit": 0,
+   "text": "Hamburger.clap: accepted\nsource=Notarized Developer ID\norigin=Developer ID Application: (redacted) (W2SYD24Y7B)"
+  }
+ },
+ {
+  "run": "v2",
+  "file": "hamburger-unstapled-Hamburger.component.txt",
+  "sample": "hamburger",
+  "variant": "unstapled",
+  "expected": "developer-id-notarized",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=com.AviaryAudio.Hamburger\nFormat=bundle with Mach-O thin (arm64)\nAuthority=Developer ID Application: (redacted) (W2SYD24Y7B)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nTeamIdentifier=W2SYD24Y7B"
+  },
+  "spctl": {
+   "exit": 0,
+   "text": "Hamburger.component: accepted\nsource=Notarized Developer ID\norigin=Developer ID Application: (redacted) (W2SYD24Y7B)"
+  }
+ },
+ {
+  "run": "v2",
+  "file": "hamburger-unstapled-Hamburger.vst3.txt",
+  "sample": "hamburger",
+  "variant": "unstapled",
+  "expected": "developer-id-notarized",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=com.AviaryAudio.Hamburger\nFormat=bundle with Mach-O thin (arm64)\nAuthority=Developer ID Application: (redacted) (W2SYD24Y7B)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nTeamIdentifier=W2SYD24Y7B"
+  },
+  "spctl": {
+   "exit": 0,
+   "text": "Hamburger.vst3: accepted\nsource=Notarized Developer ID\norigin=Developer ID Application: (redacted) (W2SYD24Y7B)"
+  }
+ },
+ {
+  "run": "v2",
+  "file": "hamburger-unstapled-offline-Hamburger.clap.txt",
+  "sample": "hamburger",
+  "variant": "unstapled-offline",
+  "expected": "developer-id-notarized",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=com.AviaryAudio.Hamburger\nFormat=bundle with Mach-O thin (arm64)\nAuthority=Developer ID Application: (redacted) (W2SYD24Y7B)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nTeamIdentifier=W2SYD24Y7B"
+  },
+  "spctl": {
+   "exit": 0,
+   "text": "Hamburger.clap: accepted\nsource=Notarized Developer ID\norigin=Developer ID Application: (redacted) (W2SYD24Y7B)"
+  }
+ },
+ {
+  "run": "v2",
+  "file": "hamburger-unstapled-offline-Hamburger.component.txt",
+  "sample": "hamburger",
+  "variant": "unstapled-offline",
+  "expected": "developer-id-notarized",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=com.AviaryAudio.Hamburger\nFormat=bundle with Mach-O thin (arm64)\nAuthority=Developer ID Application: (redacted) (W2SYD24Y7B)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nTeamIdentifier=W2SYD24Y7B"
+  },
+  "spctl": {
+   "exit": 0,
+   "text": "Hamburger.component: accepted\nsource=Notarized Developer ID\norigin=Developer ID Application: (redacted) (W2SYD24Y7B)"
+  }
+ },
+ {
+  "run": "v2",
+  "file": "hamburger-unstapled-offline-Hamburger.vst3.txt",
+  "sample": "hamburger",
+  "variant": "unstapled-offline",
+  "expected": "developer-id-notarized",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=com.AviaryAudio.Hamburger\nFormat=bundle with Mach-O thin (arm64)\nAuthority=Developer ID Application: (redacted) (W2SYD24Y7B)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nTeamIdentifier=W2SYD24Y7B"
+  },
+  "spctl": {
+   "exit": 0,
+   "text": "Hamburger.vst3: accepted\nsource=Notarized Developer ID\norigin=Developer ID Application: (redacted) (W2SYD24Y7B)"
+  }
+ },
+ {
+  "run": "v2",
+  "file": "kr106-original-Ultramaster_KR-106.clap.txt",
+  "sample": "kr106",
+  "variant": "original",
+  "expected": "developer-id-notarized",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=org.kayrock.kr106\nFormat=bundle with Mach-O universal (x86_64 arm64)\nAuthority=Developer ID Application: (redacted) (D39XBP2326)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nNotarization Ticket=stapled\nTeamIdentifier=D39XBP2326"
+  },
+  "spctl": {
+   "exit": 0,
+   "text": "Ultramaster KR-106.clap: accepted\nsource=Notarized Developer ID\norigin=Developer ID Application: (redacted) (D39XBP2326)"
+  }
+ },
+ {
+  "run": "v2",
+  "file": "kr106-original-Ultramaster_KR-106.component.txt",
+  "sample": "kr106",
+  "variant": "original",
+  "expected": "developer-id-notarized",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=com.Kayrock.KR106\nFormat=bundle with Mach-O universal (x86_64 arm64)\nAuthority=Developer ID Application: (redacted) (D39XBP2326)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nNotarization Ticket=stapled\nTeamIdentifier=D39XBP2326"
+  },
+  "spctl": {
+   "exit": 0,
+   "text": "Ultramaster KR-106.component: accepted\nsource=Notarized Developer ID\norigin=Developer ID Application: (redacted) (D39XBP2326)"
+  }
+ },
+ {
+  "run": "v2",
+  "file": "kr106-original-Ultramaster_KR-106.vst3.txt",
+  "sample": "kr106",
+  "variant": "original",
+  "expected": "developer-id-notarized",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=com.Kayrock.KR106\nFormat=bundle with Mach-O universal (x86_64 arm64)\nAuthority=Developer ID Application: (redacted) (D39XBP2326)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nNotarization Ticket=stapled\nTeamIdentifier=D39XBP2326"
+  },
+  "spctl": {
+   "exit": 0,
+   "text": "Ultramaster KR-106.vst3: accepted\nsource=Notarized Developer ID\norigin=Developer ID Application: (redacted) (D39XBP2326)"
+  }
+ },
+ {
+  "run": "v2",
+  "file": "kr106-unstapled-Ultramaster_KR-106.clap.txt",
+  "sample": "kr106",
+  "variant": "unstapled",
+  "expected": "developer-id-notarized",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=org.kayrock.kr106\nFormat=bundle with Mach-O universal (x86_64 arm64)\nAuthority=Developer ID Application: (redacted) (D39XBP2326)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nTeamIdentifier=D39XBP2326"
+  },
+  "spctl": {
+   "exit": 0,
+   "text": "Ultramaster KR-106.clap: accepted\nsource=Notarized Developer ID\norigin=Developer ID Application: (redacted) (D39XBP2326)"
+  }
+ },
+ {
+  "run": "v2",
+  "file": "kr106-unstapled-Ultramaster_KR-106.component.txt",
+  "sample": "kr106",
+  "variant": "unstapled",
+  "expected": "developer-id-notarized",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=com.Kayrock.KR106\nFormat=bundle with Mach-O universal (x86_64 arm64)\nAuthority=Developer ID Application: (redacted) (D39XBP2326)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nTeamIdentifier=D39XBP2326"
+  },
+  "spctl": {
+   "exit": 0,
+   "text": "Ultramaster KR-106.component: accepted\nsource=Notarized Developer ID\norigin=Developer ID Application: (redacted) (D39XBP2326)"
+  }
+ },
+ {
+  "run": "v2",
+  "file": "kr106-unstapled-Ultramaster_KR-106.vst3.txt",
+  "sample": "kr106",
+  "variant": "unstapled",
+  "expected": "developer-id-notarized",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=com.Kayrock.KR106\nFormat=bundle with Mach-O universal (x86_64 arm64)\nAuthority=Developer ID Application: (redacted) (D39XBP2326)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nTeamIdentifier=D39XBP2326"
+  },
+  "spctl": {
+   "exit": 0,
+   "text": "Ultramaster KR-106.vst3: accepted\nsource=Notarized Developer ID\norigin=Developer ID Application: (redacted) (D39XBP2326)"
+  }
+ },
+ {
+  "run": "v2",
+  "file": "kr106-unstapled-offline-Ultramaster_KR-106.clap.txt",
+  "sample": "kr106",
+  "variant": "unstapled-offline",
+  "expected": "developer-id-notarized",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=org.kayrock.kr106\nFormat=bundle with Mach-O universal (x86_64 arm64)\nAuthority=Developer ID Application: (redacted) (D39XBP2326)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nTeamIdentifier=D39XBP2326"
+  },
+  "spctl": {
+   "exit": 0,
+   "text": "Ultramaster KR-106.clap: accepted\nsource=Notarized Developer ID\norigin=Developer ID Application: (redacted) (D39XBP2326)"
+  }
+ },
+ {
+  "run": "v2",
+  "file": "kr106-unstapled-offline-Ultramaster_KR-106.component.txt",
+  "sample": "kr106",
+  "variant": "unstapled-offline",
+  "expected": "developer-id-notarized",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=com.Kayrock.KR106\nFormat=bundle with Mach-O universal (x86_64 arm64)\nAuthority=Developer ID Application: (redacted) (D39XBP2326)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nTeamIdentifier=D39XBP2326"
+  },
+  "spctl": {
+   "exit": 0,
+   "text": "Ultramaster KR-106.component: accepted\nsource=Notarized Developer ID\norigin=Developer ID Application: (redacted) (D39XBP2326)"
+  }
+ },
+ {
+  "run": "v2",
+  "file": "kr106-unstapled-offline-Ultramaster_KR-106.vst3.txt",
+  "sample": "kr106",
+  "variant": "unstapled-offline",
+  "expected": "developer-id-notarized",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=com.Kayrock.KR106\nFormat=bundle with Mach-O universal (x86_64 arm64)\nAuthority=Developer ID Application: (redacted) (D39XBP2326)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nTeamIdentifier=D39XBP2326"
+  },
+  "spctl": {
+   "exit": 0,
+   "text": "Ultramaster KR-106.vst3: accepted\nsource=Notarized Developer ID\norigin=Developer ID Application: (redacted) (D39XBP2326)"
+  }
+ },
+ {
+  "run": "v2",
+  "file": "orchestra-original-ORchestra.component.txt",
+  "sample": "orchestra",
+  "variant": "original",
+  "expected": "apple-development",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=com.Spektakel.ORchestra_AU\nFormat=bundle with Mach-O thin (arm64)\nAuthority=Apple Development: (redacted) (B4U634SG93)\nAuthority=Apple Worldwide Developer Relations Certification Authority\nAuthority=Apple Root CA\nTeamIdentifier=R5Y7P9P4KU"
+  },
+  "spctl": {
+   "exit": 3,
+   "text": "ORchestra.component: rejected\norigin=Apple Development: (redacted) (B4U634SG93)"
+  }
+ },
+ {
+  "run": "v2",
+  "file": "orchestra-original-ORchestra.vst3.txt",
+  "sample": "orchestra",
+  "variant": "original",
+  "expected": "apple-development",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=com.Spektakel.ORchestra_VST\nFormat=bundle with Mach-O thin (arm64)\nAuthority=Apple Development: (redacted) (B4U634SG93)\nAuthority=Apple Worldwide Developer Relations Certification Authority\nAuthority=Apple Root CA\nTeamIdentifier=R5Y7P9P4KU"
+  },
+  "spctl": {
+   "exit": 3,
+   "text": "ORchestra.vst3: rejected\norigin=Apple Development: (redacted) (B4U634SG93)"
+  }
+ },
+ {
+  "run": "v2",
+  "file": "retroplug-original-RetroPlug.vst3.txt",
+  "sample": "retroplug",
+  "variant": "original",
+  "expected": "developer-id-notarized",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=net.tommitytom.retroplug\nFormat=bundle with Mach-O universal (x86_64 arm64)\nAuthority=Developer ID Application: (redacted) (438VFJA7VR)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nNotarization Ticket=stapled\nTeamIdentifier=438VFJA7VR"
+  },
+  "spctl": {
+   "exit": 0,
+   "text": "RetroPlug.vst3: accepted\nsource=Notarized Developer ID\norigin=Developer ID Application: (redacted) (438VFJA7VR)"
+  }
+ },
+ {
+  "run": "v2",
+  "file": "retroplug-unstapled-RetroPlug.vst3.txt",
+  "sample": "retroplug",
+  "variant": "unstapled",
+  "expected": "developer-id-notarized",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=net.tommitytom.retroplug\nFormat=bundle with Mach-O universal (x86_64 arm64)\nAuthority=Developer ID Application: (redacted) (438VFJA7VR)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nTeamIdentifier=438VFJA7VR"
+  },
+  "spctl": {
+   "exit": 0,
+   "text": "RetroPlug.vst3: accepted\nsource=Notarized Developer ID\norigin=Developer ID Application: (redacted) (438VFJA7VR)"
+  }
+ },
+ {
+  "run": "v2",
+  "file": "retroplug-unstapled-offline-RetroPlug.vst3.txt",
+  "sample": "retroplug",
+  "variant": "unstapled-offline",
+  "expected": "developer-id-notarized",
+  "codesign": {
+   "exit": 0,
+   "text": "Identifier=net.tommitytom.retroplug\nFormat=bundle with Mach-O universal (x86_64 arm64)\nAuthority=Developer ID Application: (redacted) (438VFJA7VR)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nTeamIdentifier=438VFJA7VR"
+  },
+  "spctl": {
+   "exit": 0,
+   "text": "RetroPlug.vst3: accepted\nsource=Notarized Developer ID\norigin=Developer ID Application: (redacted) (438VFJA7VR)"
+  }
+ }
+]

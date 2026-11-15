@@ -9,8 +9,10 @@ import {
   type Category,
   FORMAT_VALUES,
   type Format,
+  guidedPlatforms,
   OS_VALUES,
   type Os,
+  parseBundles,
 } from './metadata';
 import {
   type AssetForStatus,
@@ -250,7 +252,7 @@ async function loadViews(env: Env, pluginId?: string): Promise<PluginView[]> {
     ),
     bind(
       env.DB.prepare(
-        `SELECT t.github_asset_id, t.result, t.attempts, t.os, t.formats, t.arches FROM content_checks t
+        `SELECT t.github_asset_id, t.result, t.attempts, t.os, t.bundles FROM content_checks t
          JOIN assets a ON a.github_asset_id = t.github_asset_id
          JOIN releases r ON r.github_release_id = a.release_id JOIN plugins p ON p.id = r.plugin_id ${where}`,
       ),
@@ -354,19 +356,21 @@ async function loadViews(env: Env, pluginId?: string): Promise<PluginView[]> {
     attestationByAsset.set(row.github_asset_id, { result: row.result, attempts: row.attempts });
   }
   const contentByAsset = new Map<number, AssetForStatus['content']>();
-  const detectedByAsset = new Map<number, { formats: Format[]; arches: Arch[] }>();
+  // 案内に使う規格とアーキテクチャ (macOS の LV2 を除く) と、中身の検査が検出した OS。
+  const detectedByAsset = new Map<number, { formats: Format[]; arches: Arch[]; detectedOs: Os[] }>();
   for (const row of (contents?.results ?? []) as Array<{
     github_asset_id: number;
     result: ContentResult;
     attempts: number;
     os: string | null;
-    formats: string | null;
-    arches: string | null;
+    bundles: string | null;
   }>) {
-    contentByAsset.set(row.github_asset_id, { result: row.result, attempts: row.attempts, os: parseOs(row.os) });
+    const guided = guidedPlatforms(parseBundles(row.bundles));
+    contentByAsset.set(row.github_asset_id, { result: row.result, attempts: row.attempts, os: guided.os });
     detectedByAsset.set(row.github_asset_id, {
-      formats: parseEnumArray(row.formats, FORMAT_VALUES),
-      arches: parseEnumArray(row.arches, ARCH_VALUES),
+      formats: guided.formats,
+      arches: guided.arches,
+      detectedOs: parseOs(row.os),
     });
   }
   const macosByAsset = new Map<number, AssetForStatus['macos']>();
@@ -473,8 +477,11 @@ async function loadViews(env: Env, pluginId?: string): Promise<PluginView[]> {
       formats: detectedByAsset.get(asset.row.github_asset_id)?.formats ?? [],
       arches: detectedByAsset.get(asset.row.github_asset_id)?.arches ?? [],
     }));
+    // macOS 向けのバンドルを検出したのに、macOS 向けとして案内しないアーカイブ。macOS の LV2 だけを含むものも数える。
     const macosNotGuided = listedStatusAssets.some(
-      (asset) => asset.content?.os.includes('macos') === true && !guided.includes(asset),
+      (asset) =>
+        detectedByAsset.get(asset.row.github_asset_id)?.detectedOs.includes('macos') === true &&
+        !(guided.includes(asset) && asset.content?.os.includes('macos') === true),
     );
     const union = <T extends string>(values: T[][], order: readonly T[]) =>
       order.filter((value) => values.some((list) => list.includes(value)));

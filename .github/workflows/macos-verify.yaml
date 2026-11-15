@@ -1,0 +1,148 @@
+name: Verify macOS signing
+
+# macOS 向けのバンドルを含むアーカイブについて、Developer ID の署名と Apple の公証を判定し、結果を音のプラグイン倉庫くんへ送る
+# (docs/design/scanning.md の「署名と公証の判定」)。判定の規則と出力の読み取りは .github/scripts/macos_judge.py に置く。
+# 音のプラグイン倉庫くんの /internal/macos-checks/ は、このリポジトリの main で動作するこのワークフローの OIDC のトークンだけを受け付ける。
+# job_workflow_ref はファイルごとの値のため、verify.yaml とファイルを分けている。配布物の中のコードは実行しない。
+on:
+  schedule:
+    - cron: '12,27,42,57 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: verify-macos-signing
+  cancel-in-progress: false
+
+env:
+  SOKO_KUN_ORIGIN: https://audio-soko-kun.allegromoltov.jp
+  # 配布物 1 件の取得の上限 (2 GiB) と、ジョブの最初に確かめる空き容量 (取得の上限と展開後の合計の上限 4 GiB に 1 GiB を足した値)
+  MAX_DOWNLOAD_BYTES: '2147483648'
+  MIN_FREE_BYTES: '7516192768'
+  # ジョブの開始からこの秒数を過ぎたら、新しい配布物を取得しない。残りは次の回に回す。
+  # 結果は最後にまとめて送るため、ジョブが時間切れ (timeout-minutes) になるとその回の結果をすべて失う。
+  FETCH_DEADLINE_SECONDS: '1500'
+
+jobs:
+  verify:
+    if: github.ref == 'refs/heads/main'
+    runs-on: macos-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+      - name: Judge pending macOS bundles
+        run: |
+          # codesign と spctl の却下は記録する結果のため、コマンドの失敗でステップを止めない (検証 A2 の経緯)。
+          # 止めるべき失敗は、それぞれの箇所で明示して exit する。macOS の bash 3.2 でも動く書き方にする。
+          set +e -uo pipefail
+          # ログに出すバンドルのパスと spctl の出力は外部データのため、ワークフローのコマンドとして解釈させない。
+          echo "::stop-commands::$(uuidgen)"
+          started=$(date +%s)
+          past_deadline() { [ $(( $(date +%s) - started )) -ge "${FETCH_DEADLINE_SECONDS}" ]; }
+          work="${RUNNER_TEMP}/macos-verify"
+          mkdir -p "${work}"
+          free=$(df -k "${work}" | awk 'NR == 2 { printf "%.0f", $4 * 1024 }')
+          if [ "${free}" -lt "${MIN_FREE_BYTES}" ]; then
+            echo "free space ${free} bytes is below ${MIN_FREE_BYTES}; skip this run"
+            exit 0
+          fi
+
+          token() {
+            curl -fsS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+              "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=audio-soko-kun" | jq -r '.value'
+          }
+          judge=.github/scripts/macos_judge.py
+          if ! curl -fsS -H "Authorization: Bearer $(token)" "${SOKO_KUN_ORIGIN}/internal/macos-checks/pending" > pending.json; then
+            echo "failed to fetch the pending list"
+            exit 1
+          fi
+          count=$(jq '.assets | length' pending.json)
+          echo "pending: ${count} assets"
+          if [ "${count}" -eq 0 ]; then exit 0; fi
+
+          echo '[]' > results.json
+          for i in $(seq 0 $((count - 1))); do
+            if past_deadline; then
+              echo "fetch deadline reached; $((count - i)) assets are left for the next run"
+              break
+            fi
+            item=$(jq -c ".assets[${i}]" pending.json)
+            asset_id=$(jq -r '.assetId' <<< "${item}")
+            url=$(jq -r '.downloadUrl' <<< "${item}")
+            digest=$(jq -r '.digest' <<< "${item}")
+            repository=$(jq -r '.repository' <<< "${item}")
+            tag=$(jq -r '.tag' <<< "${item}")
+            if ! [[ "${asset_id}" =~ ^[0-9]+$ ]]; then
+              echo "skip an item with an invalid asset id"
+              continue
+            fi
+            dir="${work}/asset-${asset_id}"
+            rm -rf "${dir}"
+            mkdir -p "${dir}/x"
+            file="${dir}/asset.zip"
+            result=error
+            reason=check_error
+            teams='[]'
+            # Worker が返すバンドルのパスは、絶対パス・.. ・制御文字を含まないことを受け口で確かめてある。
+            # 改行を含まないため、1 行に 1 件で読む。macOS の LV2 は判定しないため、Worker が除いている。
+            bundles=()
+            while IFS= read -r bundle; do bundles+=("${bundle}"); done < <(jq -r '.bundles[]' <<< "${item}")
+
+            # 配布物は 1 件ずつ取得し、処理を終えるたびに削除する。
+            status=0
+            curl -fsSL --max-filesize "${MAX_DOWNLOAD_BYTES}" -o "${file}" "${url}" || status=$?
+            if [ "${status}" -ne 0 ]; then
+              echo "  download failed (curl ${status})"
+            elif [ "sha256:$(shasum -a 256 "${file}" | cut -d' ' -f1)" != "${digest}" ]; then
+              echo "  sha256 differs from the recorded digest"
+            elif [ "${#bundles[@]}" -eq 0 ]; then
+              echo "  no macOS bundle to judge"
+            else
+              # ditto -x -k は、展開先の外を指すシンボリックリンクをそのまま作る (検証 V2)。展開の前に zip の項目を確かめる。
+              python3 -I "${judge}" check-zip "${file}" "${bundles[@]}" > "${dir}/check.json"
+              if [ "$(jq -r '.safe' "${dir}/check.json")" != true ]; then
+                reason=$(jq -r '.reason // "check_error"' "${dir}/check.json")
+                echo "  not extracted: $(jq -r '.detail // ""' "${dir}/check.json")"
+              elif ! ditto -x -k "${file}" "${dir}/x"; then
+                echo "  ditto failed"
+              else
+                : > "${dir}/verdicts.jsonl"
+                n=0
+                for bundle in "${bundles[@]}"; do
+                  n=$((n + 1))
+                  target="${dir}/x/${bundle}"
+                  codesign -dv --verbose=4 "${target}" > "${dir}/${n}.codesign.txt" 2>&1
+                  codesign_exit=$?
+                  spctl --assess -vvv --type install "${target}" > "${dir}/${n}.spctl.txt" 2>&1
+                  spctl_exit=$?
+                  python3 -I "${judge}" bundle "${dir}/${n}.codesign.txt" "${codesign_exit}" \
+                    "${dir}/${n}.spctl.txt" "${spctl_exit}" > "${dir}/${n}.json"
+                  echo "  ${bundle}: $(jq -c '{result, reason, signing, teamId}' "${dir}/${n}.json") (codesign ${codesign_exit}, spctl ${spctl_exit})"
+                  sed 's/^/    /' "${dir}/${n}.spctl.txt" | head -5
+                  cat "${dir}/${n}.json" >> "${dir}/verdicts.jsonl"
+                done
+                python3 -I "${judge}" summarize "${dir}/verdicts.jsonl" > "${dir}/summary.json"
+                result=$(jq -r '.result' "${dir}/summary.json")
+                reason=$(jq -r '.reason // ""' "${dir}/summary.json")
+                teams=$(jq -c '.teamIds' "${dir}/summary.json")
+              fi
+            fi
+            rm -rf "${dir}"
+            echo "${repository} ${tag} asset ${asset_id}: ${result} ${reason} ${teams}"
+            jq --argjson id "${asset_id}" --arg result "${result}" --arg reason "${reason}" --argjson teams "${teams}" \
+              '. + [{assetId: $id, result: $result, reason: (if $reason == "" then null else $reason end), teamIds: $teams}]' \
+              results.json > results.next && mv results.next results.json
+          done
+
+          jq '{results: .}' results.json > body.json
+          if ! curl -fsS -X POST -H "Authorization: Bearer $(token)" -H 'Content-Type: application/json' \
+              --data @body.json "${SOKO_KUN_ORIGIN}/internal/macos-checks/results"; then
+            echo "failed to post the results"
+            exit 1
+          fi

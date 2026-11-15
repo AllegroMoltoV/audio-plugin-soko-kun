@@ -1,7 +1,8 @@
 // 配布物の検証の受け口 (docs/design/scanning.md の「Worker の経路」)。
 // GitHub Actions の verify.yaml に、証明の検証と中身の検査を待つ配布物と、通信の検出を待つ版を渡し、結果を受け取る。
-// どちらも OIDC のトークンを求める。
+// どちらも OIDC のトークンを求める。macOS の署名と公証の判定の受け口は macos-route.ts。
 import { INFERABLE_CATEGORIES, settleDeclarations } from '../domain/declaration';
+import { isMacosJudged } from '../domain/metadata';
 import { MAX_CHECK_ATTEMPTS } from '../domain/status';
 import type { Env } from '../env';
 import { NETWORK_PENDING, NETWORK_PENDING_LIMIT, parseNetworkScans } from '../review/network';
@@ -87,7 +88,7 @@ interface ResultInput {
 
 // アーカイブの中のパスは外部データで、macos-verify.yaml が判定のコマンドの引数に使う。
 // 絶対パス・親のフォルダーを指す .. ・制御文字・バックスラッシュを含むものは受け付けない。
-function isSafePath(value: unknown): value is string {
+export function isSafePath(value: unknown): value is string {
   if (typeof value !== 'string' || value.length === 0 || value.length > MAX_PATH_LENGTH) return false;
   // biome-ignore lint/suspicious/noControlCharactersInRegex: 制御文字を拒否するための正規表現
   if (/[\u0000-\u001f\u007f\\]/.test(value)) return false;
@@ -335,8 +336,8 @@ async function saveResults(request: Request, env: Env): Promise<Response> {
         ),
       );
       contentReleases.add(row.release_id);
-      // macOS 向けのバンドルを検出した配布物は、署名と公証の判定を待つ。
-      if (content.os.includes('macos')) {
+      // macOS 向けとして案内しうるバンドル (macOS の LV2 を除く) を検出した配布物は、署名と公証の判定を待つ。
+      if (content.bundles.some(isMacosJudged)) {
         statements.push(
           env.DB.prepare(
             `INSERT INTO macos_signing_checks (github_asset_id, result) VALUES (?, 'pending')
