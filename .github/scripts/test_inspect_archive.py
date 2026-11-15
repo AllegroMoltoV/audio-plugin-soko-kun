@@ -297,9 +297,32 @@ class W06Nested(ArchiveTest):
         self.assertEqual(result["result"], "undetermined")
 
     def test_installer(self):
-        result = self.inspect([VST3_WIN, ("setup.exe", pe(exports=(), dll=False))])
+        # Inno Setup のインストーラーの署名を持つ実行形式。
+        installer = pe(exports=(), dll=False) + b"Inno Setup Setup Data (6.2.0)"
+        result = self.inspect([VST3_WIN, ("setup.exe", installer)])
         self.assertEqual(result["result"], "undetermined")
         self.assertEqual(result["formats"], ["vst3"])
+
+    def test_nsis_installer(self):
+        installer = pe(exports=(), dll=False) + b"\xef\xbe\xad\xdeNullsoftInst"
+        result = self.inspect([VST3_WIN, ("Fixture-setup.exe", installer)])
+        self.assertEqual(result["result"], "undetermined")
+
+    def test_standalone_app_does_not_block(self):
+        # JUCE や DPF のプラグインが同梱する単体で動くアプリ。署名が無ければ掲載を止めない。
+        result = self.inspect([VST3_WIN, ("Fixture/Fixture.exe", pe(exports=(), dll=False))])
+        self.assertEqual(result["result"], "passed")
+        self.assertEqual(result["formats"], ["vst3"])
+
+    def test_installer_name_alone_does_not_block(self):
+        # 名前だけでは止めない。調査では、zip の中のプラグインを写すだけの補助ツールだった。
+        result = self.inspect([VST3_WIN, ("install.exe", pe(exports=(), dll=False))])
+        self.assertEqual(result["result"], "passed")
+
+    def test_signature_in_a_dll_is_ignored(self):
+        library = pe(exports=(), dll=True) + b"Inno Setup Setup Data"
+        result = self.inspect([VST3_WIN, ("helper.exe", library)])
+        self.assertEqual(result["result"], "passed")
 
     def test_installer_without_any_bundle(self):
         result = self.inspect([("Fixture-Installer.pkg", b"xar!" + b"\0" * 100)])

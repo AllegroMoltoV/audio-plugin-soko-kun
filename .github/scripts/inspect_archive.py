@@ -51,8 +51,22 @@ AU_TYPE_CATEGORY = {"aumu": "instrument", "aufx": "effect", "aumf": "effect", "a
 VST3_SUBCATEGORY = (("Instrument", "instrument"), ("Analyzer", "analyzer"), ("Fx", "effect"))
 MODULEINFO_PATHS = ("Contents/Resources/moduleinfo.json", "Contents/moduleinfo.json")
 
-# 中を調べられない入れ子のアーカイブとインストーラーの拡張子。.exe は、実行形式 (DLL でない PE) のときだけ当てる。
+# 中を調べられない入れ子のアーカイブとインストーラーの拡張子。
 NESTED_EXT = (".zip", ".7z", ".rar", ".tar", ".gz", ".tgz", ".bz2", ".xz", ".zst", ".dmg", ".pkg", ".msi")
+
+# 実行形式 (DLL でない PE) の .exe のうち、インストーラーとみなすものの署名。先頭 INSTALLER_SCAN_BYTES だけを探す。
+# 署名の無い .exe (プラグインに同梱された単体で動くアプリなど) では掲載を止めない。
+# 根拠: 公開のプラグインの Windows の zip 187 件の調査で、Inno Setup と NSIS の 10 件を見分け、
+# 署名の無いアプリ 263 件を誤ってインストーラーとしなかった (2026-11-15)。
+INSTALLER_SIGNATURES = (
+    ("inno_setup", (b"Inno Setup Setup Data", b"rDlPtS")),
+    ("nsis", (b"NullsoftInst",)),
+    ("installshield", (b"InstallShield",)),
+    ("squirrel", (b"SquirrelSetup",)),
+    ("7z_sfx", (b"7-Zip SFX", b"7zSFX")),
+)
+INSTALLER_SECTIONS = (".wixburn",)
+INSTALLER_SCAN_BYTES = 1024 * 1024
 
 
 class InspectionError(Exception):
@@ -133,8 +147,10 @@ def parse_pe(d):
     ndir = struct.unpack_from("<I", d, ndir_off)[0]
     dirs = [struct.unpack_from("<II", d, dir_off + 8 * i) for i in range(min(ndir, 16))]
     sections = []
+    section_names = []
     for i in range(nsec):
         s = opt + opt_size + 40 * i
+        section_names.append(d[s : s + 8].rstrip(b"\0").decode("latin-1"))
         vsize, va, rawsize, rawptr = struct.unpack_from("<IIII", d, s + 8)
         sections.append((va, max(vsize, rawsize), rawptr, rawsize))
 
@@ -165,7 +181,19 @@ def parse_pe(d):
         "shared": bool(chars & 0x2000),  # IMAGE_FILE_DLL
         "executable": not chars & 0x2000,
         "exports": set(exports),
+        "installer": None if chars & 0x2000 else installer_signature(d, section_names),
     }
+
+
+def installer_signature(d, section_names):
+    """インストーラーの署名の名前。当たらなければ None。"""
+    if any(name in INSTALLER_SECTIONS for name in section_names):
+        return "wix_burn"
+    head = d[:INSTALLER_SCAN_BYTES]
+    for name, needles in INSTALLER_SIGNATURES:
+        if any(needle in head for needle in needles):
+            return name
+    return None
 
 
 # ---------------- Mach-O ----------------
@@ -590,8 +618,12 @@ def _inspect_zip(zf, limits, out, diagnostics):
 
     for name in files:
         low = name.lower()
-        if low.endswith(NESTED_EXT) or (low.endswith(".exe") and name in binaries and binaries[name]["executable"]):
+        if low.endswith(NESTED_EXT):
             diagnostics["undetermined"].append({"path": name, "reason": "nested_archive_or_installer"})
+        elif low.endswith(".exe") and binaries.get(name, {}).get("installer"):
+            diagnostics["undetermined"].append(
+                {"path": name, "reason": "nested_archive_or_installer", "installer": binaries[name]["installer"]}
+            )
 
     out["bundles"] = bundles
     out["formats"] = sorted({b["format"] for b in bundles})
