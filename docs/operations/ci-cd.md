@@ -90,7 +90,7 @@ Dependabot の PR も CI を通してからマージします。
 | Cron | `*/15 * * * *` |
 | 本番の `ORIGIN` | `https://audio-soko-kun.allegromoltov.jp` |
 
-`production` 環境の `database_id` と KV の `id` は、本番のリソースを作るまで仮の値 `TO_BE_CREATED_IN_S2` です。作り方は後述の初回の配備に記載します。
+`production` 環境の `database_id` と KV の `id` には、2026-11-14 に作った本番のリソースの ID を書いています。Worker は `production` 環境の名前を付けた `audio-plugin-soko-kun-production` として配備されます。
 
 Worker の秘密情報は、`wrangler secret put` で本番の Worker に設定します。
 
@@ -152,7 +152,7 @@ npx wrangler tail --env production
    npx wrangler kv namespace create OAUTH_KV
    ```
 
-2. 出力の D1 の `database_id` と KV の `id` を、`wrangler.jsonc` の `production` 環境の `TO_BE_CREATED_IN_S2` と置き換え、`main` に反映します。
+2. 出力の D1 の `database_id` と KV の `id` を、`wrangler.jsonc` の `production` 環境に書き、`main` に反映します。
 3. 前述の秘密情報を設定します。
 4. マイグレーションを適用し、Worker を配備します。
 

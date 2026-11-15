@@ -113,6 +113,7 @@ GitHub と配布物から取得した文字列は、外部データとして扱�
 | 新しい版に証明・不変・差分の検査・開発の実践のレビューを課す | [ADR 0013](https://github.com/AllegroMoltoV/plugin-soko-kun/blob/main/docs/decisions/0013-release-provenance-and-review.md) |
 | 証明の署名の検証を GitHub Actions で行う | [ADR 0014](https://github.com/AllegroMoltoV/plugin-soko-kun/blob/main/docs/decisions/0014-attestation-verification-in-actions.md) |
 | リポジトリの名前の変更と移管を ID で追う | [ADR 0015](https://github.com/AllegroMoltoV/plugin-soko-kun/blob/main/docs/decisions/0015-repository-rename-and-transfer.md) |
+| レビューの項目をルールと LLM に分け、ルールで計算した事実を LLM に渡す | [ADR 0016](https://github.com/AllegroMoltoV/plugin-soko-kun/blob/main/docs/decisions/0016-review-by-rules-and-facts.md) |
 
 派生元の ADR 0013 のうち、署名を条件にしない判断は、macOS についてだけ本サービスの [ADR 0003](../decisions/0003-listing-conditions.md) で改めています。exe と msi を含むリリースを掲載しない判断は、同じ ADR でインストーラーを案内しない形に改めています。案内しないインストーラーにも、証明は求めます。
 
