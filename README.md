@@ -50,6 +50,7 @@ The listing conditions, the security policy, and how to report a problem are on 
 | `scripts/` | Admin commands and maintenance scripts |
 | `test/` | Automated tests |
 | `.github/workflows/` | CI, deployment and verification workflows run on GitHub Actions |
+| `server.json` | Listing definition for the official MCP Registry |
 | `LICENSE` | MIT License |
 
 ### AI disclosure
@@ -94,6 +95,7 @@ Steinberg Media Technologies GmbH、CLAP のプロジェクト、Apple、LV2 の
 | `scripts/` | 管理コマンドと保守用のスクリプト |
 | `test/` | 自動テスト |
 | `.github/workflows/` | GitHub Actions で実行する CI・配備・検証のワークフロー |
+| `server.json` | 公式の MCP Registry への登録の定義 |
 | `LICENSE` | MIT License |
 
 ### 使い方
@@ -121,6 +123,10 @@ codex mcp add audio-plugin-soko-kun --url https://audio-soko-kun.allegromoltov.j
 MIT License です。[LICENSE](LICENSE) を参照してください。VST Compatible ロゴの画像 (`docs/images/VST_Compatible_Logo_Steinberg*.png` と、その複製の `public/images/vst-compatible*.png`) は Steinberg Media Technologies GmbH の商標で、MIT License の対象外です。
 
 ## 更新履歴
+
+### 0.1.13 (2026-11-15)
+
+- 公式の MCP Registry への登録の定義 `server.json` を足しました。名前は `io.github.AllegroMoltoV/audio-plugin-soko-kun` で、エンドポイントは `https://audio-soko-kun.allegromoltov.jp/mcp` です。登録と更新の手順を [公式 MCP Registry への登録](docs/operations/mcp-registry.md) に記載しました。
 
 ### 0.1.12 (2026-11-15)
 

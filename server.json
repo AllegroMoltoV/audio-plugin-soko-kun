@@ -1,0 +1,30 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.AllegroMoltoV/audio-plugin-soko-kun",
+  "title": "Audio Plugin Soko-kun",
+  "description": "Search, inspect, and submit open-source VST 3, CLAP, LV2, and AU plugins in an unofficial registry.",
+  "version": "0.1.13",
+  "websiteUrl": "https://audio-soko-kun.allegromoltov.jp",
+  "icons": [
+    {
+      "src": "https://audio-soko-kun.allegromoltov.jp/logo.png",
+      "mimeType": "image/png",
+      "sizes": ["256x256"]
+    },
+    {
+      "src": "https://audio-soko-kun.allegromoltov.jp/logo.svg",
+      "mimeType": "image/svg+xml",
+      "sizes": ["any"]
+    }
+  ],
+  "repository": {
+    "url": "https://github.com/AllegroMoltoV/audio-plugin-soko-kun",
+    "source": "github"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://audio-soko-kun.allegromoltov.jp/mcp"
+    }
+  ]
+}

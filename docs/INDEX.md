@@ -36,6 +36,7 @@ VST® is a registered trademark of Steinberg Media Technologies GmbH.
 | 管理コマンド、プラグインと版の停止と再開、確認待ちの版の承認、通報の対応 | [管理コマンドと掲載停止](operations/suspend.md) | ハウツーガイド |
 | 作者のアカウントの乗っ取りや悪意のある版が疑われるときの対応 | [侵害の対応](operations/incident-response.md) | ハウツーガイド |
 | 本番の D1 のバックアップと復元 | [バックアップと復元](operations/backup.md) | ハウツーガイド |
+| 公式 MCP Registry への登録と更新 | [公式 MCP Registry への登録](operations/mcp-registry.md) | ハウツーガイド |
 
 ## 設計判断の記録
 
