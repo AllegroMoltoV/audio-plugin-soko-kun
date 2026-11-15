@@ -293,3 +293,13 @@ export async function settleDeclarations(env: Env, releaseIds: readonly number[]
   await env.DB.batch(statements);
   return statements.length;
 }
+
+// config_json に保存する形。照合のときに parseDeclaration で読み直すため、宣言ファイルと同じ形で書き、
+// 未指定の項目は書かない。null で書くと、正しい宣言が読み直しで invalid になる (2026-11-15 に見つけた不具合)。
+export function serializeDeclaration(declaration: Declaration): string {
+  return JSON.stringify({
+    ...(declaration.name !== null ? { name: declaration.name } : {}),
+    ...(declaration.category !== null ? { category: declaration.category } : {}),
+    ...(declaration.assets !== null ? { assets: declaration.assets } : {}),
+  });
+}

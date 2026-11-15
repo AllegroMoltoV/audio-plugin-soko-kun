@@ -1,7 +1,9 @@
 // 宣言ファイルの形と照合 (docs/design/testing.md の X08・X09・C13・S14)。
 // 宣言の誤りが通る経路と、宣言で中身の検査の検出を上書きできる経路を塞いでいることを確かめる。
 import { env } from 'cloudflare:test';
+import { HttpResponse, http } from 'msw';
 import { describe, expect, it } from 'vitest';
+import { Budget } from '../../src/budget';
 import { getPluginViewByInternalId } from '../../src/domain/catalog';
 import {
   type ArchiveForDeclaration,
@@ -9,10 +11,12 @@ import {
   judgeDeclaration,
   matchesPattern,
   parseDeclaration,
+  serializeDeclaration,
 } from '../../src/domain/declaration';
+import { runReleaseChecks } from '../../src/domain/release-checks';
 import { submitPlugin } from '../../src/domain/submit';
 import { markListable } from '../fixtures/checks';
-import { githubHandlers, OWNER, REPO, USER_TOKEN } from '../fixtures/github';
+import { githubHandlers, OWNER, REPO, releaseCheckHandlers, USER_TOKEN } from '../fixtures/github';
 import { network } from '../setup';
 
 const WINDOWS_ZIP = 'simple-pitchshift-1.0.0-windows-x64.zip';
@@ -150,5 +154,53 @@ describe('S14 宣言した配布物だけを案内する', () => {
     const view = await getPluginViewByInternalId(env, id);
     expect(view?.status).not.toBe('listed');
     expect(view?.listedRelease).toBeNull();
+  });
+});
+
+describe('保存した宣言の再解析', () => {
+  // config_json に保存した宣言を、照合のときに parseDeclaration で読み直す。未指定の項目を null で保存すると、
+  // 正しい宣言が照合の段階で invalid になり、宣言ファイルのあるリポジトリがすべて掲載されなかった (2026-11-15)。
+  const cases: Array<[string, unknown]> = [
+    ['name だけ', { name: 'Simple White Noise' }],
+    ['category だけ', { category: 'effect' }],
+    ['assets だけ', { assets: [asset] }],
+    ['すべて', { name: 'Fixture', category: 'instrument', assets: [asset] }],
+  ];
+  for (const [label, body] of cases) {
+    it(`${label}の宣言は、保存して読み直しても parsed のまま同じ内容になる`, () => {
+      const first = parseDeclaration(JSON.stringify(body));
+      expect(first.state).toBe('parsed');
+      if (first.state !== 'parsed') return;
+      const again = parseDeclaration(serializeDeclaration(first.declaration));
+      expect(again).toEqual(first);
+    });
+  }
+});
+
+describe('宣言の取得から照合までの通し', () => {
+  // 宣言を取得して config_json に保存する処理 (runReleaseChecks) と、中身の検査の後に読み直して照合する処理
+  // (settleDeclarations) をつないで確かめる。個々の関数のテストだけでは、保存の形と読み直しの食い違いを見逃した。
+  it('name だけの宣言は、中身の検査が passed なら照合を通り、表示名に使われる', async () => {
+    network.use(...githubHandlers());
+    const result = await submitPlugin(
+      env,
+      { githubUserId: 4242, githubToken: USER_TOKEN },
+      `https://github.com/${OWNER}/${REPO}`,
+    );
+    if (!result.ok) throw new Error(result.code);
+    await markListable(env.DB);
+    await env.DB.prepare("UPDATE release_checks SET config_state = 'pending', config_fetched_at = NULL").run();
+    // 先に並べたハンドラーが優先される。宣言ファイルを返すハンドラーを、404 を返す共通のハンドラーより前に置く。
+    network.use(
+      http.get('https://api.github.com/repos/:owner/:repo/contents/.audio-soko-kun/config.json', () =>
+        HttpResponse.text('{"name": "Simple White Noise"}\n'),
+      ),
+      ...releaseCheckHandlers(),
+    );
+    await runReleaseChecks(env, new Budget());
+    const row = await env.DB.prepare('SELECT config_state FROM release_checks').first<{ config_state: string }>();
+    expect(row?.config_state).toBe('ok');
+    const view = await getPluginViewByInternalId(env, `${OWNER}/${REPO}`.toLowerCase());
+    expect(view?.name).toBe('Simple White Noise');
   });
 });

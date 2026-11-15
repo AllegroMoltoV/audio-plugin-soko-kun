@@ -18,7 +18,7 @@ import {
   type RepositorySnapshot,
 } from '../review/rules';
 import { getPluginViewByInternalId } from './catalog';
-import { readDeclaration, settleDeclarations } from './declaration';
+import { readDeclaration, serializeDeclaration, settleDeclarations } from './declaration';
 import { licenseAtTag } from './license';
 import { MAX_REVIEW_ATTEMPTS } from './status';
 
@@ -128,7 +128,7 @@ async function checkOne(env: Env, budget: Budget, github: GitHubClient, row: Pen
       update(
         'config_fetched_at = ?, config_json = ?',
         fetchedAt,
-        parsed.state === 'parsed' ? JSON.stringify(parsed.declaration) : null,
+        parsed.state === 'parsed' ? serializeDeclaration(parsed.declaration) : null,
       );
       declarationFetched = true;
     }

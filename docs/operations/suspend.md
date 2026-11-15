@@ -24,6 +24,7 @@
 | 確認待ちの版の承認 | `npm run admin -- approve-release <owner/repo> <tag>` |
 | 版の停止 | `npm run admin -- suspend-release <owner/repo> <tag> "<告知の文>"` |
 | 試行を使い切った検査のやり直し | `npm run admin -- retry-checks <owner/repo> <tag>` |
+| 宣言ファイルの判定のやり直し | `npm run admin -- retry-declaration <owner/repo> <tag>`。本サービスの判定の不具合を直した後に、誤って `invalid` や `mismatch` にした版を戻す。次の定期処理で、タグの時点の宣言ファイルを取得し直して照合し直す |
 
 いずれのコマンドも、`--remote` を付けると本番の D1 を更新します。付けない場合はローカルの D1 を更新します。
 

@@ -10,6 +10,7 @@
 //   npm run admin -- approve-release <owner/repo> <tag> [--remote]
 //   npm run admin -- suspend-release <owner/repo> <tag> "<告知の文>" [--remote]
 //   npm run admin -- retry-checks <owner/repo> <tag> [--remote]
+//   npm run admin -- retry-declaration <owner/repo> <tag> [--remote]
 // --remote を付けないときはローカルの D1 を更新する。<owner/repo> は現在の名前と登録したときの名前のどちらでもよい。
 // 手順と表示の意味は docs/operations/suspend.md と docs/operations/incident-response.md に記載している。
 import { spawnSync } from 'node:child_process';
@@ -36,7 +37,8 @@ const USAGE =
   '       admin pending [--remote]\n' +
   '       admin approve-release <owner/repo> <tag> [--remote]\n' +
   '       admin suspend-release <owner/repo> <tag> "<note>" [--remote]\n' +
-  '       admin retry-checks <owner/repo> <tag> [--remote]';
+  '       admin retry-checks <owner/repo> <tag> [--remote]\n' +
+  '       admin retry-declaration <owner/repo> <tag> [--remote]';
 if (!command || (command !== 'pending' && !rawId)) fail(USAGE);
 
 const id = (rawId ?? '').toLowerCase();
@@ -146,6 +148,13 @@ if (command === 'suspend') {
            LEFT JOIN macos_signing_checks m ON m.github_asset_id = a.github_asset_id
            WHERE a.release_id = ${releaseOf(reason)};
          SELECT review_state, review_attempts FROM release_checks WHERE github_release_id = ${releaseOf(reason)};`;
+} else if (command === 'retry-declaration') {
+  // 宣言ファイルの判定をやり直す。本サービスの判定の不具合を直した後に、誤って invalid や mismatch にした版を戻すために使う。
+  // 次の定期処理の新しい版の検査で、タグの時点の宣言ファイルを取得し直し、中身の検査の結果と照合し直す。
+  if (!reason || !TAG.test(reason)) fail('a release tag is required');
+  sql = `UPDATE release_checks SET config_state = 'pending', config_fetched_at = NULL, config_json = NULL
+           WHERE github_release_id = ${releaseOf(reason)};
+         SELECT config_state, config_fetched_at FROM release_checks WHERE github_release_id = ${releaseOf(reason)};`;
 } else {
   fail(`unknown command: ${command}`);
 }

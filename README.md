@@ -122,6 +122,11 @@ MIT License です。[LICENSE](LICENSE) を参照してください。VST Compat
 
 ## 更新履歴
 
+### 0.1.7 (2026-11-15)
+
+- 宣言ファイル `.audio-soko-kun/config.json` の一部の項目だけを書いた正しい宣言が、照合の段階で不正と判定される不具合を直しました。保存した宣言を読み直すときに、書いていない項目を不正とみなしていました。
+- 宣言ファイルの判定をやり直す管理コマンド `retry-declaration` を足しました。
+
 ### 0.1.6 (2026-11-15)
 
 - レビューの README を、GitHub がリポジトリの画面に表示するものを GitHub の README の API で取得し、そのパスで照合するようにしました。`README.md` 以外の名前の README や、`.github` と `docs` に置いた README で、`no-security-bypass` と `no-terminal-paste` の照合を逃れられた欠陥を直しました。README の上限は 128 KB のままで、LLM には先頭の 32,768 文字だけを渡します。配信プラグイン倉庫くん 0.2.9 と同じ実装です。
