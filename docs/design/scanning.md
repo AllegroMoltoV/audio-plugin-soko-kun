@@ -498,7 +498,7 @@ Linux の rcodesign は使いません。rcodesign の verify は Mach-O だけ�
 
 `user-data-handling` のレビューに事実として渡すため、新しい版のソースのコードから通信の API の使用を探します。配信プラグイン倉庫くんの 0.2.3 の仕組みを引き継ぎ、オーディオプラグインのフレームワークの API を足しています。
 
-`verify.yaml` は、通信の検出を待つ版ごとに、空のディレクトリで `git fetch --depth 1 https://github.com/<リポジトリ>.git <版のコミット>` を実行し、そのコミットのソースだけを取得します。サブモジュールは取得しません。取得したソースは実行もビルドもしません。`.github/scripts/scan-network.sh` が、C・C++・Objective-C・Rust のファイルから次の API を文字列で探し、ファイル・行・API の名前・行の文字列を返します。取得 (`git fetch`) と取り出し (`git checkout`) はそれぞれ 120 秒、探索は 60 秒で打ち切ります。Git LFS のファイルは取得しません (`GIT_LFS_SKIP_SMUDGE=1`)。取り出しの前後でランナーの空き容量を確かめ、3 GiB に満たなければ探しません。第三者のソースで、同じ回のほかの版と配布物の検証を止めないためです。どの失敗も `error` として返します。
+`verify.yaml` は、通信の検出を待つ版ごとに、空のディレクトリで `git fetch --depth 1 https://github.com/<リポジトリ>.git <版のコミット>` を実行し、そのコミットのソースだけを取得します。サブモジュールは取得しません。取得したソースは実行もビルドもしません。`.github/scripts/scan-network.sh` が、`.git` を除くすべてのテキストファイルから次の API を文字列で探し、ファイル・行・API の名前・行の文字列を返します。ツリーの全体は、全パターンで候補のファイルを探す 1 回だけ読み、パターンごとの照合は候補のファイルだけに当てます。UTF-8 として読めない文字を含む行も当てるため、バイト列として探します (`LC_ALL=C`)。取得 (`git fetch`) と取り出し (`git checkout`) はそれぞれ 120 秒、探索は 60 秒で打ち切ります。Git LFS のファイルは取得しません (`GIT_LFS_SKIP_SMUDGE=1`)。取り出しの前後でランナーの空き容量を確かめ、3 GiB に満たなければ探しません。第三者のソースで、同じ回のほかの版と配布物の検証を止めないためです。どの失敗も `error` として返します。
 
 | API の名前 | 探す文字列 |
 | --- | --- |
@@ -511,7 +511,7 @@ Linux の rcodesign は使いません。rcodesign の verify は Mach-O だけ�
 | `juce-network` | JUCE の `WebInputStream`・`StreamingSocket`・`DatagramSocket`・`URL::createInputStream`・`InputStreamOptions`・`readEntireTextStream`・`readEntireBinaryStream`・`downloadToFile` |
 | `rust-http`・`rust-net` | Rust の `reqwest`・`ureq`・`hyper::Client`・`isahc`・`attohttpc`、`TcpStream::connect`・`UdpSocket::bind`・`tungstenite` |
 
-JUCE の `juce::URL` の型の名前では当てません。`launchInDefaultBrowser` のように、ブラウザーで開くだけの用途にも使うためです。`createInputStream` は、ローカルのファイルの `File::createInputStream` と区別するため、`URL::` で修飾した形と `InputStreamOptions` だけに当てます。JUCE をリポジトリに同梱した作者のソースで JUCE 自身の通信の実装に当たらないよう、`juce_core` のディレクトリは探しません。ビルドの出力 (`build`・`build_*`・Rust の `target`) と、`.git`・`.deps` も探しません。
+JUCE の `juce::URL` の型の名前では当てません。`launchInDefaultBrowser` のように、ブラウザーで開くだけの用途にも使うためです。`createInputStream` は、ローカルのファイルの `File::createInputStream` と区別するため、`URL::` で修飾した形と `InputStreamOptions` だけに当てます。拡張子とディレクトリの名前では絞りません。C のプリプロセッサは拡張子に関係なく `#include` で取り込むため、拡張子で絞ると `net.inc` や `NET.CPP` に置いた通信の処理を見逃します。取得するのはコミット済みのファイルだけなので、`build`・`.deps`・Rust の `target` も探します。文書も探します。文書の名前のファイルを `#include` する経路を残さないためで、文書で API の名前に触れただけの行は、誤検出として管理者の確認で扱います (配信プラグイン倉庫くんと同じ)。JUCE をリポジトリに同梱した作者のソースで JUCE 自身の通信の実装に当たらないよう、相対パスが JUCE の配置 (`modules/juce_core/`) に合うファイルだけを捨てます。名前ではなく配置で判定するため、`juce_core` という名前だけのディレクトリは探します。JUCE の配置に似せたディレクトリに置いた通信の処理は逃れられます。また、`modules/` を含まない配置 (`JuceModules/juce_core` など) の JUCE と、`juce_core` の外の JUCE のモジュール・例・プロジェクトのファイルの当たりは捨てません。
 
 当たりは 50 件までとし、超えたら打ち切りを `truncated` で示します。検出は API の使用だけを示し、送る内容は示しません。そのため、検出の結果だけで掲載を止めず、README の説明と合わせて LLM が判定します。
 
