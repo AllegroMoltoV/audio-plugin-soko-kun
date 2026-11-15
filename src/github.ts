@@ -72,6 +72,49 @@ function classify(response: Response): GitHubError {
   return new GitHubError('unavailable', status);
 }
 
+// コミットの位置を調べる compare の応答の上限。
+const MAX_ANCESTRY_BYTES = 64 * 1024;
+
+export interface RulesetSnapshot {
+  // 有効な ruleset のうち、詳細を読まなかったものがある。
+  truncated: boolean;
+  items: Array<{
+    target: 'branch' | 'tag';
+    include: string[];
+    rules: Array<{ type: string; parameters: Record<string, unknown> }>;
+  }>;
+}
+
+function readInclude(conditions: unknown): string[] {
+  const include = (conditions as { ref_name?: { include?: unknown } } | null)?.ref_name?.include;
+  return Array.isArray(include) ? include.filter((value): value is string => typeof value === 'string') : [];
+}
+
+// 本文を maxBytes まで読む。超えたら接続を切って null を返す。
+async function readLimited(response: Response, maxBytes: number): Promise<string | null> {
+  const reader = response.body?.getReader();
+  if (!reader) return '';
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const chunk = await reader.read();
+    if (chunk.done) break;
+    total += chunk.value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(chunk.value);
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(bytes);
+}
+
 const SEGMENT = /^[A-Za-z0-9._-]{1,100}$/;
 
 function path(...segments: string[]): string {
@@ -293,29 +336,11 @@ export class GitHubClient {
       await response.body?.cancel();
       return { files: [], complete: false };
     }
-    const reader = response.body?.getReader();
-    if (!reader) return { files: [], complete: false };
-    const chunks: Uint8Array[] = [];
-    let size = 0;
-    for (;;) {
-      const chunk = await reader.read();
-      if (chunk.done) break;
-      size += chunk.value.byteLength;
-      if (size > MAX_COMPARE_BYTES) {
-        await reader.cancel();
-        return { files: [], complete: false };
-      }
-      chunks.push(chunk.value);
-    }
-    const bytes = new Uint8Array(size);
-    let offset = 0;
-    for (const chunk of chunks) {
-      bytes.set(chunk, offset);
-      offset += chunk.byteLength;
-    }
+    const text = await readLimited(response, MAX_COMPARE_BYTES);
+    if (!text) return { files: [], complete: false };
     let body: { files?: unknown };
     try {
-      body = JSON.parse(new TextDecoder().decode(bytes));
+      body = JSON.parse(text);
     } catch {
       return { files: [], complete: false };
     }
@@ -338,6 +363,51 @@ export class GitHubClient {
       });
     }
     return { files, complete: files.length < MAX_COMPARE_FILES };
+  }
+
+  // コミットが既定のブランチ (HEAD) の履歴にあれば 'inside'、無ければ 'outside' を返す。
+  // 既定のブランチにあるコミットの応答は commits と files が空で小さい。上限を超える応答は、
+  // そのコミットにだけあるコミットを含むため、解析せずに 'outside' とする。大きな JSON の解析は CPU 時間の上限を超えるため。
+  async getTagAncestry(owner: string, repo: string, commitSha: string): Promise<'inside' | 'outside'> {
+    if (!/^[0-9a-f]{40}$/.test(commitSha)) throw new Error('invalid commit sha');
+    const response = await this.request(`${API}/repos/${path(owner, repo)}/compare/HEAD...${commitSha}?per_page=1`);
+    const text = await readLimited(response, MAX_ANCESTRY_BYTES);
+    if (text === null) return 'outside';
+    const status = (JSON.parse(text) as { status?: unknown }).status;
+    if (status === 'behind' || status === 'identical') return 'inside';
+    if (status === 'ahead' || status === 'diverged') return 'outside';
+    throw new Error('unexpected compare status');
+  }
+
+  // 有効な ruleset の中身を返す。一覧から、target が branch のもの、tag のものの順に最大 maxDetails 件の詳細を読む。
+  // 公開リポジトリの ruleset はトークンなしでも読める。bypass_actors は返らない。
+  async getRulesets(owner: string, repo: string, maxDetails: number): Promise<RulesetSnapshot> {
+    const list = (await (
+      await this.request(`${API}/repos/${path(owner, repo)}/rulesets?per_page=100`)
+    ).json()) as Array<{ id?: unknown; target?: unknown; enforcement?: unknown }>;
+    const active = (Array.isArray(list) ? list : [])
+      .filter((entry) => entry.enforcement === 'active' && Number.isSafeInteger(entry.id))
+      .filter((entry) => entry.target === 'branch' || entry.target === 'tag')
+      .sort((a, b) => Number(a.target === 'tag') - Number(b.target === 'tag'));
+    const items: RulesetSnapshot['items'] = [];
+    for (const entry of active.slice(0, maxDetails)) {
+      const detail = (await (
+        await this.request(`${API}/repos/${path(owner, repo)}/rulesets/${entry.id as number}`)
+      ).json()) as { target?: unknown; conditions?: unknown; rules?: unknown };
+      items.push({
+        target: detail.target === 'tag' ? 'tag' : 'branch',
+        include: readInclude(detail.conditions),
+        rules: Array.isArray(detail.rules)
+          ? detail.rules
+              .filter(
+                (rule): rule is { type: string; parameters?: Record<string, unknown> } =>
+                  typeof rule === 'object' && rule !== null && typeof (rule as { type?: unknown }).type === 'string',
+              )
+              .map((rule) => ({ type: rule.type, parameters: rule.parameters ?? {} }))
+          : [],
+      });
+    }
+    return { truncated: active.length > maxDetails, items };
   }
 
   // その digest の配布物に、このリポジトリで作った証明が 1 件以上あるときに true。署名の検証はしない。

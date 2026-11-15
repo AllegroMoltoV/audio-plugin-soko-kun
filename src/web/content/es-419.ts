@@ -192,6 +192,13 @@ export const es419: Record<PageKey, PageContent> = {
         ],
       },
       {
+        heading: 'Proteger tus versiones',
+        paragraphs: [
+          'Crea la etiqueta de cada versión en un commit de la rama predeterminada. Una versión cuya etiqueta apunta a un commit fuera de la rama predeterminada espera la confirmación de un administrador.',
+          'Cualquier persona con permiso de escritura en el repositorio puede crear una versión. Esta plataforma recomienda proteger la rama predeterminada con un ruleset que bloquee la eliminación y el push forzado y exija un pull request con al menos una aprobación, y proteger las etiquetas de versión con un ruleset de etiquetas que solo permita a los administradores del repositorio crear, actualizar o eliminar etiquetas. Estos ajustes no son condiciones de publicación.',
+        ],
+      },
+      {
         id: 'rename',
         heading: 'Cambiar el nombre o transferir el repositorio',
         paragraphs: [

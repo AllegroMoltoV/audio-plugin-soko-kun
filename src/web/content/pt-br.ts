@@ -192,6 +192,13 @@ export const ptBR: Record<PageKey, PageContent> = {
         ],
       },
       {
+        heading: 'Proteger suas versões',
+        paragraphs: [
+          'Crie a tag de cada versão em um commit do branch padrão. Uma versão cuja tag aponta para um commit fora do branch padrão aguarda a confirmação de um administrador.',
+          'Qualquer pessoa com permissão de escrita no repositório pode criar uma versão. Esta plataforma recomenda proteger o branch padrão com um ruleset que bloqueie a exclusão e o push forçado e exija um pull request com pelo menos uma aprovação, e proteger as tags de versão com um ruleset de tags que permita apenas aos administradores do repositório criar, atualizar ou excluir tags. Essas configurações não são condições de listagem.',
+        ],
+      },
+      {
         id: 'rename',
         heading: 'Renomear ou transferir o repositório',
         paragraphs: [

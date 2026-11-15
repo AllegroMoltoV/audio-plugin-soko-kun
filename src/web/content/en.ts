@@ -192,6 +192,13 @@ export const en: Record<PageKey, PageContent> = {
         ],
       },
       {
+        heading: 'Protecting your releases',
+        paragraphs: [
+          'Tag each release on a commit of the default branch. A release whose tag points to a commit that is not on the default branch waits for an administrator to confirm it.',
+          'Anyone with write access to the repository can create a release. This platform recommends protecting the default branch with a ruleset that blocks deletion and force pushes and requires a pull request with at least one approval, and protecting release tags with a tag ruleset that lets only repository admins create, update, or delete them. These settings are not listing conditions.',
+        ],
+      },
+      {
         id: 'rename',
         heading: 'Renaming or transferring the repository',
         paragraphs: [

@@ -24,12 +24,14 @@ import { MAX_REVIEW_ATTEMPTS } from './status';
 // ルートのビルド系のファイル (docs/design/scanning.md の「定期処理で行う検査」の順序 5)。
 export const BUILD_FILES = ['CMakeLists.txt', 'Cargo.toml', 'vcpkg.json', '.gitmodules', 'meson.build'];
 const MAX_WORKFLOWS = 6;
-// レビューのファイルの収集の外部呼び出しの上限。ファイルの一覧 1、ワークフロー 6、README 1、ビルド系のファイル 5、
-// CONTRIBUTING 1、PR テンプレート 1 の合計。
-export const REVIEW_FILES_COST = 1 + MAX_WORKFLOWS + 1 + BUILD_FILES.length + 1 + 1;
+// ruleset の詳細を読む上限。
+const MAX_RULESET_DETAILS = 3;
+// レビューの入力の収集の外部呼び出しの上限。ファイルの一覧 1、ワークフロー 6、README 1、ビルド系のファイル 5、
+// CONTRIBUTING 1、PR テンプレート 1、ruleset の一覧 1 と詳細 MAX_RULESET_DETAILS の合計。
+export const REVIEW_FILES_COST = 1 + MAX_WORKFLOWS + 1 + BUILD_FILES.length + 1 + 1 + 1 + MAX_RULESET_DETAILS;
 // 1 件の検査の外部呼び出しの上限。宣言ファイル 1、ライセンス 1、差分 1、差分が上限を超えたときの変更されたファイルの一覧 1、
-// レビューのファイルの収集、LLM 1 の合計。
-export const RELEASE_CHECK_COST = 5 + REVIEW_FILES_COST;
+// 版のコミットの位置 1、レビューの入力の収集、LLM 1 の合計。通信の検出の結果は D1 から読むため数えない。
+export const RELEASE_CHECK_COST = 6 + REVIEW_FILES_COST;
 const MAX_DIFF_CHARS = 24_000;
 const MAX_FILE_BYTES = 32 * 1024;
 const MAX_TOTAL_CHARS = 60_000;
@@ -40,6 +42,7 @@ interface PendingRow {
   owner: string;
   repo: string;
   tag: string;
+  commit_sha: string;
   diff_state: string;
   license_state: string;
   config_state: string;
@@ -61,7 +64,7 @@ export async function runReleaseChecks(env: Env, budget: Budget): Promise<number
   const networkDeadline = new Date(now.getTime() - NETWORK_WAIT_MS).toISOString();
   budget.takeD1Query();
   const row = await env.DB.prepare(
-    `SELECT c.github_release_id, r.plugin_id, p.owner, p.repo, r.tag, c.diff_state, c.license_state, c.config_state,
+    `SELECT c.github_release_id, r.plugin_id, p.owner, p.repo, r.tag, r.commit_sha, c.diff_state, c.license_state, c.config_state,
        c.config_fetched_at, c.review_state, c.review_attempts, c.network_state, c.network_hits,
        ${NETWORK_READY} AS network_ready
      FROM release_checks c JOIN releases r ON r.github_release_id = c.github_release_id JOIN plugins p ON p.id = r.plugin_id
@@ -131,6 +134,7 @@ async function checkOne(env: Env, budget: Budget, github: GitHubClient, row: Pen
   }
 
   // 差分の起点は、その時点の掲載対象のリリース。掲載中の版が無ければ、差分の検査を当てない。
+  // 版のコミットが既定のブランチにあるかは、掲載中の版の有無にかかわらず確かめる。
   let diff: string | null = null;
   let diffFacts: string[] = [];
   let names = [row.repo];
@@ -139,27 +143,32 @@ async function checkOne(env: Env, budget: Budget, github: GitHubClient, row: Pen
     const view = await getPluginViewByInternalId(env, row.plugin_id);
     if (view && view.name !== row.repo) names = [row.repo, view.name];
     const base = view?.listedRelease ?? null;
-    if (base && base.tag !== row.tag) {
-      try {
-        const compared = await github.getCompareDiff(row.owner, row.repo, base.tag, row.tag, MAX_DIFF_CHARS);
-        diff = compared.text;
-        const hits = checkDiff(compared.text, row.owner, row.repo);
-        if (compared.truncated) {
+    try {
+      const hits: DiffHit[] = [];
+      let compared = false;
+      if (base && base.tag !== row.tag) {
+        const result = await github.getCompareDiff(row.owner, row.repo, base.tag, row.tag, MAX_DIFF_CHARS);
+        diff = result.text;
+        hits.push(...checkDiff(result.text, row.owner, row.repo));
+        if (result.truncated) {
           const listed = await changedFiles(github, row.owner, row.repo, base.tag, row.tag);
           const tooLarge = tooLargeHits(listed.files, listed.complete);
           hits.push(...tooLarge);
           diffFacts = tooLargeFacts(listed.files, listed.complete, tooLarge);
         }
-        if (row.diff_state === 'pending') {
-          update('diff_state = ?, diff_hits = ?', hits.length > 0 ? 'held' : 'passed', JSON.stringify(hits));
-        }
-      } catch (error) {
-        if (error instanceof GitHubError && (error.kind === 'rate_limited' || error.kind === 'unavailable'))
-          throw error;
-        if (row.diff_state === 'pending') update('diff_state = ?', 'error');
+        compared = true;
       }
-    } else if (row.diff_state === 'pending') {
-      update('diff_state = ?', 'skipped');
+      if (row.diff_state === 'pending') {
+        // タグの名前ではなく、証明と結び付いた版のコミットで比べる。タグと同じ名前のブランチで判定を変えられないようにするため。
+        if ((await github.getTagAncestry(row.owner, row.repo, row.commit_sha)) === 'outside') {
+          hits.push({ rule: 'tag-not-on-default-branch' });
+        }
+        const state = hits.length > 0 ? 'held' : compared ? 'passed' : 'skipped';
+        update('diff_state = ?, diff_hits = ?', state, JSON.stringify(hits));
+      }
+    } catch (error) {
+      if (error instanceof GitHubError && (error.kind === 'rate_limited' || error.kind === 'unavailable')) throw error;
+      if (row.diff_state === 'pending') update('diff_state = ?', 'error');
     }
   }
 
@@ -274,7 +283,14 @@ export async function collectReviewFiles(
   const plan = reviewFilePlan(paths);
   for (const path of plan.fetch) await fetch(path);
   unreadFiles.push(...plan.skipped);
-  return { paths, truncated, files, unreadFiles };
+  let rulesets: CollectedFiles['rulesets'];
+  try {
+    rulesets = { readable: true, ...(await github.getRulesets(owner, repo, MAX_RULESET_DETAILS)) };
+  } catch (error) {
+    if (error instanceof GitHubError && (error.kind === 'rate_limited' || error.kind === 'unavailable')) throw error;
+    rulesets = { readable: false };
+  }
+  return { paths, truncated, files, unreadFiles, rulesets };
 }
 
 // 取得するファイルの順番と、上限で読まないファイル。上限は REVIEW_FILES_COST の内訳に合わせる。

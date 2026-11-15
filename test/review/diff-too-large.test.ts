@@ -55,7 +55,10 @@ async function prepare(): Promise<void> {
 }
 
 function compareHandler(files: CompareFile[]) {
-  return http.get('https://api.github.com/repos/:owner/:repo/compare/:range', ({ request }) => {
+  return http.get('https://api.github.com/repos/:owner/:repo/compare/:range', ({ request, params }) => {
+    // 版のコミットの位置は、既定のブランチにあるものとして返す。
+    if (String(params.range).startsWith('HEAD...'))
+      return HttpResponse.json({ status: 'behind', commits: [], files: [] });
     if (request.headers.get('Accept') === 'application/vnd.github.diff') return HttpResponse.text(LARGE_DIFF);
     return HttpResponse.json({ status: 'ahead', commits: [], files });
   });
