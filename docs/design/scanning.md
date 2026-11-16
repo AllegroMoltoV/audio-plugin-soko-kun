@@ -94,7 +94,7 @@ VST® is a registered trademark of Steinberg Media Technologies GmbH.
 
 ### 確認のモード
 
-引数 `mode` が `check` のときは、登録せず、順序 3 から 16 の判定の結果を条件ごとに返します。順序 8 と 9 の重複は判定に含めません。リリースがまだ無いときは、リリースを要る条件を未判定として直し方とともに返します。あわせて、既定のブランチの `.audio-soko-kun/config.json` の形を確かめ (外部呼び出し 1 件)、既定のブランチの最新のコミットのファイルで、下の「定期処理で行う検査」の順序 5 と 6 と同じレビューを行い、結果を返します。宣言ファイルは形だけを確かめ、中身の検査の結果との照合は行いません。応答の形は [作者へのレビューの返し方](author-feedback.md) に記載します。上限は利用者ごとに直近 24 時間で 5 件で、`check_log` で数えます。上限を超えた要求には `rate_limited` を返し、次に使える時刻 `resumesAt` を付けます。AI Gateway の支出の上限、Workers AI の無料枠の不足、混雑でレビューできなかった要求は、件数に数えません。
+引数 `mode` が `check` のときは、登録せず、順序 3 から 16 の判定の結果を条件ごとに返します。順序 8 と 9 の重複は判定に含めません。リリースがまだ無いときは、リリースを要る条件を未判定として直し方とともに返します。あわせて、既定のブランチの `.audio-soko-kun/config.json` の形を確かめ (外部呼び出し 1 件)、既定のブランチの最新のコミットのファイルで、下の「定期処理で行う検査」の順序 5 と 6 と同じレビューを行い、結果を返します。README 以外の文書も、既定のブランチの tarball を取得して照合します (外部呼び出し 2 件、下の「README 以外の文書の照合」)。宣言ファイルは形だけを確かめ、中身の検査の結果との照合は行いません。応答の形は [作者へのレビューの返し方](author-feedback.md) に記載します。上限は利用者ごとに直近 24 時間で 5 件で、`check_log` で数えます。上限を超えた要求には `rate_limited` を返し、次に使える時刻 `resumesAt` を付けます。AI Gateway の支出の上限、Workers AI の無料枠の不足、混雑でレビューできなかった要求は、件数に数えません。
 
 確認のモードでは、中身の検査と macOS の判定を行わず、それぞれの条件の説明だけを返します。どちらも配布物の取得を伴い、GitHub Actions で行うためです。また、確認のモードを使う公開前のリリースには、まだ配布物がありません。
 
@@ -517,9 +517,11 @@ JUCE の `juce::URL` の型の名前では当てません。`launchInDefaultBrow
 
 ### README 以外の文書の照合
 
-同じ取り出しで、`.github/scripts/scan-docs.mjs` が README 以外の文書の案内を `no-security-bypass` と `no-terminal-paste` の型で照合します。型は Worker と共有する `src/review/guidance-patterns.mjs` を使います。`verify.yaml` は、`.github/scripts` と `src/review` のディレクトリだけを sparse-checkout で取り出し、`scan-docs.mjs` はこのファイルを相対パスで読みます。対象は `.md`・`.markdown`・`.mdx`・`.txt`・`.rst`・`.adoc`・`.asciidoc`・`.org` のファイルと、直下と `docs/` の拡張子の無い大文字で始まる名前のファイルです。ワークフロー・スクリプト・ロケールのファイルは拡張子で外れます。`.git` とシンボリックリンク、1 MiB を超えるファイル、NUL を含むファイルは読みません。README は名前で除かず、Worker が README の照合と重なる当たりを捨てます。当たり (ファイル・行・項目・行の文字列) は 50 件までとし、通信の検出の結果の要素に `docHits` と `docTruncated` として載せます。照合は 60 秒で打ち切り、失敗した版は通信の検出と同じく `error` として返します。
+同じ取り出しで、`.github/scripts/scan-docs.mjs` が README 以外の文書の案内を `no-security-bypass` と `no-terminal-paste` の型で照合します。照合するファイルの選び方と照合の本体は、確認のモードと共有する `src/review/doc-scan.mjs` に置き、型は Worker と共有する `src/review/guidance-patterns.mjs` を使います。`verify.yaml` は、`.github/scripts` と `src/review` のディレクトリだけを sparse-checkout で取り出し、`scan-docs.mjs` はこれらのファイルを相対パスで読みます。対象は `.md`・`.markdown`・`.mdx`・`.txt`・`.rst`・`.adoc`・`.asciidoc`・`.org` のファイルと、直下と `docs/` の拡張子の無い大文字で始まる名前のファイルです。ワークフロー・スクリプト・ロケールのファイルは拡張子で外れます。`.git` とシンボリックリンク、1 MiB を超えるファイル、NUL を含むファイルは読みません。README は名前で除かず、Worker が README の照合と重なる当たりを捨てます。当たり (ファイル・行・項目・行の文字列) は 50 件までとし、通信の検出の結果の要素に `docHits` と `docTruncated` として載せます。照合は 60 秒で打ち切り、失敗した版は通信の検出と同じく `error` として返します。
 
 レビューの時点で結果が届いていない版 (期限切れか、`error` のまま試行を使い切った版) は、`no-security-bypass` と `no-terminal-paste` を重大の指摘にします。リポジトリを大きくして取得を時間切れにすることで、照合を逃れられないようにするためです。`network_state` が `done` で `doc_hits` が NULL の版 (文書の照合を入れる前に検出した版) と、`skipped` の版は、文書を照合していないものとして扱います。
+
+確認のモードでも、README 以外の文書を同じ選び方で照合します。確認のモードは同期の応答のため、GitHub Actions の結果を待てません。そこで、`src/review/check-docs.ts` が既定のブランチの tarball (`GET /repos/{owner}/{repo}/tarball/{既定のブランチ}`) を取得し、`codeload.github.com` への転送を 1 回だけ追います。転送の先には認証ヘッダーを送りません。tar.gz は逐次に展開し、照合の対象の文書だけを残します。パスは、pax の拡張ヘッダーの `path`、無ければ ustar の `prefix` と `name` から組み立て、先頭のディレクトリを外します。圧縮で 100 MB、展開で 200 MB、20 秒を上限とします。上限を超えたか取得に失敗したとき、外部呼び出しの予算が足りないとき、ファイルの一覧にある文書が tarball に無いときは、2 つの項目を重大の指摘にし、照合できなかった理由を返します。tarball は `.gitattributes` の `export-ignore` を反映し、本審査の取り出しは反映しないため、無い文書を照合したことにしないためです。作者が不変のリリースの前に当たりを直せるよう、照合を緩めずに知らせます。
 
 ### リリースノートの照合
 
