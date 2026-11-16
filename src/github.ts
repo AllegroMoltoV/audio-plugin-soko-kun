@@ -10,6 +10,8 @@ const MAX_TREE_BYTES = 1024 * 1024;
 const MAX_COMPARE_BYTES = 1024 * 1024;
 // GitHub の compare が返す変更されたファイルの件数の上限。
 export const MAX_COMPARE_FILES = 300;
+// getTarball が使う外部の呼び出しの件数。API と、転送の先の codeload。
+export const TARBALL_COST = 2;
 
 export type GitHubAuth = { kind: 'user'; token: string } | { kind: 'app'; clientId: string; clientSecret: string };
 
@@ -147,6 +149,40 @@ export class GitHubClient {
       throw classify(response);
     }
     return response;
+  }
+
+  // ref の時点のリポジトリの tar.gz の本文を返す。API は codeload.github.com へ 302 で転送するため、このホストに限って 1 回だけ追う。
+  // 転送の先には認証ヘッダーを送らない。外部の呼び出しは 2 件 (TARBALL_COST) 使う。
+  async getTarball(owner: string, repo: string, ref: string): Promise<ReadableStream<Uint8Array>> {
+    this.budget.takeSubrequest();
+    const first = await fetch(`${API}/repos/${path(owner, repo)}/tarball/${encodeURIComponent(path(ref))}`, {
+      headers: {
+        Accept: 'application/vnd.github+json',
+        Authorization: authHeader(this.auth),
+        'User-Agent': 'audio-plugin-soko-kun',
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+      redirect: 'manual',
+    });
+    let response = first;
+    if (first.status >= 300 && first.status < 400) {
+      await first.body?.cancel();
+      const location = first.headers.get('Location');
+      const next = location ? new URL(location) : null;
+      if (next?.protocol !== 'https:' || next.host !== 'codeload.github.com') {
+        throw new GitHubError('unavailable', first.status);
+      }
+      this.budget.takeSubrequest();
+      response = await fetch(next.toString(), {
+        headers: { 'User-Agent': 'audio-plugin-soko-kun' },
+        redirect: 'manual',
+      });
+    }
+    if (!response.ok || !response.body) {
+      await response.body?.cancel();
+      throw classify(response);
+    }
+    return response.body;
   }
 
   async getRepo(owner: string, repo: string): Promise<GitHubRepo> {

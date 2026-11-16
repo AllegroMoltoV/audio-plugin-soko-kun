@@ -161,7 +161,7 @@ OAuth のクライアント・認可・トークンの情報は D1 ではなく 
 | `immutable` | INTEGER | NOT NULL、既定値 0 | 1 のとき、GitHub のリリースの API の `immutable` が true |
 | `base_release_id` | INTEGER | | 差分の起点にした掲載中のリリース。初めて登録した版では NULL |
 | `diff_state` | TEXT | NOT NULL、既定値 `pending` | `pending`・`passed`・`held`・`skipped`・`error` のいずれか。`skipped` は起点が無いとき |
-| `diff_hits` | TEXT | | 当たった乗っ取りの兆候の ID とファイルの JSON |
+| `diff_hits` | TEXT | | 当たった乗っ取りの兆候の ID とファイルの JSON。ファイルは差分の見出しから取ったパスで、200 文字までに切り詰める |
 | `license_state` | TEXT | NOT NULL、既定値 `pending` | 版のタグの時点のライセンスの判定。`pending`・`passed`・`no_license`・`license_unrecognized`・`license_not_open` のいずれか。規則は [検査と同期](scanning.md) の「ライセンスの判定」に記載する |
 | `license_spdx` | TEXT | | 版のタグの時点で GitHub が検出したライセンスの SPDX 識別子。ライセンスが無いときは NULL |
 | `config_state` | TEXT | NOT NULL、既定値 `pending` | 宣言ファイルの判定。`pending`・`ok`・`missing`・`invalid`・`no_declared_assets`・`mismatch` のいずれか。`mismatch` は、宣言と中身の検査の結果が食い違うとき |

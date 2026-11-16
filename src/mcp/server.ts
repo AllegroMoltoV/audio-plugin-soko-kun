@@ -124,7 +124,7 @@ const instructions = (origin: string) =>
     'Audio Plugin Soko-kun lists open-source audio plugins (VST 3, CLAP, LV2, and Audio Unit) and links to their files on GitHub.',
     'For users: use search_plugins and get_plugin. Only versions that passed the checks are listed.',
     'For plugin authors: before publishing a release, call submit_plugin with mode "check" to see the listing conditions and a review of the repository.',
-    'After the author publishes a release, wait 15 minutes or more, then call list_my_plugins to see whether the new version is listed.',
+    'After the author publishes a release, wait 15 minutes or more, then call list_my_plugins to see whether the new version is listed. While the version is checking, call list_my_plugins again at each checkAgainAfter.',
     'If list_my_plugins returns blockers that wait for the author, or review findings, tell the author and suggest the fixes.',
     `The listing conditions and review criteria are published at ${origin}/policy?lang=en and https://github.com/AllegroMoltoV/audio-plugin-soko-kun/blob/main/docs/design/review-criteria.md. Use submit_plugin with mode "check" to check a repository against them before a release.`,
     // 名前の変更と移管の案内は本文を書かず、サイトの節を示す。説明は接続のたびに読まれるため (派生元の ADR 0015)。
@@ -139,7 +139,7 @@ export function buildMcpServer(env: Env, user?: SignedInUser): McpServer {
     {
       name: 'audio-plugin-soko-kun',
       title: 'Audio Plugin Soko-kun',
-      version: '0.1.19',
+      version: '0.1.20',
       websiteUrl: env.ORIGIN,
       icons: [
         { src: `${env.ORIGIN}/logo.png`, mimeType: 'image/png', sizes: ['256x256'] },
@@ -226,8 +226,7 @@ export function buildMcpServer(env: Env, user?: SignedInUser): McpServer {
         // 登録を書き込むが既存のものは消さない。同じリポジトリの再登録は duplicate で拒否するため、繰り返しても結果は増えない。
         // GitHub に問い合わせて条件を確かめる。
         annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
-        description:
-          'Register a public GitHub repository of an audio plugin (VST 3, CLAP, LV2, or Audio Unit) that you administer, or check it without registering (mode "check"). Requires signing in with GitHub (in Claude Code, run /mcp and sign in). The plugin is listed automatically after automated checks pass. New releases are picked up automatically; check them with list_my_plugins.',
+        description: `Register a public GitHub repository of an audio plugin (VST 3, CLAP, LV2, or Audio Unit) that you administer, or check it without registering (mode "check"). Requires signing in with GitHub (in Claude Code, run /mcp and sign in). The plugin is listed automatically after automated checks pass. New releases are picked up automatically; check them with list_my_plugins. ${UNTRUSTED_NOTE}`,
         inputSchema: {
           mode: z
             .enum(['submit', 'check'])
@@ -267,8 +266,7 @@ export function buildMcpServer(env: Env, user?: SignedInUser): McpServer {
         title: 'List my audio plugins and their check results',
         // 自前の D1 を読み、GitHub で管理権限を確かめるだけで、書き込まない。
         annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
-        description:
-          'For audio plugin authors. Returns the plugins you administer on GitHub, each version state (listed, checking, held, rejected, suspended), the blockers that keep a version from being listed with how to fix them, and repository review findings. Call it 15 minutes or more after publishing a release. Requires signing in with GitHub.',
+        description: `For audio plugin authors. Returns the plugins you administer on GitHub, each version state (listed, checking, held, rejected, suspended), the blockers that keep a version from being listed with how to fix them, and repository review findings. Call it 15 minutes or more after publishing a release. Requires signing in with GitHub. ${UNTRUSTED_NOTE}`,
         inputSchema: {
           pluginId: z
             .string()

@@ -22,6 +22,13 @@ describe('checkDiff', () => {
     ]);
   });
 
+  // ファイル名は作者の AI に返すため、見出しに長い文を書かれても上限を超えて保存しない。
+  it('パスを取り出せない見出しでも、当たりのファイル名を 200 文字までに切り詰める', () => {
+    const header = `diff --git a/.github/workflows/x y.yaml b/.github/workflows/x y.yaml ${'z'.repeat(300)}`;
+    const hits = checkDiff(diff(header), 'owner', 'plugin');
+    expect(hits).toEqual([{ rule: 'diff-workflow-changed', file: header.slice('diff --git '.length, 211) }]);
+  });
+
   it('バイナリの追加と変更に当たる', () => {
     const hits = checkDiff(
       diff(
