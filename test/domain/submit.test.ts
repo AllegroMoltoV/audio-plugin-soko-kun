@@ -91,11 +91,13 @@ describe('submitPlugin', () => {
     expect(await env.DB.prepare('SELECT count(*) AS n FROM plugins').first('n')).toBe(0);
   });
 
-  it('SPDX で非推奨の識別子でも、合格の集合に入れば登録し、タグの時点のライセンスを記録する', async () => {
+  it('SPDX で非推奨の識別子でも、合格の集合に入れば登録し、タグが指すコミットの時点のライセンスを記録する', async () => {
     const calls: string[] = [];
     network.use(...githubHandlers({ license: 'GPL-3.0' }, calls));
     expect((await submitPlugin(env, submitter, url)).ok).toBe(true);
-    expect(calls).toContain('license:v1.1.0');
+    // タグの短い名前は同じ名前のブランチに解決されうるため、タグの完全な参照で解決したコミットで取得する。
+    expect(calls).toContain('license:3f2a9c1000000000000000000000000000000000');
+    expect(calls).not.toContain('license:v1.1.0');
     const row = await env.DB.prepare(
       'SELECT p.license_spdx AS plugin, c.license_state, c.license_spdx FROM plugins p, release_checks c',
     ).first();

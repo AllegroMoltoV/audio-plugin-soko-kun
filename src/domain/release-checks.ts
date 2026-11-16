@@ -19,7 +19,7 @@ import {
 } from '../review/rules';
 import { getPluginViewByInternalId } from './catalog';
 import { readDeclaration, serializeDeclaration, settleDeclarations } from './declaration';
-import { licenseAtTag } from './license';
+import { licenseAtCommit } from './license';
 import { readReleaseNotesHits } from './release-notes';
 import { MAX_REVIEW_ATTEMPTS } from './status';
 
@@ -109,6 +109,8 @@ export async function runReleaseChecks(env: Env, budget: Budget): Promise<number
   return 1;
 }
 
+// 検査はタグの名前ではなく、同期で記録した版のコミット (証明と結び付いたもの) で行う。
+// タグと同じ名前のブランチで、検査の対象を変えられないようにするため。
 async function checkOne(env: Env, budget: Budget, github: GitHubClient, row: PendingRow): Promise<void> {
   const statements: D1PreparedStatement[] = [];
   const update = (sql: string, ...values: unknown[]) =>
@@ -123,7 +125,7 @@ async function checkOne(env: Env, budget: Budget, github: GitHubClient, row: Pen
   // 宣言と中身の検査の結果の照合は、中身の検査が終わってから settleDeclarations が行う。
   let declarationFetched = false;
   if (row.config_state === 'pending' && row.config_fetched_at === null) {
-    const parsed = await readDeclaration(github, row.owner, row.repo, row.tag);
+    const parsed = await readDeclaration(github, row.owner, row.repo, row.commit_sha);
     const fetchedAt = new Date().toISOString();
     if (parsed.state === 'invalid') {
       update("config_state = 'invalid', config_fetched_at = ?", fetchedAt);
@@ -137,9 +139,9 @@ async function checkOne(env: Env, budget: Budget, github: GitHubClient, row: Pen
     }
   }
 
-  // ライセンス。版のタグの時点で判定する。
+  // ライセンス。版のコミットの時点で判定する。
   if (row.license_state === 'pending') {
-    const license = await licenseAtTag(github, row.owner, row.repo, row.tag);
+    const license = await licenseAtCommit(github, row.owner, row.repo, row.commit_sha);
     update('license_state = ?, license_spdx = ?', license.state, license.spdx);
   }
 
@@ -157,11 +159,11 @@ async function checkOne(env: Env, budget: Budget, github: GitHubClient, row: Pen
       const hits: DiffHit[] = [];
       let compared = false;
       if (base && base.tag !== row.tag) {
-        const result = await github.getCompareDiff(row.owner, row.repo, base.tag, row.tag, MAX_DIFF_CHARS);
+        const result = await github.getCompareDiff(row.owner, row.repo, base.commitSha, row.commit_sha, MAX_DIFF_CHARS);
         diff = result.text;
         hits.push(...checkDiff(result.text, row.owner, row.repo));
         if (result.truncated) {
-          const listed = await changedFiles(github, row.owner, row.repo, base.tag, row.tag);
+          const listed = await changedFiles(github, row.owner, row.repo, base.commitSha, row.commit_sha);
           const tooLarge = tooLargeHits(listed.files, listed.complete);
           hits.push(...tooLarge);
           diffFacts = tooLargeFacts(listed.files, listed.complete, tooLarge);
@@ -169,7 +171,6 @@ async function checkOne(env: Env, budget: Budget, github: GitHubClient, row: Pen
         compared = true;
       }
       if (row.diff_state === 'pending') {
-        // タグの名前ではなく、証明と結び付いた版のコミットで比べる。タグと同じ名前のブランチで判定を変えられないようにするため。
         if ((await github.getTagAncestry(row.owner, row.repo, row.commit_sha)) === 'outside') {
           hits.push({ rule: 'tag-not-on-default-branch' });
         }
@@ -187,7 +188,7 @@ async function checkOne(env: Env, budget: Budget, github: GitHubClient, row: Pen
   // LLM のレビュー
   // 通信の検出の結果を待つ間は、宣言ファイル・ライセンス・差分の検査だけを進める。
   if (row.review_state !== 'done' && row.network_ready === 1) {
-    const input = await collectReviewFiles(github, row.owner, row.repo, row.tag);
+    const input = await collectReviewFiles(github, row.owner, row.repo, row.commit_sha);
     input.network = row.network_state === 'done' ? readNetworkScan(row.network_hits) : null;
     // リリースノートは同期の時点で照合してある。照合していない版 (この仕組みより前の版) は未設定のままにする。
     input.releaseNotesHits = readReleaseNotesHits(row.notes_hits);

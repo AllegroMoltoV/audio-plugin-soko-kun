@@ -1,4 +1,4 @@
-// ライセンスの判定 (docs/design/scanning.md の「ライセンスの判定」)。版ごとに、その版のタグの時点のライセンスで判定する。
+// ライセンスの判定 (docs/design/scanning.md の「ライセンスの判定」)。版ごとに、その版のタグが指すコミットの時点のライセンスで判定する。
 // 判定に LLM は使わない。LICENSE の本文は攻撃者が書ける外部データのため。
 import type { GitHubClient } from '../github';
 import openLicenses from './spdx-open-licenses.json';
@@ -16,13 +16,13 @@ export function judgeLicense(spdx: string | null): Exclude<LicenseState, 'pendin
   return OPEN_LICENSES.has(spdx) ? 'passed' : 'license_not_open';
 }
 
-// タグの時点のライセンスを取得して判定する。外部呼び出しは 1 件。
-export async function licenseAtTag(
+// コミットの時点のライセンスを取得して判定する。外部呼び出しは 1 件。
+export async function licenseAtCommit(
   github: GitHubClient,
   owner: string,
   repo: string,
-  tag: string,
+  commitSha: string,
 ): Promise<{ state: Exclude<LicenseState, 'pending'>; spdx: string | null }> {
-  const spdx = await github.getLicenseSpdx(owner, repo, tag);
+  const spdx = await github.getLicenseSpdx(owner, repo, commitSha);
   return { state: judgeLicense(spdx), spdx };
 }

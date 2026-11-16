@@ -13,6 +13,9 @@ import { githubHandlers, OWNER, REPO, releaseCheckHandlers, USER_TOKEN } from '.
 import { network } from '../setup';
 
 const NEW_RELEASE_ID = 7002;
+// 掲載中の v1.1.0 のコミット (fixtures/github.ts の commits のハンドラーの値) と、検査待ちの v1.2.0 のコミット。
+const LISTED_SHA = '3f2a9c1000000000000000000000000000000000';
+const NEW_SHA = 'b'.repeat(40);
 const LARGE_DIFF = `diff --git a/src/a.cpp b/src/a.cpp\n+${'x'.repeat(30_000)}\n`;
 
 interface CompareFile {
@@ -47,7 +50,7 @@ async function prepare(): Promise<void> {
     env.DB.prepare(
       `INSERT INTO releases (github_release_id, plugin_id, tag, name, commit_sha, published_at, html_url)
        VALUES (?, ?, 'v1.2.0', 'v1.2.0', ?, '2026-11-01T00:00:00Z', 'https://github.com/x/y/releases/tag/v1.2.0')`,
-    ).bind(NEW_RELEASE_ID, plugin?.plugin_id, 'b'.repeat(40)),
+    ).bind(NEW_RELEASE_ID, plugin?.plugin_id, NEW_SHA),
     env.DB.prepare(
       "INSERT INTO release_checks (github_release_id, immutable, config_state, license_state) VALUES (?, 1, 'missing', 'passed')",
     ).bind(NEW_RELEASE_ID),
@@ -73,6 +76,42 @@ async function check(files: CompareFile[], target: Env = env): Promise<{ state: 
     .first<{ diff_state: string; diff_hits: string | null }>();
   return { state: row?.diff_state ?? '', hits: JSON.parse(row?.diff_hits ?? '[]') };
 }
+
+describe('新しい版の検査の取得の対象', () => {
+  it('タグの名前ではなく、記録した版のコミットで差分と中身を取得する', async () => {
+    await prepare();
+    await env.DB.prepare(
+      "UPDATE release_checks SET license_state = 'pending', config_state = 'pending' WHERE github_release_id = ?",
+    )
+      .bind(NEW_RELEASE_ID)
+      .run();
+    const urls: string[] = [];
+    network.use(
+      // 応答を返さず、後ろのハンドラーへ渡す。差分の取得の失敗は記録されないため、成否ではなく要求の URL で確かめる。
+      http.get('https://api.github.com/*', ({ request }) => {
+        urls.push(decodeURIComponent(request.url));
+      }),
+      http.get('https://api.github.com/repos/:owner/:repo/git/trees/:ref', () =>
+        HttpResponse.json({ tree: [{ path: 'CONTRIBUTING.md', type: 'blob' }], truncated: false }),
+      ),
+      compareHandler([source('src/a.cpp')]),
+      ...releaseCheckHandlers(),
+    );
+    await runReleaseChecks(env, new Budget());
+    const kinds = ['/compare/', '/contents/', '/git/trees/', '/readme', '/license'];
+    for (const kind of kinds) {
+      const matched = urls.filter((url) => url.includes(kind));
+      expect(matched, kind).not.toEqual([]);
+      for (const url of matched) {
+        expect(url, kind).toContain(NEW_SHA);
+        expect(url, kind).not.toMatch(/v1\.[12]\.0/);
+      }
+    }
+    // 差分の本文と、変更されたファイルの一覧の 2 回。起点は掲載中の版のコミット。
+    const range = `/repos/${OWNER}/${REPO}/compare/${LISTED_SHA}...${NEW_SHA}`;
+    expect(urls.filter((url) => url.includes(range))).toHaveLength(2);
+  });
+});
 
 describe('差分が上限を超えた版', () => {
   it('変更されたファイルがどの事実にも当たらなければ、確認待ちにしない', async () => {

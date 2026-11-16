@@ -132,9 +132,9 @@ export async function readDeclaration(
   github: GitHubClient,
   owner: string,
   repo: string,
-  tag: string,
+  ref: string,
 ): Promise<ParsedDeclaration> {
-  return parseDeclaration(await github.getTextFile(owner, repo, CONFIG_DIR, CONFIG_FILE, tag, MAX_CONFIG_BYTES));
+  return parseDeclaration(await github.getTextFile(owner, repo, CONFIG_DIR, CONFIG_FILE, ref, MAX_CONFIG_BYTES));
 }
 
 export interface ArchiveForDeclaration {
