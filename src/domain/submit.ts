@@ -7,7 +7,7 @@ import type { Finding } from '../review/llm';
 import { type ReviewSummary, reviewView } from './author';
 import { resetAttestationStatement, resetContentStatements, resetScanStatements } from './cron';
 import { CONFIG_DIR, readDeclaration } from './declaration';
-import { type LicenseFailure, licenseAtTag } from './license';
+import { type LicenseFailure, licenseAtCommit } from './license';
 import { assetKind, summarizeReadme } from './metadata';
 import {
   collectReviewFiles,
@@ -117,7 +117,9 @@ interface Evaluated {
   release: GitHubRelease | null;
   assets: GitHubAsset[];
   etag: string | null;
-  // タグの時点で GitHub が検出したライセンス。保存に使う。
+  // タグが指すコミット。ライセンスの判定と保存に使う。
+  commitSha: string | null;
+  // タグが指すコミットの時点で GitHub が検出したライセンス。保存に使う。
   licenseSpdx: string | null;
 }
 
@@ -234,7 +236,15 @@ async function evaluateConditions(
   const done = () => stopOnFailure && conditions.some((item) => item.result === 'failed');
   // 管理権限は利用者のトークンで確かめる。permissions は認証した利用者から見た権限を表す。
   const repo = await asUser.getRepo(parsed.owner, parsed.repo);
-  const evaluated: Evaluated = { conditions, repo, release: null, assets: [], etag: null, licenseSpdx: null };
+  const evaluated: Evaluated = {
+    conditions,
+    repo,
+    release: null,
+    assets: [],
+    etag: null,
+    commitSha: null,
+    licenseSpdx: null,
+  };
   conditions.push(condition('not_admin', repo.permissions?.admin === true));
   if (done() || repo.permissions?.admin !== true) return evaluated;
   conditions.push(condition('private_repository', !repo.private));
@@ -262,9 +272,11 @@ async function evaluateConditions(
   const tagValid = TAG.test(release.tag_name);
   conditions.push(condition('unsupported_tag', tagValid));
   if (done()) return evaluated;
-  // ライセンスは最新のリリースのタグの時点で判定する。タグ名が規則に合わなければ取得しない。
+  // ライセンスは最新のリリースのタグが指すコミットの時点で判定する。タグ名が規則に合わなければ取得しない。
+  // タグの短い名前は同じ名前のブランチに解決されうるため、先にタグの完全な参照からコミットを解決する。
   if (tagValid) {
-    const license = await licenseAtTag(asApp, owner, name, release.tag_name);
+    evaluated.commitSha = await asApp.getCommitSha(owner, name, release.tag_name);
+    const license = await licenseAtCommit(asApp, owner, name, evaluated.commitSha);
     evaluated.licenseSpdx = license.spdx;
     conditions.push(
       license.state === 'passed' ? { code: 'no_license', result: 'passed' } : condition(license.state, false),
@@ -339,8 +351,9 @@ async function validateAndStore(env: Env, submitter: Submitter, repositoryUrl: s
     const evaluated = await evaluateConditions(asUser, asApp, parsed, true);
     const failed = evaluated.conditions.find((item) => item.result === 'failed');
     if (failed) return fail(failed.code, failed.message ?? '', failed.fix ?? '');
-    const { repo, release, assets, licenseSpdx } = evaluated;
-    if (!release || !licenseSpdx) return fail('no_release', MESSAGES.no_release.message, MESSAGES.no_release.fix);
+    const { repo, release, assets, commitSha, licenseSpdx } = evaluated;
+    if (!release || !commitSha || !licenseSpdx)
+      return fail('no_release', MESSAGES.no_release.message, MESSAGES.no_release.fix);
 
     const duplicate = await env.DB.prepare('SELECT id FROM plugins WHERE github_repo_id = ?')
       .bind(repo.id)
@@ -365,7 +378,6 @@ async function validateAndStore(env: Env, submitter: Submitter, repositoryUrl: s
 
     const owner = repo.owner.login;
     const name = repo.name;
-    const commitSha = await asApp.getCommitSha(owner, name, release.tag_name);
     const summary = repo.description?.trim() || summarizeReadme((await asApp.getReadme(owner, name)) ?? '');
 
     const pluginId = `${owner}/${name}`.toLowerCase();

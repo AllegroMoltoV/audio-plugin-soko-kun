@@ -66,7 +66,7 @@ LLM に渡すファイルは README とワークフローだけです。ルー�
 | `no-vst2` | 配布物に VST 2 のプラグインが無い | 中身の検査で、`.vst` のバンドルと、VST 2 のエントリーポイント (`VSTPluginMain`、`main_macho`、共有ライブラリの `main`) をエクスポートするバイナリを検出しない。中を調べられないものを含む判定不能のアーカイブは合格にしない | 版を掲載しない | ADR 0004 |
 | `macos-signing` | macOS 向けのバンドルに、Developer ID の署名と Apple の公証がある | 署名と公証の判定。規則は [検査と同期](scanning.md) の「署名と公証の判定」に記載する。macOS の LV2 のバンドルは Gatekeeper が判定しないため、判定せず案内しない | その配布物を案内しない。macOS の配布物だけの版は掲載しない。Developer ID の署名があり公証済みと判定されないものは、3 回まで判定し直し、その後は管理者の確認を待つ | ADR 0003、obs-backgroundremoval Issue 971 |
 | `declaration` | 宣言ファイルがあれば、形が正しく、中身の検査の結果と食い違わない。宣言ファイルは任意 | [検査と同期](scanning.md) の「宣言ファイル」の規則 | 版を掲載しない | 配信プラグイン倉庫くんの宣言ファイル |
-| `open-source-license` | 版のタグの時点のライセンスが、OSI の承認か FSF の自由なライセンスの認定を持つ | GitHub の `/license?ref=<タグ>` の SPDX 識別子を、本サービスのリポジトリに固定して置く SPDX License List の JSON の `isOsiApproved` と `isFsfLibre` で判定する。LLM では判定しない。規則は [検査と同期](scanning.md) の「ライセンスの判定」に記載する | 版を掲載しない | 運営者の方針 |
+| `open-source-license` | 版のタグの時点のライセンスが、OSI の承認か FSF の自由なライセンスの認定を持つ | GitHub の `/license?ref=<タグのコミット>` の SPDX 識別子を、本サービスのリポジトリに固定して置く SPDX License List の JSON の `isOsiApproved` と `isFsfLibre` で判定する。LLM では判定しない。規則は [検査と同期](scanning.md) の「ライセンスの判定」に記載する | 版を掲載しない | 運営者の方針 |
 
 署名したワークフローは、初めて証明を検証できた版のものを記録します。以後の版で違うワークフローが署名していれば、証明の検証を失敗とします。
 

@@ -128,7 +128,9 @@ describe('runCron', () => {
           ],
         }),
       ),
-      http.get(`https://api.github.com/repos/${OWNER}/${REPO}/commits/v1.2.0`, () => HttpResponse.json({ sha: 'abc' })),
+      http.get(`https://api.github.com/repos/${OWNER}/${REPO}/commits/refs/tags/v1.2.0`, () =>
+        HttpResponse.json({ sha: 'abc' }),
+      ),
       ...releaseCheckHandlers(),
     );
     await runCron(env, undefined);

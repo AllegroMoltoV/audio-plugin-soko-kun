@@ -158,7 +158,7 @@ export class GitHubClient {
     return (await this.request(`${API}/repositories/${id}`)).json();
   }
 
-  // タグの時点で GitHub が検出したライセンスの SPDX 識別子。ライセンスのファイルが無い (404) ときは null。
+  // ref の時点で GitHub が検出したライセンスの SPDX 識別子。ライセンスのファイルが無い (404) ときは null。
   async getLicenseSpdx(owner: string, repo: string, ref: string): Promise<string | null> {
     try {
       const response = await this.request(`${API}/repos/${path(owner, repo)}/license?ref=${path(ref)}`);
@@ -322,7 +322,7 @@ export class GitHubClient {
     }
   }
 
-  // 2 つのタグの間の差分を diff の形式で受け、先頭の maxChars 文字だけを読んで接続を切る。
+  // 2 つのコミットの間の差分を diff の形式で受け、先頭の maxChars 文字だけを読んで接続を切る。
   // JSON の compare は大きな差分で解析の CPU 時間が 10 ms を超えるため使わない (2026-11-13 の測定)。
   async getCompareDiff(
     owner: string,
@@ -352,7 +352,7 @@ export class GitHubClient {
     return { text: text.slice(0, maxChars), truncated: !done || text.length > maxChars };
   }
 
-  // 2 つのタグの間で変更されたファイルの一覧。差分の本文が上限を超えたときにだけ呼ぶ。
+  // 2 つのコミットの間で変更されたファイルの一覧。差分の本文が上限を超えたときにだけ呼ぶ。
   // GitHub の compare の JSON は、変更されたファイルを比較の全体で 300 件までしか返さない
   // (https://docs.github.com/en/rest/commits/commits#compare-two-commits)。300 件に達したら、一覧は欠けているものとする。
   // 応答は各ファイルの差分の本文を含むため、CPU 時間を抑えるよう MAX_COMPARE_BYTES を超える応答は読み切らずに欠けとする。
@@ -462,8 +462,9 @@ export class GitHubClient {
     }
   }
 
-  async getCommitSha(owner: string, repo: string, ref: string): Promise<string> {
-    const response = await this.request(`${API}/repos/${path(owner, repo)}/commits/${path(ref)}`);
+  // Resolves the full ref of the tag, because GitHub may resolve a short name to a branch of the same name.
+  async getCommitSha(owner: string, repo: string, tag: string): Promise<string> {
+    const response = await this.request(`${API}/repos/${path(owner, repo)}/commits/${path('refs', 'tags', tag)}`);
     const body = (await response.json()) as { sha: string };
     return body.sha;
   }
