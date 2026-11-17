@@ -1,0 +1,15 @@
+{
+  "name": "audio-plugin-soko-kun",
+  "description": "Claude Code plugins from Audio Plugin Soko-kun, a registry of open-source audio plugins",
+  "owner": {
+    "name": "AllegroMoltoV",
+    "url": "https://github.com/AllegroMoltoV"
+  },
+  "plugins": [
+    {
+      "name": "audio-soko-kun-plugin-dev",
+      "source": "./plugins/audio-soko-kun-plugin-dev",
+      "description": "A skill for building VST 3 and CLAP audio plugins with Claude Code and listing them on Audio Plugin Soko-kun"
+    }
+  ]
+}
