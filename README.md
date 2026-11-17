@@ -33,6 +33,13 @@ codex mcp add audio-plugin-soko-kun --url https://audio-soko-kun.allegromoltov.j
 
 Searching and viewing details work without signing in. To register a repository you administer, sign in with GitHub first: run `/mcp` in Claude Code, or `codex mcp login audio-plugin-soko-kun` in Codex. Then ask, for example, "Register the audio plugin in this GitHub repository". New releases are picked up automatically. Authors can ask, for example, "Check whether my plugin meets the listing conditions" before a release, and "Is the new release of my plugin listed?" after it.
 
+Authors who build plugins with Claude Code can install the skill `audio-plugin-dev`. It guides planning, a CLAP-first project template, validation in CI, releases with build provenance attestations, and listing on this service. The plugin also registers the MCP server above.
+
+```sh
+claude plugin marketplace add AllegroMoltoV/audio-plugin-soko-kun
+claude plugin install audio-soko-kun-plugin-dev@audio-plugin-soko-kun
+```
+
 The listing conditions, the security policy, and how to report a problem are on the website: [What is Audio Plugin Soko-kun?](https://audio-soko-kun.allegromoltov.jp/about?lang=en), [Listing policy](https://audio-soko-kun.allegromoltov.jp/policy?lang=en), [Submit a plugin](https://audio-soko-kun.allegromoltov.jp/submit?lang=en), [Security and disclaimer](https://audio-soko-kun.allegromoltov.jp/security?lang=en), [Report](https://audio-soko-kun.allegromoltov.jp/report?lang=en).
 
 ### Contents
@@ -51,6 +58,8 @@ The listing conditions, the security policy, and how to report a problem are on 
 | `test/` | Automated tests |
 | `.github/workflows/` | CI, deployment and verification workflows run on GitHub Actions |
 | `.github/scripts/` | Scripts run by the verification workflows: archive inspection, macOS signing judgment, network API and document scans |
+| `.claude-plugin/marketplace.json` | Claude Code plugin marketplace of this repository |
+| `plugins/audio-soko-kun-plugin-dev/` | Claude Code plugin with the author skill `audio-plugin-dev` and its project template |
 | `server.json` | Listing definition for the official MCP Registry |
 | `glama.json` | Maintainer of the Glama listing |
 | `LICENSE` | MIT License |
@@ -100,6 +109,8 @@ Steinberg Media Technologies GmbH、CLAP のプロジェクト、Apple、LV2 の
 | `test/` | 自動テスト |
 | `.github/workflows/` | GitHub Actions で実行する CI・配備・検証のワークフロー |
 | `.github/scripts/` | 検証のワークフローが実行するスクリプト。アーカイブの中身の検査・macOS の署名と公証の判定・通信の API と文書の照合 |
+| `.claude-plugin/marketplace.json` | このリポジトリを Claude Code のプラグインのマーケットプレイスにする定義 |
+| `plugins/audio-soko-kun-plugin-dev/` | 作者向けのスキル `audio-plugin-dev` とプロジェクトの雛形を含む Claude Code のプラグイン |
 | `server.json` | 公式の MCP Registry への登録の定義 |
 | `glama.json` | Glama の掲載の保守者 |
 | `LICENSE` | MIT License |
@@ -118,6 +129,13 @@ codex mcp add audio-plugin-soko-kun --url https://audio-soko-kun.allegromoltov.j
 
 検索と詳細の取得は、サインインなしで使えます。自分が管理するリポジトリを登録するときは、先に GitHub でサインインします。Claude Code では `/mcp` を、Codex では `codex mcp login audio-plugin-soko-kun` を実行します。そのうえで「この GitHub リポジトリのオーディオプラグインを登録して」のように話しかけます。新しいリリースは自動で取り込みます。作者は、リリースの前に「このプラグインの掲載の条件を確かめて」、リリースのあとに「新しい版の掲載の状況を確かめて」のように話しかけて確かめられます。
 
+Claude Code でプラグインを作る作者は、スキル `audio-plugin-dev` を入れられます。企画、CLAP を先に書くプロジェクトの雛形、CI での検証、ビルドの来歴の証明つきのリリース、本サービスへの掲載を案内します。このプラグインは、上の MCP サーバーも登録します。
+
+```sh
+claude plugin marketplace add AllegroMoltoV/audio-plugin-soko-kun
+claude plugin install audio-soko-kun-plugin-dev@audio-plugin-soko-kun
+```
+
 掲載の条件、セキュリティの方針、問題の通報の方法は Web サイトに記載しています。[音のプラグイン倉庫くんとは？](https://audio-soko-kun.allegromoltov.jp/about)、[掲載ポリシー](https://audio-soko-kun.allegromoltov.jp/policy)、[プラグインを登録する](https://audio-soko-kun.allegromoltov.jp/submit)、[セキュリティと免責](https://audio-soko-kun.allegromoltov.jp/security)、[通報](https://audio-soko-kun.allegromoltov.jp/report) を参照してください。
 
 ### AI 利用開示
@@ -129,6 +147,11 @@ codex mcp add audio-plugin-soko-kun --url https://audio-soko-kun.allegromoltov.j
 MIT License です。[LICENSE](LICENSE) を参照してください。VST Compatible ロゴの画像 (`docs/images/VST_Compatible_Logo_Steinberg*.png` と、その複製の `public/images/vst-compatible*.png`) は Steinberg Media Technologies GmbH の商標で、MIT License の対象外です。
 
 ## 更新履歴
+
+### 0.1.22 (2026-11-17)
+
+- 作者向けのスキル `audio-plugin-dev` を、Claude Code のプラグイン `audio-soko-kun-plugin-dev` としてこのリポジトリに同梱しました。企画から掲載までの 7 段の手順と、そのままビルドして検証を通せるプロジェクトの雛形を含みます。第三者の作者が、掲載の条件と審査の基準を満たすプラグインを作れるようにするためです。
+- MCP の説明と、プラグインを登録するページ (7 言語) に、スキルの入れ方を足しました。README の使い方と内容物にも記載しました。
 
 ### 0.1.21 (2026-11-17)
 

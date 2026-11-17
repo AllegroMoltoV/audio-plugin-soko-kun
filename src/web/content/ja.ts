@@ -80,6 +80,17 @@ export const ja: Record<PageKey, PageContent> = {
         ],
       },
       {
+        heading: 'Claude Code でプラグインを作る',
+        paragraphs: [
+          'Claude Code でプラグインを作る場合は、このプラットフォームの開発者が 6 本のオーディオプラグインを作って得た知見をまとめたスキルを入れられます。企画、clap-wrapper で同じコードから CLAP と VST 3 をビルドするプロジェクトの雛形、CI での pluginval と clap-validator による検証、画面のない環境での GUI のテスト、ビルドの来歴の証明つきのリリース、このプラットフォームへの掲載を扱います。',
+          'ターミナルで次を実行して入れてください:',
+          {
+            code: 'claude plugin marketplace add AllegroMoltoV/audio-plugin-soko-kun\nclaude plugin install audio-soko-kun-plugin-dev@audio-plugin-soko-kun',
+          },
+          'このプラグインを入れると、Claude Code がこのプラットフォームの MCP サーバーにも接続します。スキルは、このプラットフォームの掲載の条件と審査の基準にしたがっています: https://github.com/AllegroMoltoV/audio-plugin-soko-kun/blob/main/docs/design/review-criteria.md',
+        ],
+      },
+      {
         heading: 'リリースの前にリポジトリを確認する',
         paragraphs: [
           'リリースを公開する前に、AI エージェントに submit_plugin の確認のモードを使わせてください。確認のモードは、最新のリリースで掲載の条件を判定し、既定のブランチの最新のコミットをレビューします。このモードでは登録しません。確認のモードは 24 時間に 5 回まで使えます。確認のモードにも GitHub でのサインインが要ります。最初のリリースの前でも、確認のモードは、リリースを要る条件を未判定として満たし方とともに返し、既定のブランチの .audio-soko-kun/config.json の形を確かめます。掲載するリリースは不変のリリースで、公開の後は配布物を足せません。下書きのリリースにすべての配布物を添付してから公開してください。セキュリティの機能を切らせる案内と、取得したものを実行させるコマンドを探すルールは、「〜しないでください」のように禁じる文にも当たります。',

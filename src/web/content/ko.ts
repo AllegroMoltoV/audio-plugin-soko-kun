@@ -80,6 +80,17 @@ export const ko: Record<PageKey, PageContent> = {
         ],
       },
       {
+        heading: 'Claude Code로 플러그인 만들기',
+        paragraphs: [
+          'Claude Code로 플러그인을 만든다면, 이 플랫폼의 개발자가 오디오 플러그인 6개를 만들며 얻은 지식을 모은 스킬을 설치할 수 있습니다. 기획, clap-wrapper로 같은 코드에서 CLAP과 VST 3를 빌드하는 프로젝트 템플릿, CI에서 pluginval과 clap-validator로 하는 검증, 화면이 없는 환경에서의 GUI 테스트, 빌드 출처 증명이 포함된 릴리스, 이 플랫폼 게재까지 다룹니다.',
+          '터미널에서 다음을 실행해 설치하세요:',
+          {
+            code: 'claude plugin marketplace add AllegroMoltoV/audio-plugin-soko-kun\nclaude plugin install audio-soko-kun-plugin-dev@audio-plugin-soko-kun',
+          },
+          '이 플러그인을 설치하면 Claude Code가 이 플랫폼의 MCP 서버에도 연결됩니다. 스킬은 이 플랫폼의 게재 조건과 심사 기준을 따릅니다: https://github.com/AllegroMoltoV/audio-plugin-soko-kun/blob/main/docs/design/review-criteria.md',
+        ],
+      },
+      {
         heading: '릴리스 전에 저장소 확인하기',
         paragraphs: [
           '릴리스를 공개하기 전에 AI 에이전트에게 submit_plugin의 확인 모드를 실행하게 해 주세요. 확인 모드는 최신 릴리스로 게재 조건을 판정하고, 기본 브랜치의 최신 커밋을 리뷰합니다. 확인 모드에서는 등록하지 않습니다. 확인 모드는 24시간에 5번까지 사용할 수 있습니다. 확인 모드도 GitHub 로그인이 필요합니다. 첫 릴리스 전에도 확인 모드는 릴리스가 있어야 판정할 수 있는 조건을 미판정으로 충족 방법과 함께 돌려주고, 기본 브랜치의 .audio-soko-kun/config.json 형식을 확인합니다. 게재하는 릴리스는 불변 릴리스여야 하며, 공개한 뒤에는 파일을 추가할 수 없습니다. 초안 릴리스에 모든 파일을 첨부한 뒤 공개해 주세요. 보안 기능을 끄게 하는 안내와 내려받은 것을 실행하게 하는 명령을 찾는 규칙은 그렇게 하지 말라고 안내하는 문장에도 해당합니다.',

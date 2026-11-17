@@ -80,6 +80,17 @@ export const en: Record<PageKey, PageContent> = {
         ],
       },
       {
+        heading: 'Build your plugin with Claude Code',
+        paragraphs: [
+          'If you build your plugin with Claude Code, you can install a skill that collects what the developer of this platform learned from making six audio plugins. It covers planning, a project template that builds CLAP and VST 3 from the same code with clap-wrapper, validation with pluginval and clap-validator in CI, testing a GUI without a display, releases with build provenance attestations, and listing on this platform.',
+          'Install it by running the following in a terminal:',
+          {
+            code: 'claude plugin marketplace add AllegroMoltoV/audio-plugin-soko-kun\nclaude plugin install audio-soko-kun-plugin-dev@audio-plugin-soko-kun',
+          },
+          'The plugin also connects Claude Code to the MCP server of this platform. The skill follows the listing conditions and the review criteria of this platform: https://github.com/AllegroMoltoV/audio-plugin-soko-kun/blob/main/docs/design/review-criteria.md',
+        ],
+      },
+      {
         heading: 'Check your repository before a release',
         paragraphs: [
           'Before you publish a release, ask your AI agent to run submit_plugin in check mode. It checks the listing conditions on the latest release and reviews the latest commit of the default branch. It does not register the plugin. You can use check mode up to 5 times in 24 hours. Check mode also requires signing in with GitHub. Before the first release, check mode still returns the conditions that need a release as unchecked, with how to meet them, and checks the shape of .audio-soko-kun/config.json on the default branch. A listed release must be an immutable release, and files cannot be added to it after it is published: attach all files to a draft release first, then publish it. The rules that look for instructions to turn off a security feature or to run a downloaded command also match sentences that tell users not to do it.',

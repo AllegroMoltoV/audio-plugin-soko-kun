@@ -80,6 +80,17 @@ export const zhHans: Record<PageKey, PageContent> = {
         ],
       },
       {
+        heading: '使用 Claude Code 制作插件',
+        paragraphs: [
+          '如果使用 Claude Code 制作插件，可以安装一个技能。它汇集了本平台开发者制作 6 个音频插件时获得的经验，涵盖规划、用 clap-wrapper 从同一份代码构建 CLAP 和 VST 3 的项目模板、在 CI 中用 pluginval 和 clap-validator 进行验证、在无显示器的环境中测试 GUI、带构建来源证明的发布，以及在本平台上架。',
+          '请在终端中运行以下命令进行安装：',
+          {
+            code: 'claude plugin marketplace add AllegroMoltoV/audio-plugin-soko-kun\nclaude plugin install audio-soko-kun-plugin-dev@audio-plugin-soko-kun',
+          },
+          '安装此插件后，Claude Code 也会连接到本平台的 MCP 服务器。该技能遵循本平台的收录条件和审查标准：https://github.com/AllegroMoltoV/audio-plugin-soko-kun/blob/main/docs/design/review-criteria.md',
+        ],
+      },
+      {
         heading: '发布前检查仓库',
         paragraphs: [
           '发布之前，请让 AI 代理以检查模式运行 submit_plugin。检查模式会用最新发布判断收录条件，并审查默认分支的最新提交。检查模式不会登记插件。24 小时内最多可使用 5 次检查模式。检查模式也需要用 GitHub 登录。即使在第一次发布之前，检查模式也会把需要发布才能判断的条件作为未判断返回，并附上满足方法，同时检查默认分支上 .audio-soko-kun/config.json 的格式。上架的发布必须是不可变发布，发布后不能再添加文件：请先把所有文件附加到草稿发布，再公开发布。查找关闭安全功能的说明和运行下载内容的命令的规则，也会匹配告诉用户不要这样做的句子。',
