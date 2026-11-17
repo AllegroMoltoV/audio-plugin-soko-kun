@@ -21,6 +21,7 @@ export interface RepoFixture {
   attestation?: boolean | string;
   // 最新のリリースのリリースノート (本文)。
   body?: string;
+  defaultBranch?: string;
 }
 
 export function githubHandlers(fixture: RepoFixture = {}, calls: string[] = []) {
@@ -51,7 +52,7 @@ export function githubHandlers(fixture: RepoFixture = {}, calls: string[] = []) 
         private: fixture.private ?? false,
         archived: fixture.archived ?? false,
         description: 'Real-time <script>alert(1)</script> pitch shift effect',
-        default_branch: 'main',
+        default_branch: fixture.defaultBranch ?? 'main',
         license: { spdx_id: 'GPL-2.0' },
         permissions: { admin: fixture.admin ?? true, pull: true },
       });

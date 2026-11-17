@@ -1,6 +1,6 @@
 {
   "name": "audio-plugin-soko-kun",
-  "version": "0.1.22",
+  "version": "0.1.23",
   "description": "Independent, MCP-first registry of open-source audio plugins (VST 3, CLAP, LV2, Audio Unit), unofficial",
   "directories": {
     "doc": "docs"
