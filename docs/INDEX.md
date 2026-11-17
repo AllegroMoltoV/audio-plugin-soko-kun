@@ -22,6 +22,7 @@ VST® is a registered trademark of Steinberg Media Technologies GmbH.
 | 対応言語と言語の判定 | [多言語対応](design/i18n.md) | リファレンス |
 | 画面の一覧と各画面の要素、VST の語の表示 | [画面構成](design/ui.md) | リファレンス |
 | 自動テストで守るラインとテストシナリオ | [テストの設計](design/testing.md) | リファレンス |
+| 作者が Claude Code でプラグインを作り、本サービスに掲載するまでの手順 (英語) | [作者向けのスキル audio-plugin-dev](../plugins/audio-soko-kun-plugin-dev/skills/audio-plugin-dev/SKILL.md) | ハウツーガイド |
 
 残りの論点は、設計文書の「未決定の事項」の節に、決める時点とあわせて記載しています。
 

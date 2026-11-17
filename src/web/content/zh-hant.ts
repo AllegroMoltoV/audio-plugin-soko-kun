@@ -80,6 +80,17 @@ export const zhHant: Record<PageKey, PageContent> = {
         ],
       },
       {
+        heading: '使用 Claude Code 製作外掛',
+        paragraphs: [
+          '如果使用 Claude Code 製作外掛，可以安裝一個技能。它彙整了本平台開發者製作 6 個音訊外掛時獲得的經驗，涵蓋規劃、以 clap-wrapper 從同一份程式碼建置 CLAP 與 VST 3 的專案範本、在 CI 中以 pluginval 與 clap-validator 進行驗證、在沒有顯示器的環境中測試 GUI、附建置來源證明的發行，以及在本平台上架。',
+          '請在終端機中執行以下指令進行安裝：',
+          {
+            code: 'claude plugin marketplace add AllegroMoltoV/audio-plugin-soko-kun\nclaude plugin install audio-soko-kun-plugin-dev@audio-plugin-soko-kun',
+          },
+          '安裝此外掛後，Claude Code 也會連線到本平台的 MCP 伺服器。該技能遵循本平台的收錄條件與審查標準：https://github.com/AllegroMoltoV/audio-plugin-soko-kun/blob/main/docs/design/review-criteria.md',
+        ],
+      },
+      {
         heading: '發行前檢查儲存庫',
         paragraphs: [
           '發布之前，請讓 AI 代理以檢查模式執行 submit_plugin。檢查模式會以最新發行判斷收錄條件，並審查預設分支的最新提交。檢查模式不會登記外掛。24 小時內最多可使用 5 次檢查模式。檢查模式也需要以 GitHub 登入。即使在第一次發行之前，檢查模式也會把需要發行才能判斷的條件作為未判斷傳回，並附上滿足方法，同時檢查預設分支上 .audio-soko-kun/config.json 的格式。上架的發行必須是不可變發行，發布後不能再新增檔案：請先把所有檔案附加到草稿發行，再公開發行。尋找關閉安全功能的說明和執行下載內容的指令的規則，也會比對告訴使用者不要這樣做的句子。',

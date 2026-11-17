@@ -80,6 +80,17 @@ export const ptBR: Record<PageKey, PageContent> = {
         ],
       },
       {
+        heading: 'Crie seu plugin com o Claude Code',
+        paragraphs: [
+          'Se você cria seu plugin com o Claude Code, pode instalar uma skill que reúne o que o desenvolvedor desta plataforma aprendeu ao criar seis plugins de áudio. Ela cobre o planejamento, um modelo de projeto que compila CLAP e VST 3 a partir do mesmo código com o clap-wrapper, a validação com pluginval e clap-validator na CI, testes de uma GUI sem tela, versões com atestações de procedência da compilação e a listagem nesta plataforma.',
+          'Instale executando o seguinte em um terminal:',
+          {
+            code: 'claude plugin marketplace add AllegroMoltoV/audio-plugin-soko-kun\nclaude plugin install audio-soko-kun-plugin-dev@audio-plugin-soko-kun',
+          },
+          'O plugin também conecta o Claude Code ao servidor MCP desta plataforma. A skill segue as condições de listagem e os critérios de revisão desta plataforma: https://github.com/AllegroMoltoV/audio-plugin-soko-kun/blob/main/docs/design/review-criteria.md',
+        ],
+      },
+      {
         heading: 'Verifique seu repositório antes de uma versão',
         paragraphs: [
           'Antes de publicar uma versão, peça ao seu agente de IA para executar submit_plugin no modo de verificação. Ele avalia as condições de listagem na versão mais recente e revisa o commit mais recente do branch padrão. Ele não registra o plugin. Você pode usar o modo de verificação até 5 vezes em 24 horas. O modo de verificação também exige login com o GitHub. Mesmo antes da primeira versão, o modo de verificação retorna como não verificadas as condições que exigem uma versão, com a forma de atendê-las, e verifica o formato de .audio-soko-kun/config.json no branch padrão. Uma versão listada precisa ser uma versão imutável, e não é possível adicionar arquivos depois de publicá-la: anexe todos os arquivos a um rascunho de versão e só então publique. As regras que procuram instruções para desativar um recurso de segurança ou executar um comando baixado também detectam frases que pedem para não fazer isso.',

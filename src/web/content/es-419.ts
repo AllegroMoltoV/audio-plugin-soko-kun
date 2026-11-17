@@ -80,6 +80,17 @@ export const es419: Record<PageKey, PageContent> = {
         ],
       },
       {
+        heading: 'Crea tu plugin con Claude Code',
+        paragraphs: [
+          'Si creas tu plugin con Claude Code, puedes instalar una skill que reúne lo que el desarrollador de esta plataforma aprendió al crear seis plugins de audio. Cubre la planificación, una plantilla de proyecto que compila CLAP y VST 3 desde el mismo código con clap-wrapper, la validación con pluginval y clap-validator en CI, las pruebas de una GUI sin pantalla, las versiones con atestaciones de procedencia de compilación y la inclusión en esta plataforma.',
+          'Instálala ejecutando lo siguiente en una terminal:',
+          {
+            code: 'claude plugin marketplace add AllegroMoltoV/audio-plugin-soko-kun\nclaude plugin install audio-soko-kun-plugin-dev@audio-plugin-soko-kun',
+          },
+          'El plugin también conecta Claude Code con el servidor MCP de esta plataforma. La skill sigue las condiciones de la lista y los criterios de revisión de esta plataforma: https://github.com/AllegroMoltoV/audio-plugin-soko-kun/blob/main/docs/design/review-criteria.md',
+        ],
+      },
+      {
         heading: 'Revisa tu repositorio antes de una versión',
         paragraphs: [
           'Antes de publicar una versión, pide a tu agente de IA que ejecute submit_plugin en modo de comprobación. Este modo evalúa las condiciones de la lista en la versión más reciente y revisa el commit más reciente de la rama predeterminada. No registra el plugin. Puedes usar el modo de comprobación hasta 5 veces en 24 horas. El modo de comprobación también requiere iniciar sesión con GitHub. Incluso antes de la primera versión, el modo de comprobación devuelve como no comprobadas las condiciones que requieren una versión, con cómo cumplirlas, y comprueba el formato de .audio-soko-kun/config.json en la rama predeterminada. Una versión publicada debe ser una versión inmutable y no se pueden añadir archivos después de publicarla: adjunta todos los archivos a un borrador de versión y luego publícala. Las reglas que buscan instrucciones para desactivar una función de seguridad o ejecutar un comando descargado también detectan frases que piden no hacerlo.',
