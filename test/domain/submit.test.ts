@@ -216,7 +216,7 @@ describe('checkPlugin (確認のモード)', () => {
     const declare = (text: string) =>
       network.use(
         http.get(`https://api.github.com/repos/${OWNER}/${REPO}/contents/.audio-soko-kun/config.json`, ({ request }) =>
-          new URL(request.url).searchParams.get('ref') === 'main'
+          new URL(request.url).searchParams.get('ref') === 'HEAD'
             ? HttpResponse.text(text)
             : new HttpResponse(null, { status: 404 }),
         ),
@@ -231,5 +231,24 @@ describe('checkPlugin (確認のモード)', () => {
     declare('{"name": "White Noise"}');
     const ok = (await checkPlugin(env, submitter, url)) as { config: { result: string } };
     expect(ok.config.result).toBe('ok');
+  });
+
+  // 既定のブランチの名前は / などを含みうる。名前を API のパスに使うと、確認のモードが結果を返さず内部エラーになる。
+  it('既定のブランチの名前に / を含むリポジトリでも、HEAD で読んで結果を返す', async () => {
+    const refs: string[] = [];
+    network.use(...githubHandlers({ release: 'none', defaultBranch: 'release/1.x' }), ...releaseCheckHandlers());
+    network.use(
+      http.get(`https://api.github.com/repos/${OWNER}/${REPO}/contents/.audio-soko-kun/config.json`, ({ request }) => {
+        refs.push(`config:${new URL(request.url).searchParams.get('ref')}`);
+        return new HttpResponse(null, { status: 404 });
+      }),
+      http.get(`https://api.github.com/repos/${OWNER}/${REPO}/git/trees/:ref`, ({ params }) => {
+        refs.push(`tree:${params.ref}`);
+        return HttpResponse.json({ tree: [], truncated: false });
+      }),
+    );
+    const result = (await checkPlugin(env, submitter, url)) as { mode?: string; config: { result: string } };
+    expect(result).toMatchObject({ mode: 'check', config: { result: 'missing' } });
+    expect(refs).toEqual(['config:HEAD', 'tree:HEAD']);
   });
 });
