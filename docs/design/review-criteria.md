@@ -158,6 +158,7 @@ LLM には、この事実と差分の先頭の 24,000 文字を渡します。LL
 | `dll-footprint` | 同梱する共有ライブラリを減らし、同じ DAW のプロセスに読み込まれるほかのプラグインとの競合を避ける | ルール (将来) | live-backgroundremoval-lite の開発者ノート |
 | `hermetic-build` | ビルドの環境を絞り、ツールの版を固定する | ルール | obs-backgroundremoval PR 846 |
 | `repository-protection` | 既定のブランチとリリースのタグを ruleset で守る | ルール | 配信プラグイン倉庫くんの 2026-11-15 の調査。書き込みの権限を持つ人が、既定のブランチ以外のコミットからリリースを作れる |
+| `agent-editor-config` | エージェントとエディターの設定を、公開する意図がなければリポジトリに入れない。これらのファイルも通信の検出・README 以外の文書の照合・差分の規則の対象になり、意図しない指摘や管理者の確認待ちを招く。意図して共有するもの (貢献者向けの `AGENTS.md`、`.vscode/extensions.json`・`launch.json` など) は対応不要 | ルール | 配信プラグイン倉庫くんと音のプラグイン倉庫くんの 2026-11-17 の相談 |
 | `contribution-compliance` | コントリビューターに、ライセンスの同意・DCO・署名付きコミットを求める | ルール | live-backgroundremoval-lite の CONTRIBUTING.md |
 | `reuse-compliance` | REUSE に準拠する | ルール (将来) | live-backgroundremoval-lite の CONTRIBUTING.md |
 | `license-notices` | 同梱する依存と素材のライセンスを列挙する。VST Compatible ロゴを同梱する場合は、Steinberg の商標でありプラグインのライセンスの対象外であることを書く | 判定しない | live-backgroundremoval-lite の README、Steinberg VST usage guidelines |
@@ -174,6 +175,7 @@ LLM には、この事実と差分の先頭の 24,000 文字を渡します。LL
 - `cpu-compatibility`: ルートのビルド系のファイルとワークフローに、`/arch:AVX2`・`-mavx2`・`-march=native`・`target-cpu=native` のような命令の指定が無い
 - `hermetic-build`: ワークフローに `-latest` のランナーが無い
 - `repository-protection`: 有効な ruleset のうち、既定のブランチ (`~DEFAULT_BRANCH` か `~ALL`) を対象にして削除と強制 push を禁じ、承認 1 名以上のプルリクエストを必須にするブランチの ruleset と、タグの作成・更新・削除を制限するタグの ruleset の両方がある。ruleset の例外を許す相手は API で読めないため判定しない。1 人で開発する作者には、ブランチの ruleset の例外にリポジトリの管理者を「For pull requests only」で足す設定を案内する (強制 push と削除の禁止は残る)。既定のブランチを名前で指定した ruleset は数えない。ruleset を読めなかったとき、有効な ruleset が詳細を読む上限の 3 件を超えて満たすものが見つからないときは判定不能とする
+- `agent-editor-config`: リポジトリのファイルの一覧に、`.claude/`・`.codex/`・`.cursor/`・`.windsurf/`・`.vscode/`・`.vs/`・`.idea/` のディレクトリの中のファイルか、`CLAUDE.md`・`AGENTS.md`・`.cursorrules` の名前のファイルがあれば当たる。深さは問わず、大文字と小文字を区別する。ディレクトリは中のファイルの数にかかわらず 1 か所と数え、当たった場所を根拠に返す。一覧が切り詰められ、当たりが無いときは判定不能とする。`.github/copilot-instructions.md` は対象にしない。`.github/` の変更は別の規則が扱うためである。ビルドの生成物も、性質が違うため対象にしない
 - `contribution-compliance`: CONTRIBUTING かプルリクエストのテンプレートで、DCO や `Signed-off-by` を求めている
 
 ## 外した推奨
