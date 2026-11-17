@@ -38,7 +38,7 @@ Audio Plugin Soko-kun remembers which workflow file signed the attestations of t
 
 ### Do not put private information into the repository
 
-Before the repository becomes public, keep these out of every commit in its history: local absolute paths, user names, API keys, license keys of commercial software, personal device names, and other people's identifiers. Removing a file in a new commit leaves it readable in the history. If something private was committed, rewrite the history before the first push to a public repository, with the author's approval.
+Before the repository becomes public, keep these out of every commit in its history: local absolute paths, user names, API keys, license keys of commercial software, personal device names, other people's identifiers, and the author's own agent and editor settings (`CLAUDE.md`, `.claude/`, `.vscode/`, and similar). Check `git status` before each commit. Removing a file in a new commit leaves it readable in the history. If something private was committed, rewrite the history before the first push to a public repository, with the author's approval.
 
 ### Do not guess the cause of a failure
 
@@ -145,6 +145,7 @@ Done when:
 | `templates/project/.github/scripts/fetch-validators.sh` | Downloads pluginval and clap-validator at pinned versions and checks their SHA-256 |
 | `templates/project/.github/dependabot.yml` | Weekly updates of the pinned Actions |
 | `templates/project/.audio-soko-kun/config.json` | Display name and category for the listing |
+| `templates/project/.gitignore`, `.gitattributes` | Keep build output and editor and agent settings out of the repository, and store text with LF line endings |
 | `templates/project/README.md`, `packaging/README.txt` | The repository README and the README inside each archive |
 | [templates/rulesets/](templates/rulesets/) | Branch and tag rulesets for `gh api -X POST repos/<owner>/<repo>/rulesets --input <file>` |
 

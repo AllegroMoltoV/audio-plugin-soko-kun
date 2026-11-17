@@ -25,6 +25,12 @@ The sanitizers cover the unit tests only. The plugin modules are not built with 
 
 Audio Plugin Soko-kun holds a new version for an administrator when its workflow files changed since the listed version (`diff-workflow-changed`), including action updates from Dependabot. Settle the workflow, its pins, and its permissions before the release you list first. Later workflow changes are fine, but each release that contains one waits for an administrator.
 
+## Reported latency
+
+pluginval's log prints `Reported latency: 0` in its plugin information even for a plugin that has latency. The value is read before the plugin is activated, and the VST 3 plugin from clap-wrapper reports the CLAP latency only after activation. Do not take that line as a failure.
+
+The validators do not check that the reported latency matches the output. Check it in the unit tests of the processing (see [implementation.md](implementation.md)). To check the value that a host sees, a small test host can load the plugin, activate it, and read the CLAP `latency` extension, or `IAudioProcessor::getLatencySamples` for VST 3. Pass an `IHostApplication` context to the VST 3 plugin's `initialize`: the plugin from clap-wrapper crashed without one in one project.
+
 ## When a validator fails
 
 - Read the validator's log first. pluginval writes per-test logs to the `--output-dir` folder; print or upload them.

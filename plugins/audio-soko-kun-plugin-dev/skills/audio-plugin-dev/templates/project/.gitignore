@@ -1,0 +1,18 @@
+# Build output
+build/
+build-*/
+dist/
+*.zip
+
+# Editor settings: keep them local. The catalog checks every committed file (agent-editor-config).
+.vs/
+.vscode/
+.idea/
+
+# Agent settings: commit them only if you mean to publish them.
+CLAUDE.md
+.claude/
+.codex/
+.cursor/
+.cursorrules
+.windsurf/

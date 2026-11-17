@@ -2,7 +2,7 @@
 
 ## Copy the template to a short path
 
-Copy `templates/project/` (including the hidden folders `.github` and `.audio-soko-kun`) into a new folder. On Windows, use a short path such as `C:\src\my-gain-audio`: clap-wrapper downloads the VST 3 SDK, whose git submodules contain paths of more than 200 characters, and the checkout fails with `Filename too long` under a deep folder.
+Copy `templates/project/` (including the hidden folders `.github` and `.audio-soko-kun`, and the hidden files `.gitignore` and `.gitattributes`) into a new folder. The `.gitignore` keeps build output out of the repository: `build/CMakeCache.txt` contains absolute paths with the user name. It also keeps editor and agent settings out (`agent-editor-config`); if the author wants to publish an `AGENTS.md` or a shared `.vscode/extensions.json` for contributors, remove its line on purpose. On Windows, use a short path such as `C:\src\my-gain-audio`: clap-wrapper downloads the VST 3 SDK, whose git submodules contain paths of more than 200 characters, and the checkout fails with `Filename too long` under a deep folder.
 
 Fill in the block at the top of `CMakeLists.txt` (`project` name and version, `PRODUCT_NAME`, `PLUGIN_ID`, `PLUGIN_VENDOR`, `PLUGIN_URL`, `ARCHIVE_PREFIX`), and set the same `PRODUCT_NAME` and `ARCHIVE_PREFIX` in the `env` block of `.github/workflows/build.yaml`. Replace the names in `README.md`, `packaging/README.txt`, `.audio-soko-kun/config.json`, and the copyright line of `LICENSE`. Change the four-character `kStateMagic` in `src/plugin.cpp`.
 

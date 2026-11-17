@@ -15,9 +15,25 @@ Hosts and validators call `activate()` with any sample rate. The VST 3 SDK valid
 
 Accept every rate in `activate()`. If your processing cannot run at a rate, pass the input through, delayed by the same latency you report, and test this path at all twelve rates in a unit test.
 
+### Libraries that run at one sample rate
+
+Some libraries, such as RNNoise, process only 48 kHz. When the plugin has to work at any rate, resample the input to the library's rate and the result back to the host's rate:
+
+- Resample in `process()` without allocating. Size every buffer in `activate()` from the host's rate.
+- Choose a resampler whose delay is a whole number of host samples, or delay the output further until it is, so that the total latency is an integer you can report.
+- Report the total latency in host samples: the library's own latency converted from its rate, plus the delays of both resampling steps.
+- At the library's own rate, skip the resampler, so that the common case keeps its quality and has no extra latency.
+- Test at all twelve rates that the output lines up with the input delayed by the reported latency. If the plugin mixes the processed and the dry signal, test that it lines up at 0 % wet.
+
+Read the latency from the library's source and measure it, instead of assuming it from the frame size. RNNoise v0.2 processes 480-sample frames but delays its output by 960 samples at 48 kHz, as `src/denoise.c` shows and a measurement confirmed in one project.
+
 ## Latency
 
-If the processing has latency, report it with the CLAP `latency` extension, and make the output start exactly that many samples late, so that the host's delay compensation lines it up. Test it with an impulse.
+If the processing has latency, report it with the CLAP `latency` extension, and make the output start exactly that many samples late, so that the host's delay compensation lines it up. Test it in a unit test:
+
+- For linear processing, send an impulse and check that the output peak is at the reported latency.
+- For nonlinear processing, such as noise removal, an impulse can come out changed or removed. Send a broadband signal such as noise or speech instead, cross-correlate the output with the input, and check that the correlation peaks at the reported latency.
+- If the plugin has a wet and dry mix, also check that the dry path is delayed by the same latency, so that changing the mix does not move the sound in time.
 
 ## Denormal numbers
 
