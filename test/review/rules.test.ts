@@ -155,6 +155,42 @@ describe('judgeByRules', () => {
     );
   });
 
+  it('agent-editor-config: 深さを問わず設定の場所を根拠に返し、似た名前と切り詰めの扱いを分ける', () => {
+    const evidenceOf = (s: RepositorySnapshot) =>
+      judgeByRules(s).find((entry) => entry.id === 'agent-editor-config')?.evidence;
+    const found = snapshot({}, [
+      'src/plugin.cpp',
+      '.vscode/settings.json',
+      '.vscode/launch.json',
+      'libs/foo/.claude/settings.json',
+      'docs/CLAUDE.md',
+      'AGENTS.md',
+    ]);
+    expect(result(judgeByRules(found), 'agent-editor-config')).toBe('not_met');
+    // ディレクトリは中のファイルの数にかかわらず 1 か所として返す。
+    expect(evidenceOf(found)).toEqual([
+      { file: '.vscode/' },
+      { file: 'AGENTS.md' },
+      { file: 'docs/CLAUDE.md' },
+      { file: 'libs/foo/.claude/' },
+    ]);
+    // 名前の一部や大文字と小文字の違い、ディレクトリと同名のファイルは当たらない。
+    const similar = snapshot({}, [
+      'claude.md',
+      'docs/AGENTS.md.bak',
+      'my.vscode/x',
+      'src/.idea',
+      '.github/copilot-instructions.md',
+    ]);
+    expect(result(judgeByRules(similar), 'agent-editor-config')).toBe('met');
+    // 一覧が切り詰められても、見つかった設定は伝える。見つからなければ無いと断定しない。
+    expect(result(judgeByRules(snapshot({}, ['.idea/workspace.xml'], true)), 'agent-editor-config')).toBe('not_met');
+    expect(result(judgeByRules(snapshot({}, ['src/plugin.cpp'], true)), 'agent-editor-config')).toBe('unclear');
+    // パスはリポジトリの文字列なので、根拠に入れる長さを切る。
+    const long = `${'a/'.repeat(150)}.vs/x`;
+    expect(evidenceOf(snapshot({}, [long]))?.[0]?.file.length).toBe(200);
+  });
+
   it('no-security-bypass: セキュリティの機能を切らせる案内は、根拠の行を付けて重大の not_met にする', () => {
     for (const line of [
       'xattr -rd com.apple.quarantine "/Library/Audio/Plug-Ins/VST3/Delay.vst3"',

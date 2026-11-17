@@ -370,7 +370,7 @@ A06 は、配信プラグイン倉庫くんに無いテストです。攻撃者�
 次のテストは、シナリオの表に載せません。
 
 - `test/premise.test.ts`: 実行環境の前提を確かめるテストで、守るラインに対応しないため。
-- `test/review/rules.test.ts` の、重大とする場合を持たない審査の基準の判定 (`ci-hardening`・`dependency-pinning`・`build-hardening`・`cpu-compatibility`・`contribution-compliance`・`hermetic-build`・`plugin-name`・`repository-protection`)、日本語の README の判定、ファイルの一覧を切り詰めたときの `unclear`、ルールの `unclear` の説明、`reviewFilePlan`・`llmFiles`・LLM に渡す項目と事実の組み立て: 項目と材料ごとにテストが増え、表に写すと実装の写しになるため。掲載を止める重大な指摘は、A01 から A03・A14 から A18・A21 で確かめます。
+- `test/review/rules.test.ts` の、重大とする場合を持たない審査の基準の判定 (`ci-hardening`・`dependency-pinning`・`build-hardening`・`cpu-compatibility`・`contribution-compliance`・`hermetic-build`・`plugin-name`・`repository-protection`・`agent-editor-config`)、日本語の README の判定、ファイルの一覧を切り詰めたときの `unclear`、ルールの `unclear` の説明、`reviewFilePlan`・`llmFiles`・LLM に渡す項目と事実の組み立て: 項目と材料ごとにテストが増え、表に写すと実装の写しになるため。掲載を止める重大な指摘は、A01 から A03・A14 から A18・A21 で確かめます。
 - `test/review/llm.test.ts` の根拠のパスの整形と `reviewView`: 作者へ返す指摘の根拠と表示を整える処理で、掲載の可否に影響しないため。
 - `test/macos-checks.test.ts` の一覧の取得と、合格・不合格・`error` の書き込み: I01・I08・M07・M10 の対照として、それらのシナリオの期待に含まれるため。
 
