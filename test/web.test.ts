@@ -37,6 +37,107 @@ describe('Web', () => {
     expect(csp).not.toContain('script-src');
   });
 
+  // X03: トップ以外の画面と、404 や画像の応答にも同じ CSP を付ける。
+  it('トップ以外の画面にも、スクリプトを許可しない CSP を付ける', async () => {
+    await register();
+    await markListable(env.DB);
+    const paths = [
+      `/plugins/${OWNER}/${REPO}?lang=en`,
+      '/?lang=en&q=pitch',
+      '/notices?lang=en',
+      ...PAGE_KEYS.map((key) => `/${key}?lang=en`),
+      '/plugins/nobody/nothing?lang=en',
+      '/sitemap.xml',
+    ];
+    for (const path of paths) {
+      const response = await SELF.fetch(`${ORIGIN}${path}`);
+      const csp = response.headers.get('Content-Security-Policy') ?? '';
+      expect(csp, path).toContain("default-src 'none'");
+      expect(csp, path).not.toContain('script-src');
+      await response.arrayBuffer();
+    }
+    const contact = await SELF.fetch(`${ORIGIN}/contact?lang=en`, { method: 'POST' });
+    expect(contact.headers.get('Content-Security-Policy') ?? '').toContain("default-src 'none'");
+    await contact.arrayBuffer();
+  });
+
+  // X01: 宣言ファイルの name と配布物名も外部データとしてエスケープする。
+  it('宣言ファイルの name と配布物名に含まれる script をエスケープして表示する', async () => {
+    await register();
+    await markListable(env.DB);
+    await env.DB.prepare("UPDATE plugins SET display_name = 'Pitch<script>alert(3)</script>'").run();
+    await env.DB.prepare("UPDATE assets SET name = 'pitch<script>alert(4)</script>.zip' WHERE kind = 'archive'").run();
+    for (const path of [`/plugins/${OWNER}/${REPO}?lang=en`, '/?lang=en', '/?lang=en&q=pitch']) {
+      const html = await (await SELF.fetch(`${ORIGIN}${path}`)).text();
+      expect(html, path).toContain('Pitch&lt;script&gt;alert(3)&lt;/script&gt;');
+      expect(html, path).not.toContain('<script>alert(3)</script>');
+    }
+    const detail = await (await SELF.fetch(`${ORIGIN}/plugins/${OWNER}/${REPO}?lang=en`)).text();
+    expect(detail).toContain('pitch&lt;script&gt;alert(4)&lt;/script&gt;.zip');
+    expect(detail).not.toContain('<script>alert(4)</script>');
+  });
+
+  // V05: サイトマップには掲載中のプラグインだけを載せる。
+  it('サイトマップに、検査待ちと停止のプラグインの詳細ページを含めない', async () => {
+    const sitemap = async () => (await SELF.fetch(`${ORIGIN}/sitemap.xml`)).text();
+    const detail = `${ORIGIN}/plugins/${OWNER}/${REPO}`;
+    await register();
+    expect(await sitemap()).not.toContain(detail);
+    await markListable(env.DB);
+    expect(await sitemap()).toContain(detail);
+    await env.DB.prepare('UPDATE plugins SET admin_suspended = 1').run();
+    expect(await sitemap()).not.toContain(detail);
+  });
+
+  // V03: 停止したプラグインも、一覧と検索結果のページにリンクを出さない。
+  it('停止したプラグインを、一覧と検索結果のページに出さない', async () => {
+    await register();
+    await markListable(env.DB);
+    const link = `/plugins/${OWNER}/${REPO}`;
+    const pages = ['/?lang=en', '/?lang=en&q=pitch', '/?lang=en&category=utility'];
+    for (const path of pages) expect(await (await SELF.fetch(`${ORIGIN}${path}`)).text(), path).toContain(link);
+    await env.DB.prepare('UPDATE plugins SET admin_suspended = 1').run();
+    for (const path of pages) expect(await (await SELF.fetch(`${ORIGIN}${path}`)).text(), path).not.toContain(link);
+  });
+
+  // V03: 検査待ちのプラグインは、検索結果のページにも出さない。
+  it('検査待ちのプラグインを、検索結果のページに出さない', async () => {
+    await register();
+    const html = await (await SELF.fetch(`${ORIGIN}/?lang=en&q=pitch`)).text();
+    expect(html).not.toContain(`/plugins/${OWNER}/${REPO}`);
+  });
+
+  // V04: 右の列の新着と週間のランキングに、検査待ちと停止のプラグインを出さない。
+  it('右の列の新着と週間 DL 数ランキングに、検査待ちと停止のプラグインを出さない', async () => {
+    await register();
+    const id = `${OWNER}/${REPO}`.toLowerCase();
+    const day = (offset: number) => new Date(Date.now() - offset * 86_400_000).toISOString().slice(0, 10);
+    for (const [offset, total] of [
+      [7, 90],
+      [0, 140],
+    ] as const) {
+      await env.DB.prepare('INSERT INTO download_snapshots (plugin_id, day, total) VALUES (?, ?, ?)')
+        .bind(id, day(offset), total)
+        .run();
+    }
+    // 本文にプラグインの一覧が無い画面で、右の列を見る。
+    const side = async () => (await SELF.fetch(`${ORIGIN}/about?lang=ja`)).text();
+    const link = `/plugins/${OWNER}/${REPO}`;
+    const pending = await side();
+    expect(pending).not.toContain(link);
+    expect(pending).not.toContain('<ol class="weekly">');
+
+    await markListable(env.DB);
+    const listed = await side();
+    expect(listed).toContain(link);
+    expect(listed).toContain('<ol class="weekly">');
+
+    await env.DB.prepare('UPDATE plugins SET admin_suspended = 1').run();
+    const suspended = await side();
+    expect(suspended).not.toContain(link);
+    expect(suspended).not.toContain('<ol class="weekly">');
+  });
+
   // 姉妹サービスへ移っても、利用者が選んだ言語のまま読めること。
   it('フッターの姉妹サービスへのリンクは表示中の言語を引き継ぐ', async () => {
     const html = await (await SELF.fetch(`${ORIGIN}/?lang=ko`)).text();
@@ -182,6 +283,35 @@ describe('Web', () => {
 
     await env.DB.prepare('UPDATE plugins SET images_hidden = 1').run();
     expect((await SELF.fetch(url)).status).toBe(404);
+  });
+
+  // P41: ロゴに加えて、説明の画像と表示用の静止画も、検査待ちのプラグインでは 404 にする。
+  it('検査待ちのプラグインの説明の画像と表示用の静止画は 404 にする', async () => {
+    await register();
+    const id = `${OWNER}/${REPO}`.toLowerCase();
+    await env.DB.prepare(
+      "INSERT INTO plugin_images (plugin_id, kind, blob_sha, content_type, width, height, bytes, fetched_at) VALUES (?, 'image', 'g1', 'image/gif', 640, 360, ?, '2026-11-09T00:00:00Z')",
+    )
+      .bind(id, new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x80, 0x02, 0x68, 0x01]))
+      .run();
+    await env.DB.prepare(
+      "INSERT INTO plugin_image_previews (plugin_id, source_sha, width, height, bytes, made_at) VALUES (?, 'g1', 640, 360, ?, '2026-11-09T00:00:00Z')",
+    )
+      .bind(id, new Uint8Array([1]))
+      .run();
+    const fetchKind = (kind: string) => SELF.fetch(`${ORIGIN}/plugins/${OWNER}/${REPO}/${kind}`);
+    for (const kind of ['image', 'preview']) {
+      const response = await fetchKind(kind);
+      expect(response.status, kind).toBe(404);
+      await response.arrayBuffer();
+    }
+    // 対照: 掲載すれば同じ画像を配信する。
+    await markListable(env.DB);
+    for (const kind of ['image', 'preview']) {
+      const response = await fetchKind(kind);
+      expect(response.status, kind).toBe(200);
+      await response.arrayBuffer();
+    }
   });
 
   // 閉じた details の中の img は loading="lazy" のときだけ読み込まれない。外れると、開く前に GIF を読み込んで重くなる。
