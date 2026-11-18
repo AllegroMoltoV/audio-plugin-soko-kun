@@ -3,11 +3,47 @@ import { env } from 'cloudflare:test';
 import { HttpResponse, http } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { checkPlugin, parseRepositoryUrl, SUBMITS_PER_DAY, submitPlugin } from '../../src/domain/submit';
+import type { Env } from '../../src/env';
 import { githubHandlers, OWNER, REPO, REPO_ID, releaseCheckHandlers, USER_TOKEN } from '../fixtures/github';
 import { network } from '../setup';
 
 const submitter = { githubUserId: 4242, githubToken: USER_TOKEN };
 const url = `https://github.com/${OWNER}/${REPO}`;
+
+// D1 の batch の回数と、batch の外で実行した文を記録する。batch には包む前の文を渡す。
+function recordingDb(db: D1Database, batches: number[], direct: string[]): D1Database {
+  const originals = new WeakMap<object, D1PreparedStatement>();
+  const wrap = (statement: D1PreparedStatement, sql: string): D1PreparedStatement => {
+    const proxy = new Proxy(statement, {
+      get(target, prop) {
+        if (prop === 'bind') return (...values: unknown[]) => wrap(target.bind(...values), sql);
+        if (prop === 'run' || prop === 'first' || prop === 'all' || prop === 'raw') {
+          return (...args: unknown[]) => {
+            direct.push(sql);
+            return (target[prop] as (...a: unknown[]) => unknown).apply(target, args);
+          };
+        }
+        const value = Reflect.get(target, prop, target);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    originals.set(proxy, statement);
+    return proxy;
+  };
+  return new Proxy(db, {
+    get(target, prop) {
+      if (prop === 'prepare') return (sql: string) => wrap(target.prepare(sql), sql);
+      if (prop === 'batch') {
+        return (statements: D1PreparedStatement[]) => {
+          batches.push(statements.length);
+          return target.batch(statements.map((statement) => originals.get(statement) ?? statement));
+        };
+      }
+      const value = Reflect.get(target, prop, target);
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  });
+}
 
 describe('parseRepositoryUrl', () => {
   it.each([
@@ -153,6 +189,30 @@ describe('submitPlugin', () => {
     expect(JSON.stringify(result)).not.toContain(USER_TOKEN);
   });
 
+  // D12: 利用者のトークンは管理権限の確認の 1 件にだけ使い、登録の書き込みは途中で失敗しても部分的に残らない 1 回の batch で行う。
+  it('2 件目以降の GitHub の呼び出しに利用者のトークンを使わず、登録の書き込みを 1 回の batch で行う', async () => {
+    const authorizations: string[] = [];
+    network.use(...githubHandlers());
+    // 何も返さないハンドラーは、記録だけをして次のハンドラーに渡す。
+    network.use(
+      http.all('https://api.github.com/*', ({ request }) => {
+        authorizations.push(request.headers.get('Authorization') ?? '');
+      }),
+    );
+    const batches: number[] = [];
+    const direct: string[] = [];
+    const result = await submitPlugin({ ...env, DB: recordingDb(env.DB, batches, direct) }, submitter, url);
+    expect(result.ok).toBe(true);
+    expect(authorizations[0]).toBe(`Bearer ${USER_TOKEN}`);
+    expect(authorizations.length).toBeGreaterThan(1);
+    expect(authorizations.slice(1).filter((value) => value.includes(USER_TOKEN))).toEqual([]);
+    expect(batches).toHaveLength(1);
+    // batch の外の書き込みは、登録の回数の記録だけ。
+    expect(direct.filter((sql) => /^\s*(INSERT|UPDATE|DELETE)/i.test(sql))).toEqual([
+      'INSERT INTO submit_log (github_user_id, created_at, outcome) VALUES (?, ?, ?)',
+    ]);
+  });
+
   it('登録の書き込みは 1 回の batch で行い、検査を検査待ちで作る', async () => {
     network.use(...githubHandlers());
     const result = await submitPlugin(env, submitter, url);
@@ -167,6 +227,29 @@ describe('submitPlugin', () => {
 });
 
 describe('checkPlugin (確認のモード)', () => {
+  // P08: 管理者でない人に、他人のリポジトリのレビューで Workers AI の枠を使わせない。
+  it('管理者でない利用者には not_admin を返し、Workers AI を呼ばない', async () => {
+    const runs: string[] = [];
+    const withAi = {
+      ...env,
+      AI: {
+        run: async (model: string) => {
+          runs.push(model);
+          return { output: [{ type: 'message', content: [{ text: '{"findings":[]}' }] }] };
+        },
+      },
+    } as unknown as Env;
+    network.use(...githubHandlers({ admin: false }), ...releaseCheckHandlers());
+    const result = await checkPlugin(withAi, submitter, url);
+    expect(result).toMatchObject({ mode: 'check', ok: false, conditions: [{ code: 'not_admin', result: 'failed' }] });
+    expect(runs).toEqual([]);
+    // 対照: 管理者なら、同じ環境で Workers AI のレビューに進む。
+    network.resetHandlers();
+    network.use(...githubHandlers(), ...releaseCheckHandlers());
+    await checkPlugin(withAi, submitter, url);
+    expect(runs.length).toBeGreaterThan(0);
+  });
+
   it('登録せずに条件ごとの結果を返し、1 人 24 時間 5 回を超えたら断る', async () => {
     network.use(...githubHandlers({ immutable: false }), ...releaseCheckHandlers());
     const first = await checkPlugin(env, submitter, url);
