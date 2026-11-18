@@ -206,6 +206,40 @@ describe('宣言の取得から照合までの通し', () => {
   });
 });
 
+describe('X09 宣言ファイルの取得の 16 KB の閾値', () => {
+  // 正しい形の宣言を、空白で bytes バイトに伸ばして返す。
+  async function checkDeclarationOf(bytes: number): Promise<string | undefined> {
+    network.use(...githubHandlers());
+    const result = await submitPlugin(
+      env,
+      { githubUserId: 4242, githubToken: USER_TOKEN },
+      `https://github.com/${OWNER}/${REPO}`,
+    );
+    if (!result.ok) throw new Error(result.code);
+    await markListable(env.DB);
+    await env.DB.prepare("UPDATE release_checks SET config_state = 'pending', config_fetched_at = NULL").run();
+    const json = '{"name": "Simple White Noise"}';
+    const body = json + ' '.repeat(bytes - json.length);
+    network.use(
+      http.get('https://api.github.com/repos/:owner/:repo/contents/.audio-soko-kun/config.json', () =>
+        HttpResponse.text(body),
+      ),
+      ...releaseCheckHandlers(),
+    );
+    await runReleaseChecks(env, new Budget());
+    const row = await env.DB.prepare('SELECT config_state FROM release_checks').first<{ config_state: string }>();
+    return row?.config_state;
+  }
+
+  it('16 KB ちょうどの宣言は読む', async () => {
+    expect(await checkDeclarationOf(16 * 1024)).toBe('ok');
+  });
+
+  it('16 KB を 1 バイトでも超えれば invalid にする', async () => {
+    expect(await checkDeclarationOf(16 * 1024 + 1)).toBe('invalid');
+  });
+});
+
 describe('古い版の宣言の判定と、新しい版の判定済みの宣言', () => {
   // 新しい版の判定の後に古い版を判定し直すと、古い版の値で plugins の表示名・カテゴリ・配布物の宣言を上書きしていた
   // (2026-11-15、retry-declaration で simple-whitenoise のカテゴリが utility に戻った)。古い版の pattern が新しい版の

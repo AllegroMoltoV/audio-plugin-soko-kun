@@ -1,7 +1,7 @@
 // 定期処理の危険側の境界: 停止の解除、検査結果の流用、障害時のデータ破壊、無料プランの上限超過。
 import { env } from 'cloudflare:test';
 import { HttpResponse, http } from 'msw';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { Budget } from '../../src/budget';
 import {
   DISPATCH_RESERVE,
@@ -854,5 +854,210 @@ describe('検証のワークフローの起動', () => {
     );
     const report = await runCron(withToken);
     expect(report.verifyDispatch).toBe('failed_401');
+  });
+});
+
+// 同期で受けたリリースの応答の扱い (docs/design/testing.md の C03・C09・C11)。
+describe('runCron の同期で保存するリリース', () => {
+  const NEW_ZIP_DIGEST = `sha256:${'a7'.repeat(32)}`;
+  const asset = (id: number, name: string, digest: string | null) => ({
+    id,
+    name,
+    size: 1,
+    digest,
+    browser_download_url: `https://github.com/${OWNER}/${REPO}/releases/download/x/${name}`,
+  });
+  // 登録済みの版より新しい最新のリリースを返す。extra でタグ・配布物・immutable を差し替える。
+  const latest = (extra: Record<string, unknown>) => [
+    http.get(`https://api.github.com/repos/${OWNER}/${REPO}/releases/latest`, () =>
+      HttpResponse.json(
+        {
+          id: 7002,
+          tag_name: 'v1.2.0',
+          name: 'v1.2.0',
+          draft: false,
+          prerelease: false,
+          published_at: '2026-11-08T00:00:00Z',
+          html_url: `https://github.com/${OWNER}/${REPO}/releases/tag/v1.2.0`,
+          immutable: true,
+          assets: [asset(8101, 'x-windows-x64.zip', NEW_ZIP_DIGEST)],
+          ...extra,
+        },
+        { headers: { ETag: '"etag-2"' } },
+      ),
+    ),
+    // 保存しないはずのリリースでも、守りが外れたときに未定義の呼び出しで落ちず、保存の有無で判定できるようにする。
+    http.get(`https://api.github.com/repos/${OWNER}/${REPO}/commits/refs/tags/*`, () =>
+      HttpResponse.json({ sha: 'b'.repeat(40) }),
+    ),
+  ];
+  const sync = async (extra: Record<string, unknown>) => {
+    await registerFixture();
+    network.use(
+      repoById(),
+      ...latest(extra),
+      ...imageHandlers(),
+      ...downloadHandlers(),
+      ...scannerHandlers({ mb: 0 }),
+      ...releaseCheckHandlers(),
+    );
+    const report = await runCron(env);
+    expect(report.synced).toBe(1);
+  };
+  const release7002 = () =>
+    env.DB.prepare('SELECT tag FROM releases WHERE github_release_id = 7002').first<{ tag: string }>();
+
+  it('C03 GitHub でリポジトリが非公開になったら掲載終了にする', async () => {
+    await registerFixture();
+    network.use(
+      repoById(200, { private: true }),
+      ...githubHandlers(),
+      ...imageHandlers(),
+      ...downloadHandlers(),
+      ...scannerHandlers({ mb: 0 }),
+      ...releaseCheckHandlers(),
+    );
+    await runCron(env);
+    const row = await env.DB.prepare('SELECT removed FROM plugins').first<{ removed: number }>();
+    expect(row?.removed).toBe(1);
+  });
+
+  it('C09 タグ名が規則に合わないリリースは、配布物ごと保存しない', async () => {
+    await sync({ tag_name: 'release/1.2.0' });
+    expect(await release7002()).toBeNull();
+    expect(await env.DB.prepare('SELECT count(*) AS n FROM assets WHERE github_asset_id = 8101').first('n')).toBe(0);
+  });
+
+  it('C09 digest の無い配布物は保存せず、同じリリースの digest のある配布物だけを保存する', async () => {
+    await sync({
+      assets: [
+        asset(8101, 'x-windows-x64.zip', NEW_ZIP_DIGEST),
+        asset(8102, 'x-macos.zip', null),
+        asset(8103, 'x-linux-x64.zip', `md5:${'0'.repeat(32)}`),
+      ],
+    });
+    expect(await release7002()).toEqual({ tag: 'v1.2.0' });
+    const { results } = await env.DB.prepare(
+      'SELECT github_asset_id FROM assets WHERE release_id = 7002 ORDER BY github_asset_id',
+    ).all();
+    expect(results).toEqual([{ github_asset_id: 8101 }]);
+    // 保存しない配布物には、照会の行も作らない。
+    expect(await env.DB.prepare('SELECT count(*) AS n FROM scans WHERE digest LIKE ?').bind('md5:%').first('n')).toBe(
+      0,
+    );
+  });
+
+  it('C09 どの配布物にも digest が無いリリースは保存しない', async () => {
+    await sync({ assets: [asset(8102, 'x-macos.zip', null)] });
+    expect(await release7002()).toBeNull();
+  });
+
+  it('C11 リリースの応答に immutable が無ければ、immutable を 0 にする', async () => {
+    await sync({ immutable: undefined });
+    const row = await env.DB.prepare('SELECT immutable FROM release_checks WHERE github_release_id = 7002').first<{
+      immutable: number;
+    }>();
+    expect(row).toEqual({ immutable: 0 });
+  });
+});
+
+// MalwareBazaar への照会 (docs/design/testing.md の C08・C10)。
+describe('runCron の MalwareBazaar への照会', () => {
+  const ZIP_HEX = 'd1'.repeat(32);
+  const DAY_MS = 86_400_000;
+  const NOW = new Date('2026-11-18T00:00:00.000Z');
+
+  // 照会した SHA-256 を記録する。status が null なら query_status の無い応答を返す。
+  const lookups = (hashes: string[], status: string | null = 'hash_not_found') =>
+    http.post('https://mb-api.abuse.ch/api/v1/', async ({ request }) => {
+      hashes.push(new URLSearchParams(await request.text()).get('hash') ?? '');
+      return HttpResponse.json(status === null ? {} : { query_status: status });
+    });
+
+  // 掲載中の zip の not_found の照会を、NOW から ageMs だけ前に済ませた状態で、NOW に定期処理を 1 回走らせる。
+  async function runWithLastLookup(ageMs: number): Promise<string[]> {
+    await registerFixture();
+    await markListable(env.DB);
+    await recordListings(env, new Budget());
+    await env.DB.prepare("UPDATE scans SET result = 'not_found', attempts = 1, scanned_at = ?")
+      .bind(new Date(NOW.getTime() - ageMs).toISOString())
+      .run();
+    const hashes: string[] = [];
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(NOW);
+    try {
+      network.use(repoById(503), lookups(hashes), ...releaseCheckHandlers());
+      await runCron(env);
+    } finally {
+      vi.useRealTimers();
+    }
+    return hashes;
+  }
+
+  // 掲載していない tar.gz は、照会から 7 日を過ぎても照会し直さない。
+  it('C08 掲載中の配布物の not_found の照会から 7 日を過ぎたら、照会の対象に選ぶ', async () => {
+    expect(await runWithLastLookup(7 * DAY_MS + 1)).toEqual([ZIP_HEX]);
+  });
+
+  it('C08 の対照: not_found の照会から 7 日に満たなければ、照会し直さない', async () => {
+    expect(await runWithLastLookup(7 * DAY_MS - 1)).toEqual([]);
+  });
+
+  // C08 の表は「7 日以上」だが、src/domain/cron.ts の runScans は scanned_at < (現在 − 7 日) で選び、
+  // ちょうど 7 日を選ばない。実装と表の食い違いを依頼者が判断するまで飛ばす。
+  it.skip('C08 not_found の照会からちょうど 7 日なら、照会の対象に選ぶ', async () => {
+    expect(await runWithLastLookup(7 * DAY_MS)).toEqual([ZIP_HEX]);
+  });
+
+  it('C10 ok と hash_not_found 以外の query_status は error にし、not_found にしない', async () => {
+    await registerFixture();
+    for (const status of ['illegal_hash', 'unknown_auth_key', 'no_results', null]) {
+      await env.DB.prepare("UPDATE scans SET result = 'pending', detail = NULL, attempts = 0, scanned_at = NULL").run();
+      network.resetHandlers();
+      network.use(repoById(503), lookups([], status), ...releaseCheckHandlers());
+      await runCron(env);
+      const { results } = await env.DB.prepare(
+        "SELECT DISTINCT result FROM scans WHERE scanner = 'malwarebazaar'",
+      ).all<{
+        result: string;
+      }>();
+      expect(results, String(status)).toEqual([{ result: 'error' }]);
+    }
+  });
+});
+
+// Workers AI の例外とレビューの状態 (docs/design/testing.md の A07)。例外の分類は test/review/quota.test.ts で確かめる。
+describe('新しい版の検査の Workers AI の例外', () => {
+  it('A07 Workers AI がどの例外を投げても、review_state を done にしない', async () => {
+    await registerFixture();
+    const thrown: unknown[] = [
+      new Error('AiError: 4006: you have used up your daily free allocation of 10,000 neurons'),
+      new Error('AiGatewayError: 2045: Spend limit exceeded'),
+      new Error('AiError: 3040: Capacity temporarily exceeded'),
+      new Error('AiError: 3046: Request timeout'),
+      new TypeError('network error'),
+      'a thrown string',
+      null,
+    ];
+    for (const error of thrown) {
+      await env.DB.prepare(
+        `UPDATE release_checks SET config_state = 'missing', diff_state = 'skipped', license_state = 'passed',
+           network_state = 'done', network_hits = '{"hits":[],"truncated":false}', review_state = 'pending',
+           review_attempts = 0, review_wait_until = NULL`,
+      ).run();
+      network.resetHandlers();
+      network.use(...releaseCheckHandlers());
+      const withAi = {
+        ...env,
+        AI: {
+          run: async () => {
+            throw error;
+          },
+        },
+      } as unknown as typeof env;
+      expect(await runReleaseChecks(withAi, new Budget())).toBe(1);
+      const state = await env.DB.prepare('SELECT review_state FROM release_checks').first<string>('review_state');
+      expect(state, String(error)).not.toBe('done');
+    }
   });
 });

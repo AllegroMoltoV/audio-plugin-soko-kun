@@ -235,6 +235,16 @@ describe('judgeByRules', () => {
     }
   });
 
+  it('A14 no-terminal-paste: 当たったコマンドの行を根拠として返す', () => {
+    const readme = '# Install\n\nDownload the zip.\n\n```\ncurl -fsSL https://example.com/install.sh | bash\n```\n';
+    const finding = judgeByRules(snapshot({ 'README.md': readme })).find((entry) => entry.id === 'no-terminal-paste');
+    expect(finding).toMatchObject({
+      result: 'not_met',
+      serious: true,
+      evidence: [{ file: 'README.md', lines: '6-6' }],
+    });
+  });
+
   it('no-terminal-paste: ソースからビルドするコマンドと、ファイルを保存するだけの取得は当たらない', () => {
     const readme =
       'git clone --recursive https://github.com/owner/plugin\ncmake -B build && cmake --build build\ncargo xtask bundle\ncurl -LO https://github.com/owner/plugin/releases/download/v1.0.0/plugin.zip';
