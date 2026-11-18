@@ -224,7 +224,7 @@ I06 は、`os` の値の取り違えで macOS の判定を省かれる経路を�
 | W04 | `.vst3` のフォルダーの形をとるが、バイナリが `GetPluginFactory` をエクスポートしない | VST 3 のバンドルとみなさない |
 | W05 | `.vst` のバンドル、`VSTPluginMain` か `main_macho` をエクスポートするバイナリ、`main` をエクスポートする共有ライブラリのいずれかを含む | `vst2_detected`。ほかに VST 3 のバンドルがあっても変わらない |
 | W06 | アーカイブの中に別のアーカイブかインストーラーがある | `undetermined`。`passed` にしない |
-| W07 | ダウンロードした配布物の SHA-256 が `digest` と違う | `failed` の `digest_mismatch`。中身を検査しない |
+| W07 | ダウンロードした配布物の SHA-256 が `digest` と違う | 証明の段は `failed` の `digest_mismatch` を書き、証明を検証せず中身も検査しない。中身の検査 (`inspect_archive.py`) が自分で不一致を見つけたときは `error` の `digest_mismatch` を返す |
 | W08 | PE・Mach-O・ELF の各アーキテクチャと、Mach-O の fat binary | `x86_64`・`x86`・`arm64` のいずれか。fat binary はスライスごとの値をすべて並べる |
 | W09 | Windows の単一ファイルの `.vst3` | VST 3 のバンドルとみなさない |
 | W10 | `manifest.ttl` があり、`lv2:binary` が指すバイナリが無い `.lv2` のフォルダー。対照として、パーセントエンコードされた `lv2:binary` が指すバイナリがあるもの | 前者は LV2 のバンドルとみなさない。後者は LV2 のバンドルとみなす |
@@ -258,7 +258,7 @@ I06 は、`os` の値の取り違えで macOS の判定を省かれる経路を�
 | C05 | 同期で所有者の変更を検出する | `owner_changed_at` に日時を記録し、旧い名前を大文字と小文字を保って `plugin_aliases` に残す |
 | C06 | 確認待ちの新しい版がある間に、description が変わる | 概要を description に追従させない |
 | C07 | 掲載中の版の配布物が `malicious` になり、そのあとプラグインの行を削除する | 版を `release_suspensions` に記録し、掲載の期間を閉じる。削除のあとも両方の記録が残る |
-| C08 | 掲載対象の版の配布物で、`not_found` の照会から 7 日以上たった | 照会の対象に選ぶ |
+| C08 | 掲載対象の版の配布物で、`not_found` の照会から 7 日を過ぎた | 照会の対象に選ぶ |
 | C09 | タグ名が規則に合わないリリース、`digest` の無い配布物 | 保存しない |
 | C10 | MalwareBazaar が `ok` と `hash_not_found` 以外の `query_status` を返す | `error`。`not_found` にしない |
 | C11 | GitHub のリリースの API の応答に `immutable` が無い | `immutable` を 0 にする |

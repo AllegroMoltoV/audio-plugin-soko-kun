@@ -4,6 +4,7 @@
 import { env, SELF } from 'cloudflare:test';
 import { describe, expect, it } from 'vitest';
 import { MACOS_VERIFY_WORKFLOW_REF, VERIFY_WORKFLOW_REF } from '../src/checks/oidc';
+import { authorReport } from '../src/domain/author';
 import { getPluginViewByInternalId } from '../src/domain/catalog';
 import { submitPlugin } from '../src/domain/submit';
 import { markListable } from './fixtures/checks';
@@ -202,6 +203,12 @@ describe('macOS の判定の結果', () => {
     }
     expect(await macosRow()).toMatchObject({ result: 'error', reason: 'not_notarized', attempts: 3 });
     expect(await pending()).toEqual([]);
+    // 3 回目の後は、版を管理者の確認待ちにする。
+    expect((await view())?.status).toBe('pending');
+    const versions = (await authorReport(env, `${OWNER}/${REPO}`, false))?.versions ?? [];
+    expect(versions[0]?.blockers).toContainEqual(
+      expect.objectContaining({ code: 'check_retries_exhausted', waitsFor: 'admin' }),
+    );
     // 試行を使い切った行にも、遅れて届いた結果は受け入れる。OIDC で本サービスのワークフローからと確かめた結果で、
     // 管理者の確認待ちが人手なしで解けるため (/internal/checks/ と配信プラグイン倉庫くんの受け口と同じ扱い)。
     expect(await (await post([PASSED])).json()).toEqual({ updated: 1 });

@@ -76,6 +76,7 @@ if (command === 'suspend') {
 } else if (command === 'pending') {
   // 掲載の条件を満たしていない新しい版。管理者の確認を待つ理由と、証明の検証・中身の検査・macOS の判定を待っている件数を示す。
   // waiting_minutes は版の公開からの経過時間。定期処理が止まって検査が進まないことに気づけるよう示す。
+  // 掲載中の版より前に公開された版は出さない。承認しても掲載されず、掲載されないまま後の版に置き換わった版 (superseded) が確認待ちに見えるため。
   sql = `SELECT p.owner || '/' || p.repo AS plugin, r.tag, r.published_at,
            CAST((julianday('now') - julianday(r.published_at)) * 1440 AS INTEGER) AS waiting_minutes,
            c.diff_state, c.diff_hits, c.config_state,
@@ -111,6 +112,8 @@ if (command === 'suspend') {
            AND (c.notes_held = 1
              OR NOT EXISTS (SELECT 1 FROM listing_periods l WHERE l.github_release_id = r.github_release_id))
            AND NOT EXISTS (SELECT 1 FROM release_suspensions s WHERE s.github_release_id = r.github_release_id)
+           AND NOT EXISTS (SELECT 1 FROM listing_periods l JOIN releases lr ON lr.github_release_id = l.github_release_id
+             WHERE lr.plugin_id = r.plugin_id AND l.ended_at IS NULL AND lr.published_at > r.published_at)
          ORDER BY r.published_at;
          SELECT p.owner || '/' || p.repo AS plugin, p.readme_hits FROM plugins p WHERE p.readme_held = 1 AND p.removed = 0;`;
 } else if (command === 'approve-release') {

@@ -43,8 +43,10 @@ export function githubHandlers(fixture: RepoFixture = {}, calls: string[] = []) 
     [installerDigest, 'audio-fixture-pitchshift-setup.exe'],
   ]);
   return [
+    // GitHub は permissions を、利用者のトークンで呼んだときだけ返す。OAuth App の認証では管理権限を確かめられない。
     http.get(base, ({ request }) => {
-      track(`repo:${request.headers.get('Authorization')?.split(' ')[0]}`);
+      const authorization = request.headers.get('Authorization');
+      track(`repo:${authorization?.split(' ')[0]}`);
       return HttpResponse.json({
         id: REPO_ID,
         name: REPO,
@@ -54,7 +56,9 @@ export function githubHandlers(fixture: RepoFixture = {}, calls: string[] = []) 
         description: 'Real-time <script>alert(1)</script> pitch shift effect',
         default_branch: fixture.defaultBranch ?? 'main',
         license: { spdx_id: 'GPL-2.0' },
-        permissions: { admin: fixture.admin ?? true, pull: true },
+        ...(authorization === `Bearer ${USER_TOKEN}`
+          ? { permissions: { admin: fixture.admin ?? true, pull: true } }
+          : {}),
       });
     }),
     http.get(`${base}/license`, ({ request }) => {
