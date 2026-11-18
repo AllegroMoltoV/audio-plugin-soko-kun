@@ -55,9 +55,9 @@ sequenceDiagram
 作者の LLM に `list_my_plugins` を呼ばせるきっかけは、次の 2 つです。
 
 1. MCP の initialize の instructions に、次の趣旨を書く: 「プラグインの作者がリリースを出したら、時間をおいて `list_my_plugins` で掲載の状態を確かめる。`checking` の間は `checkAgainAfter` ごとに確かめ直し、指摘があれば作者に伝えて直し方を提案する」。時間の目安は 15 分以上とする。シードのプラグインの最初の掲載では、登録から掲載まで約 11 分だった ([検査と同期](scanning.md))
-2. 作者向けのスキルのリリースの手順の最後に、同じ確認を入れる。instructions と登録の方法のページ (`/submit`) では、スキルを公開した後にその導入の方法を案内する。公開するまでは、審査の基準と確認のモードを案内する
+2. 作者向けのスキル `audio-plugin-dev` の掲載の段に、同じ確認を入れる。instructions と登録の方法のページ (`/submit`) では、スキルの導入の方法を案内する
 
-作者向けのスキルは、配信プラグイン倉庫くんの streaming-plugin-dev を雛形にします。証明付きのリリースと不変のリリースの章は引き継ぎ、雛形・検証・導入先の章をオーディオプラグイン向けに作り直します。スキルは登録サービスの実装の範囲に含めず、名前と構成は登録サービスの公開の後に計画します。シードのプラグイン simple-pitchshift-audio のリリースで、スキルの手順を確かめる予定です。
+作者向けのスキル `audio-plugin-dev` は、Claude Code のプラグイン `audio-soko-kun-plugin-dev` として本サービスのリポジトリの `plugins/` に置きます。配信プラグイン倉庫くんの streaming-plugin-dev を雛形にしました。証明付きのリリースと不変のリリースの手順は引き継ぎ、プロジェクトの雛形・検証・GUI の段をオーディオプラグイン向けに作り直しました。プラグインは本サービスの MCP サーバーの登録を同梱します。作者は `claude plugin marketplace add AllegroMoltoV/audio-plugin-soko-kun` と `claude plugin install audio-soko-kun-plugin-dev@audio-plugin-soko-kun` で導入します。
 
 結果がまだ出ていない版には、`state: "checking"` と、確かめ直す目安の時刻を返します。
 
@@ -285,6 +285,4 @@ AI Gateway の支出の上限、Workers AI の無料枠の不足、混雑でレ�
 
 ## 未決定の事項
 
-| 事項 | 節 | 決める時点 |
-| --- | --- | --- |
-| 作者向けのスキルの名前と構成 | 経路 | 登録サービスの公開の後 |
+現在、未決定の事項はありません。
