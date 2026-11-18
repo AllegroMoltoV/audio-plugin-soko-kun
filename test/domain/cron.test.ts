@@ -999,14 +999,9 @@ describe('runCron の MalwareBazaar への照会', () => {
     expect(await runWithLastLookup(7 * DAY_MS + 1)).toEqual([ZIP_HEX]);
   });
 
-  it('C08 の対照: not_found の照会から 7 日に満たなければ、照会し直さない', async () => {
-    expect(await runWithLastLookup(7 * DAY_MS - 1)).toEqual([]);
-  });
-
-  // C08 の表は「7 日以上」だが、src/domain/cron.ts の runScans は scanned_at < (現在 − 7 日) で選び、
-  // ちょうど 7 日を選ばない。実装と表の食い違いを依頼者が判断するまで飛ばす。
-  it.skip('C08 not_found の照会からちょうど 7 日なら、照会の対象に選ぶ', async () => {
-    expect(await runWithLastLookup(7 * DAY_MS)).toEqual([ZIP_HEX]);
+  // 7 日ちょうどは「過ぎた」に当たらないため選ばない。
+  it.each([7 * DAY_MS - 1, 7 * DAY_MS])('C08 の対照: not_found の照会から %d ms では、照会し直さない', async (age) => {
+    expect(await runWithLastLookup(age)).toEqual([]);
   });
 
   it('C10 ok と hash_not_found 以外の query_status は error にし、not_found にしない', async () => {
