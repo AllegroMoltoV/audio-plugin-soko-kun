@@ -90,6 +90,34 @@ describe('listMyPlugins', () => {
       review: { untrusted: { unreadFiles: [clipped] } },
     });
   });
+
+  // 表示名は宣言ファイル、配布物名はリリース、VST 2 のファイルの名前はアーカイブから取る作者側の文字列のため、untrusted の枠に入れる。
+  it('表示名・配布物名・VST 2 のファイルの名前は、untrusted の枠の中でだけ返す', async () => {
+    await register();
+    await env.DB.prepare("UPDATE plugins SET display_name = 'DISPLAY-NAME-MARKER'").run();
+    await env.DB.prepare("UPDATE assets SET name = 'ASSET-NAME-MARKER.zip' WHERE kind = 'archive'").run();
+    await env.DB.prepare(
+      "UPDATE content_checks SET vst2_files = ? WHERE github_asset_id IN (SELECT github_asset_id FROM assets WHERE kind = 'archive')",
+    )
+      .bind(JSON.stringify(['VST2-FILE-MARKER.dll']))
+      .run();
+    network.use(...githubHandlers());
+    const result = await listMyPlugins(env, { githubUserId: 4242, githubLogin: OWNER, githubToken: USER_TOKEN }, {});
+    const plugin = (result as { plugins: unknown[] }).plugins[0];
+    const outside = (value: unknown): string[] => {
+      if (typeof value === 'string') return [value];
+      if (Array.isArray(value)) return value.flatMap(outside);
+      if (value && typeof value === 'object') {
+        return Object.entries(value).flatMap(([key, child]) => (key === 'untrusted' ? [] : outside(child)));
+      }
+      return [];
+    };
+    expect(outside(plugin).filter((text) => text.includes('MARKER'))).toEqual([]);
+    const text = JSON.stringify(plugin);
+    for (const marker of ['DISPLAY-NAME-MARKER', 'ASSET-NAME-MARKER.zip', 'VST2-FILE-MARKER.dll']) {
+      expect(text, marker).toContain(marker);
+    }
+  });
 });
 
 describe('versionState', () => {
