@@ -83,7 +83,6 @@ sequenceDiagram
   "plugins": [
     {
       "id": "example-owner/example-delay",
-      "name": "Example Delay",
       "githubUrl": "https://github.com/example-owner/example-delay",
       "detailUrl": "https://audio-soko-kun.allegromoltov.jp/plugins/example-owner/example-delay",
       "publicStatus": "listed",
@@ -97,14 +96,13 @@ sequenceDiagram
           "blockers": [],
           "assets": [
             {
-              "name": "example-delay-1.1.0-windows-x64.zip",
               "guided": true,
               "formats": ["vst3", "clap"],
               "os": ["windows"],
-              "arches": ["x86_64"]
+              "arches": ["x86_64"],
+              "untrusted": { "name": "example-delay-1.1.0-windows-x64.zip" }
             },
             {
-              "name": "example-delay-1.1.0-macos.zip",
               "guided": false,
               "formats": ["vst3", "clap"],
               "os": ["macos"],
@@ -114,7 +112,8 @@ sequenceDiagram
                 "message": "The macOS bundles have only an ad-hoc signature.",
                 "fix": "Sign the bundles with a Developer ID certificate and notarize them in the release workflow before creating the zip.",
                 "waitsFor": "author"
-              }
+              },
+              "untrusted": { "name": "example-delay-1.1.0-macos.zip" }
             }
           ],
           "checks": {
@@ -150,7 +149,8 @@ sequenceDiagram
             "untrusted": { "unreadFiles": [] }
           }
         }
-      ]
+      ],
+      "untrusted": { "name": "Example Delay" }
     }
   ],
   "notes": [
@@ -197,6 +197,8 @@ sequenceDiagram
 `checks.diffRules.hits` と `diff_held` の `hits` は、当たった乗っ取りの兆候の `rule` と `title` と、`untrusted.file` のファイルです。ファイルの無い当たりには `untrusted` を付けません。`diff-too-large` では、当たった事実を `fact` に入れます。値は `github-changed`・`build-script-changed`・`binary-added`・`list-incomplete` です。
 
 差分の規則の当たりのファイル名 (`hits` の `untrusted.file`) と、レビューで読まなかったファイルのパス (`review.untrusted.unreadFiles`) は、リポジトリから取った文字列です。リポジトリに書き込める者が作者の LLM へ文を届けられないよう、`untrusted` の枠に入れ、200 文字までに切り詰めて返します。`submit_plugin` の確認のモードの `unreadFiles` も同じ形です。
+
+プラグインの表示名 (`untrusted.name`)、配布物名 (`assets` の各要素の `untrusted.name`)、アーカイブの中の VST 2 のファイルの名前 (`untrusted.vst2Files`) も、作者が書ける文字列のため `untrusted` の枠に入れます。`search_plugins` と `get_plugin` も、表示名と配布物名 (`files` の各要素の `untrusted.name`) を同じ枠に入れます。ダウンロードの URL は配布物名を含みますが、配布物を指すために枠の外に置きます。
 
 ### 理由コード
 

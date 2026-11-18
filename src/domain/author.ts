@@ -391,12 +391,12 @@ export async function authorReport(env: Env, internalId: string, includeOlder: b
 
   return {
     id: view.id,
-    name: view.name,
     githubUrl: view.githubUrl,
     detailUrl: `${env.ORIGIN}/plugins/${view.id}`,
     publicStatus: view.status === 'listed' ? 'listed' : view.status === 'pending' ? 'not_listed' : view.status,
     listedVersion: view.status === 'listed' ? (view.listedRelease?.tag ?? null) : null,
     versions,
+    untrusted: { name: view.name },
   };
 }
 
@@ -527,13 +527,12 @@ function assetView(row: AssetRow, status: AssetForStatus) {
   const guided = guidedPlatforms(parseBundles(row.bundles));
   const vst2Files = parseList(row.vst2_files);
   return {
-    name: row.name,
     guided: code === null,
     formats: guided.formats,
     os: guided.os,
     arches: guided.arches,
-    ...(vst2Files.length > 0 ? { vst2Files } : {}),
     ...(code ? { notGuidedBecause: { code, ...NOT_GUIDED_TEXT[code] } } : {}),
+    untrusted: { name: row.name, ...(vst2Files.length > 0 ? { vst2Files } : {}) },
   };
 }
 

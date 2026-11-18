@@ -26,7 +26,6 @@ function detailUrl(env: Env, view: PluginView): string {
 function summaryItem(env: Env, view: PluginView) {
   return {
     id: view.id,
-    name: view.name,
     author: view.owner,
     githubUrl: view.githubUrl,
     formats: view.formats,
@@ -37,7 +36,7 @@ function summaryItem(env: Env, view: PluginView) {
     status: view.status,
     lastScannedAt: lastScannedAt(view),
     detailUrl: detailUrl(env, view),
-    untrusted: { summary: view.summary },
+    untrusted: { name: view.name, summary: view.summary },
   };
 }
 
@@ -55,7 +54,10 @@ function suspendedReleases(view: PluginView) {
     reason: release.reason,
     listedFrom: release.listedFrom,
     listedUntil: release.listedUntil,
-    files: release.assets.map((asset) => ({ name: asset.name, sha256: asset.digest.replace(/^sha256:/, '') })),
+    files: release.assets.map((asset) => ({
+      sha256: asset.digest.replace(/^sha256:/, ''),
+      untrusted: { name: asset.name },
+    })),
     untrusted: { note: release.note },
   }));
 }
@@ -66,7 +68,6 @@ function detailItem(env: Env, view: PluginView) {
   if (view.status !== 'listed' || !view.listedRelease) {
     return {
       id: view.id,
-      name: view.name,
       author: view.owner,
       githubUrl: view.githubUrl,
       status: view.status,
@@ -74,12 +75,12 @@ function detailItem(env: Env, view: PluginView) {
       note: 'This plugin is not listed. Download links are not provided.',
       suspendedReleases: suspendedReleases(view),
       detailUrl: detailUrl(env, view),
+      untrusted: { name: view.name },
     };
   }
   const release = view.listedRelease;
   return {
     id: view.id,
-    name: view.name,
     author: view.owner,
     githubUrl: view.githubUrl,
     releasesUrl: view.releasesUrl,
@@ -96,7 +97,6 @@ function detailItem(env: Env, view: PluginView) {
       publishedAt: release.publishedAt,
       releaseUrl: release.htmlUrl,
       files: release.assets.map((asset) => ({
-        name: asset.name,
         size: asset.size,
         sha256: asset.digest.replace(/^sha256:/, ''),
         formats: asset.formats,
@@ -104,6 +104,7 @@ function detailItem(env: Env, view: PluginView) {
         arches: asset.arches,
         downloadUrl: asset.downloadUrl,
         checks: asset.scans,
+        untrusted: { name: asset.name },
       })),
     },
     suspendedReleases: suspendedReleases(view),
@@ -114,7 +115,7 @@ function detailItem(env: Env, view: PluginView) {
       'The SHA-256 identifies the file GitHub served at check time. Verify the hash of the file you download.',
     ],
     detailUrl: detailUrl(env, view),
-    untrusted: { summary: view.summary, releaseName: release.name },
+    untrusted: { name: view.name, summary: view.summary, releaseName: release.name },
   };
 }
 
@@ -140,7 +141,7 @@ export function buildMcpServer(env: Env, user?: SignedInUser): McpServer {
     {
       name: 'audio-plugin-soko-kun',
       title: 'Audio Plugin Soko-kun',
-      version: '0.1.23',
+      version: '0.1.24',
       websiteUrl: env.ORIGIN,
       icons: [
         { src: `${env.ORIGIN}/logo.png`, mimeType: 'image/png', sizes: ['256x256'] },
