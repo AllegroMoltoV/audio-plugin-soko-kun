@@ -2,7 +2,7 @@
 
 Read this to the author before registering (the same text is the first item, `important`, of `submit_plugin` in check mode):
 
-> When your plugin is listed on Audio Plugin Soko-kun, anyone can download its files from GitHub for free, and anyone can use and redistribute its code commercially under the conditions of its license. Income from sales is limited to selling or support outside this platform on that basis. If you want to earn only by selling the files, or to restrict commercial use, your plugin is not eligible for listing. If bundled assets restrict commercial use, declare restrictedAssets in .audio-soko-kun/config.json. Without the declaration, the plugin is shown as OK for commercial use.
+> When your plugin is listed on Audio Plugin Soko-kun, anyone can download its files from GitHub for free, and anyone can use and redistribute its code commercially under the conditions of its license. Income from sales is limited to selling or support outside this platform on that basis. If you want to earn only by selling the files, or to restrict commercial use, your plugin is not eligible for listing. If bundled assets restrict commercial use, declare restrictedAssets in .audio-soko-kun/config.json. Without the declaration, the plugin is shown as OK for commercial use. If your plugin has paid features or needs paid services the user subscribes to separately, declare paidFeatures and paidServices in .audio-soko-kun/config.json. Without the declaration, the plugin is shown as free.
 
 Criteria document: https://github.com/AllegroMoltoV/audio-plugin-soko-kun/blob/main/docs/design/review-criteria.md
 
