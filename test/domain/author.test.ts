@@ -98,7 +98,9 @@ describe('listMyPlugins', () => {
   // 表示名は宣言ファイル、配布物名はリリース、VST 2 のファイルの名前はアーカイブから取る作者側の文字列のため、untrusted の枠に入れる。
   it('表示名・配布物名・VST 2 のファイルの名前は、untrusted の枠の中でだけ返す', async () => {
     await register();
-    await env.DB.prepare("UPDATE plugins SET display_name = 'DISPLAY-NAME-MARKER'").run();
+    await env.DB.prepare("UPDATE release_checks SET config_state = 'ok', config_json = ?")
+      .bind(JSON.stringify({ name: 'DISPLAY-NAME-MARKER' }))
+      .run();
     await env.DB.prepare("UPDATE assets SET name = 'ASSET-NAME-MARKER.zip' WHERE kind = 'archive'").run();
     await env.DB.prepare(
       "UPDATE content_checks SET vst2_files = ? WHERE github_asset_id IN (SELECT github_asset_id FROM assets WHERE kind = 'archive')",
@@ -121,6 +123,33 @@ describe('listMyPlugins', () => {
     for (const marker of ['DISPLAY-NAME-MARKER', 'ASSET-NAME-MARKER.zip', 'VST2-FILE-MARKER.dll']) {
       expect(text, marker).toContain(marker);
     }
+  });
+});
+
+// 配布物の案内の判定は、その版自身の宣言 (release_checks.config_json の assets) で行う。
+describe('list_my_plugins の宣言の配布物', () => {
+  const owner = { githubUserId: 4242, githubLogin: OWNER, githubToken: USER_TOKEN };
+  const archives = async () => {
+    network.use(...githubHandlers());
+    const result = await listMyPlugins(env, owner, {});
+    const [plugin] = (result as { plugins: Array<{ versions: Array<{ assets: Array<Record<string, unknown>> }> }> })
+      .plugins;
+    return (plugin?.versions[0]?.assets ?? []).filter((asset) => asset.guided !== undefined);
+  };
+  const declare = (pattern: string) =>
+    env.DB.prepare("UPDATE release_checks SET config_state = 'ok', config_json = ?")
+      .bind(JSON.stringify({ assets: [{ pattern, os: 'windows', arch: ['x86_64'], formats: ['vst3'] }] }))
+      .run();
+
+  it('その版の宣言の pattern に一致しない配布物は not_declared にし、一致すれば案内する', async () => {
+    await register();
+    await markListable(env.DB);
+    await declare('*-macos.zip');
+    expect(await archives()).toContainEqual(
+      expect.objectContaining({ guided: false, notGuidedBecause: expect.objectContaining({ code: 'not_declared' }) }),
+    );
+    await declare('*-windows-x64.zip');
+    expect(await archives()).toContainEqual(expect.objectContaining({ guided: true }));
   });
 });
 

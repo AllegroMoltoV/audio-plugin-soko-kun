@@ -232,17 +232,16 @@ export function isDeclared(name: string, assets: readonly DeclaredAsset[]): bool
   return assets.some((asset) => matchesPattern(asset.pattern, name));
 }
 
-// plugins.declared_assets の値。本サービスが検証してから保存した JSON だが、形の合わない値は宣言が無いものとして扱う。
-export function parseDeclaredAssets(value: string | null): DeclaredAsset[] | null {
-  if (!value) return null;
-  try {
-    const parsed = JSON.parse(value);
-    if (!Array.isArray(parsed)) return null;
-    const assets = parsed.map(parseAsset);
-    return assets.every((asset): asset is DeclaredAsset => asset !== null) && assets.length > 0 ? assets : null;
-  } catch {
-    return null;
-  }
+// 保存した config_json から、表示名と宣言の配布物を読む。宣言が無い・読めない版は、どちらも null。
+// 版ごとに保存した値を、その版の表示と配布物の判定に使う。
+export function storedNameAndAssets(configJson: string | null): {
+  name: string | null;
+  assets: DeclaredAsset[] | null;
+} {
+  if (configJson === null) return { name: null, assets: null };
+  const parsed = parseDeclaration(configJson);
+  if (parsed.state !== 'parsed') return { name: null, assets: null };
+  return { name: parsed.declaration.name, assets: parsed.declaration.assets };
 }
 
 export async function readDeclaration(
@@ -318,8 +317,6 @@ function jsonArray(value: string | null): string[] {
 
 interface PendingDeclarationRow {
   github_release_id: number;
-  plugin_id: string;
-  published_at: string;
   config_json: string | null;
 }
 
@@ -335,18 +332,16 @@ interface ArchiveRow {
 
 // 宣言を取得済みで config_state が pending の版について、すべてのアーカイブの中身の検査が終わっていれば判定を書く。
 // 新しい版の検査で宣言を取得したときと、中身の検査の結果を受け取ったときに呼ぶ。どちらが後になっても判定が行われる。
-// ok と missing では、plugins の表示名・配布物の宣言・カテゴリを、その版の値に替える。ただし、より新しい版に
-// 判定済み (ok か missing) の宣言があれば替えない。古い版を後から判定しても、新しい版の値を残すため。
+// ok と missing では、推定したカテゴリをその版の release_checks.category に書く。表示名と宣言の配布物は、
+// 版ごとに保存している config_json から読む。どの版の値を表示に使うかは loadViews が決める。
 export async function settleDeclarations(env: Env, releaseIds: readonly number[], budget?: Budget): Promise<number> {
   if (releaseIds.length === 0) return 0;
   const placeholders = releaseIds.map(() => '?').join(', ');
   budget?.takeD1Query();
   const [pending, archives] = await env.DB.batch([
     env.DB.prepare(
-      `SELECT c.github_release_id, r.plugin_id, r.published_at, c.config_json
-       FROM release_checks c JOIN releases r ON r.github_release_id = c.github_release_id
-       WHERE c.github_release_id IN (${placeholders}) AND c.config_state = 'pending' AND c.config_fetched_at IS NOT NULL
-       ORDER BY r.published_at`,
+      `SELECT github_release_id, config_json FROM release_checks
+       WHERE github_release_id IN (${placeholders}) AND config_state = 'pending' AND config_fetched_at IS NOT NULL`,
     ).bind(...releaseIds),
     env.DB.prepare(
       `SELECT a.release_id, a.name, k.result, k.formats, k.os, k.arches, k.categories
@@ -390,29 +385,14 @@ export async function settleDeclarations(env: Env, releaseIds: readonly number[]
         categories: jsonArray(archive.categories),
       })),
     );
+    // カテゴリは宣言ではなく中身の検査からの推定で、config_json に残らないため、その版の行に書く。
+    // 書くのは判定が ok か missing のときだけ。それ以外の版は掲載しないため、カテゴリを表示に使わない。
+    const settled = judged.state === 'ok' || judged.state === 'missing';
     statements.push(
       env.DB.prepare(
-        "UPDATE release_checks SET config_state = ? WHERE github_release_id = ? AND config_state = 'pending'",
-      ).bind(judged.state, row.github_release_id),
+        "UPDATE release_checks SET config_state = ?, category = ? WHERE github_release_id = ? AND config_state = 'pending'",
+      ).bind(judged.state, settled ? judged.category : null, row.github_release_id),
     );
-    if (judged.state === 'ok' || judged.state === 'missing') {
-      // より新しい版に判定済みの宣言があれば書き換えない。条件を書き込みの文に置き、読み込みとの間に別の呼び出しが
-      // 新しい版を判定しても古い値が残らないようにする。
-      statements.push(
-        env.DB.prepare(
-          `UPDATE plugins SET display_name = ?, declared_assets = ?, category = ? WHERE id = ?
-             AND NOT EXISTS (SELECT 1 FROM releases r JOIN release_checks c ON c.github_release_id = r.github_release_id
-               WHERE r.plugin_id = ? AND r.published_at > ? AND c.config_state IN ('ok', 'missing'))`,
-        ).bind(
-          declaration?.name ?? null,
-          declaration?.assets ? JSON.stringify(declaration.assets) : null,
-          judged.category,
-          row.plugin_id,
-          row.plugin_id,
-          row.published_at,
-        ),
-      );
-    }
   }
   if (statements.length === 0) return 0;
   budget?.takeD1Query();

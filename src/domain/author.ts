@@ -14,7 +14,7 @@ import {
   hasAnyPricing,
   isDeclared,
   type PricingNotice,
-  parseDeclaredAssets,
+  storedNameAndAssets,
   storedPricing,
 } from './declaration';
 import { type AssetKind, guidedPlatforms, parseBundles } from './metadata';
@@ -291,7 +291,7 @@ function parseJson<T>(text: string | null, fallback: T): T {
 export async function authorReport(env: Env, internalId: string, includeOlder: boolean) {
   const view = await getPluginViewByInternalId(env, internalId);
   if (!view) return null;
-  const [releases, checks, assets, suspended, declared] = await env.DB.batch([
+  const [releases, checks, assets, suspended] = await env.DB.batch([
     env.DB.prepare(
       'SELECT github_release_id, tag, published_at FROM releases WHERE plugin_id = ? ORDER BY published_at DESC',
     ).bind(internalId),
@@ -311,15 +311,12 @@ export async function authorReport(env: Env, internalId: string, includeOlder: b
        WHERE r.plugin_id = ?`,
     ).bind(internalId),
     env.DB.prepare('SELECT github_release_id FROM release_suspensions WHERE plugin_id = ?').bind(internalId),
-    env.DB.prepare('SELECT declared_assets FROM plugins WHERE id = ?').bind(internalId),
   ]);
   const checkById = new Map(((checks?.results ?? []) as CheckRow[]).map((row) => [row.github_release_id, row]));
-  const declaredAssets = parseDeclaredAssets(
-    ((declared?.results ?? []) as Array<{ declared_assets: string | null }>)[0]?.declared_assets ?? null,
-  );
+  // 配布物は、その版自身の宣言で判定する。
   const assetRows = ((assets?.results ?? []) as AssetRow[]).map((row) => ({
     row,
-    status: toStatusAsset(row, declaredAssets),
+    status: toStatusAsset(row, storedNameAndAssets(checkById.get(row.release_id)?.config_json ?? null).assets),
   }));
   const suspendedIds = new Set(
     ((suspended?.results ?? []) as Array<{ github_release_id: number }>).map((row) => row.github_release_id),

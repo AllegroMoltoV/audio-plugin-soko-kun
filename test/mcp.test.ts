@@ -176,7 +176,9 @@ describe('アクセス権限', () => {
   it('表示名の語でも検索できる', async () => {
     await registerPendingFixture();
     await markListable(env.DB);
-    await env.DB.prepare("UPDATE plugins SET display_name = 'こえかえピッチ / Koekae Pitch'").run();
+    await env.DB.prepare("UPDATE release_checks SET config_state = 'ok', config_json = ?")
+      .bind(JSON.stringify({ name: 'こえかえピッチ / Koekae Pitch' }))
+      .run();
     const japanese = await toolResult(await SELF.fetch(toolCall('search_plugins', { keyword: 'こえかえ' })));
     expect(japanese.payload.total).toBe(1);
     const english = await toolResult(await SELF.fetch(toolCall('search_plugins', { keyword: 'koekae' })));
@@ -281,12 +283,14 @@ describe('アクセス権限', () => {
       "INSERT INTO macos_signing_checks (github_asset_id, result, reason) VALUES (8004, 'failed', 'not_signed')",
     ).run();
     const declared = (name: string, os: string) => ({ pattern: name, os, arch: ['x86_64'], formats: ['vst3'] });
-    await env.DB.prepare('UPDATE plugins SET declared_assets = ?')
+    await env.DB.prepare("UPDATE release_checks SET config_state = 'ok', config_json = ?")
       .bind(
-        JSON.stringify([
-          declared('audio-fixture-pitchshift-1.1.0-windows-x64.zip', 'windows'),
-          declared('audio-fixture-pitchshift-1.1.0-macos.zip', 'macos'),
-        ]),
+        JSON.stringify({
+          assets: [
+            declared('audio-fixture-pitchshift-1.1.0-windows-x64.zip', 'windows'),
+            declared('audio-fixture-pitchshift-1.1.0-macos.zip', 'macos'),
+          ],
+        }),
       )
       .run();
     const response = await SELF.fetch(toolCall('get_plugin', { id: `${OWNER}/${REPO}` }));
@@ -381,7 +385,9 @@ describe('アクセス権限', () => {
   it('get_plugin と search_plugins は、表示名と配布物名を untrusted の枠の外に置かない', async () => {
     await registerPendingFixture();
     await markListable(env.DB);
-    await env.DB.prepare("UPDATE plugins SET display_name = 'DISPLAY-NAME-MARKER'").run();
+    await env.DB.prepare("UPDATE release_checks SET config_state = 'ok', config_json = ?")
+      .bind(JSON.stringify({ name: 'DISPLAY-NAME-MARKER' }))
+      .run();
     await env.DB.prepare("UPDATE assets SET name = 'ASSET-NAME-MARKER.zip' WHERE kind = 'archive'").run();
     const outside = (value: unknown): string[] => {
       if (typeof value === 'string') return [value];
@@ -494,6 +500,82 @@ describe('R10 有料・素材の申告の MCP の応答', () => {
     expect(JSON.stringify(detail.payload)).not.toContain('NEW-SERVICE');
     const paid = await toolResult(await SELF.fetch(toolCall('search_plugins', { excludePaid: true })));
     expect(paid.payload.total).toBe(1);
+  });
+});
+
+// 表示名・カテゴリ・宣言の配布物は版ごとに持ち、掲載中の版の値を表示する (jtl.42)。
+describe('表示名・カテゴリ・宣言の配布物の表示元の版', () => {
+  const INSERT_V2 = `INSERT INTO releases (github_release_id, plugin_id, tag, name, commit_sha, published_at, html_url)
+    SELECT 7002, plugin_id, 'v1.2.0', 'v1.2.0', 'y', '2026-12-01T00:00:00Z', 'https://github.com/x/y/releases/tag/v1.2.0' FROM releases`;
+  const setV1 = (config: Record<string, unknown>, category: string) =>
+    env.DB.prepare(
+      "UPDATE release_checks SET config_state = 'ok', config_json = ?, category = ? WHERE github_release_id = 7001",
+    )
+      .bind(JSON.stringify(config), category)
+      .run();
+  const insertV2 = (config: Record<string, unknown>, category: string) =>
+    env.DB.batch([
+      env.DB.prepare(INSERT_V2),
+      env.DB.prepare(
+        `INSERT INTO release_checks (github_release_id, immutable, license_state, diff_state, config_state, config_json, category, review_state)
+         VALUES (7002, 1, 'passed', 'held', 'ok', ?, ?, 'done')`,
+      ).bind(JSON.stringify(config), category),
+    ]);
+  const V1 = { name: 'Listed Name' };
+  const V2 = {
+    name: 'Hijacked Name',
+    assets: [{ pattern: 'hijack-*.zip', os: 'windows', arch: ['x86_64'], formats: ['vst3'] }],
+  };
+
+  it('掲載中の版があるとき、掲載されていない新しい版の表示名・カテゴリ・宣言の配布物を、一覧・詳細・MCP に使わない', async () => {
+    await registerPendingFixture();
+    await markListable(env.DB);
+    await setV1(V1, 'effect');
+    await insertV2(V2, 'instrument');
+    const detail = await toolResult(await SELF.fetch(toolCall('get_plugin', { id: `${OWNER}/${REPO}` })));
+    expect(detail.payload).toMatchObject({ category: 'effect', untrusted: { name: 'Listed Name' } });
+    // 新しい版の宣言の pattern で判定すると、掲載中の版の配布物が案内から外れる。
+    expect((detail.payload.listedRelease as { files: unknown[] }).files).toHaveLength(1);
+    const search = await toolResult(await SELF.fetch(toolCall('search_plugins', { category: 'effect' })));
+    expect(search.payload.total).toBe(1);
+    expect(
+      (await toolResult(await SELF.fetch(toolCall('search_plugins', { category: 'instrument' })))).payload.total,
+    ).toBe(0);
+    expect(JSON.stringify([detail.payload, search.payload])).not.toContain('Hijacked Name');
+    const top = await (await SELF.fetch(`${ORIGIN}/?lang=en`)).text();
+    expect(top).toContain('Listed Name');
+    expect(top).not.toContain('Hijacked Name');
+    const page = await (await SELF.fetch(`${ORIGIN}/plugins/${OWNER}/${REPO}?lang=en`)).text();
+    expect(page).toContain('Listed Name');
+    expect(page).not.toContain('Hijacked Name');
+    const effects = await (await SELF.fetch(`${ORIGIN}/?lang=en&category=effect`)).text();
+    expect(effects).toContain(`/plugins/${OWNER}/${REPO}`);
+    const instruments = await (await SELF.fetch(`${ORIGIN}/?lang=en&category=instrument`)).text();
+    expect(instruments.split('<main')[1]?.split('</main>')[0]).not.toContain(`/plugins/${OWNER}/${REPO}`);
+  });
+
+  it('管理者が停止した掲載中の版の後に、新しい版が宣言で name を変えても、詳細ページと get_plugin は掲載していた版の値を出す', async () => {
+    await registerPendingFixture();
+    await markListable(env.DB);
+    await setV1(V1, 'effect');
+    await env.DB.prepare(
+      `INSERT INTO listing_periods (plugin_id, github_release_id, digest, tag, asset_name, started_at, ended_at)
+       SELECT r.plugin_id, r.github_release_id, a.digest, r.tag, a.name, '2026-10-21T00:00:00Z', '2026-11-13T00:00:00Z'
+       FROM releases r JOIN assets a ON a.release_id = r.github_release_id WHERE a.kind = 'archive'`,
+    ).run();
+    await env.DB.prepare("UPDATE plugins SET admin_suspended = 1, suspended_reason = 'license violation'").run();
+    await env.DB.prepare(
+      "INSERT INTO release_suspensions (plugin_id, github_release_id, tag, reason, note, suspended_at) SELECT plugin_id, github_release_id, tag, 'admin', 'Delete it', '2026-11-13T00:00:00Z' FROM releases",
+    ).run();
+    await insertV2(V2, 'instrument');
+    const detail = await toolResult(await SELF.fetch(toolCall('get_plugin', { id: `${OWNER}/${REPO}` })));
+    expect(detail.payload).toMatchObject({ status: 'suspended', untrusted: { name: 'Listed Name' } });
+    expect(JSON.stringify(detail.payload)).not.toContain('Hijacked Name');
+    const page = await (await SELF.fetch(`${ORIGIN}/plugins/${OWNER}/${REPO}?lang=en`)).text();
+    expect(page).toContain('Listed Name');
+    expect(page).not.toContain('Hijacked Name');
+    // 停止したプラグインの詳細ページが出すカテゴリも、掲載していた版の値 (effect)。
+    expect(page).toContain('/?category=effect&amp;lang=en">Effects</a></p>');
   });
 });
 

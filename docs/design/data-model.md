@@ -47,7 +47,7 @@ OAuth のクライアント・認可・トークンの情報は D1 ではなく 
 | `repo` | TEXT | NOT NULL | GitHub のリポジトリ名 |
 | `summary` | TEXT | | 概要。外部データ |
 | `license_spdx` | TEXT | NOT NULL | 登録のときに、最新のリリースのタグの時点で判定したライセンスの SPDX 識別子。画面と MCP に示すライセンスは、掲載対象バージョンの `release_checks` の `license_spdx` を使う |
-| `category` | TEXT | NOT NULL | カテゴリ。`instrument`・`effect`・`analyzer`・`midi`・`utility` のいずれか。登録のときは `utility` を書き、宣言ファイルとの照合を終えたときに推定した値へ替える。推定の規則は [検査と同期](scanning.md) に記載する。スキーマの既定値は派生元の `other` のまま残している。`plugins` を作り直すと参照する表の行が連鎖削除されるためで、登録の処理が常に値を書く |
+| `category` | TEXT | NOT NULL | 登録のときに `utility` を書くだけの列で、以後は読まず、書き換えない。カテゴリは版ごとに `release_checks.category` に持ち、表示には掲載対象バージョンの値を使う。列を残すのは、NOT NULL の制約を持ち、`plugins` を作り直すと参照する表の行が連鎖削除されるためである。スキーマの既定値は派生元の `other` のまま残していて、登録の処理が常に値を書く |
 | `admin_suspended` | INTEGER | NOT NULL、既定値 0 | 1 のとき管理停止 |
 | `suspended_reason` | TEXT | | 管理停止の理由 |
 | `removed` | INTEGER | NOT NULL、既定値 0 | 1 のとき、GitHub でリポジトリが削除または非公開になった |
@@ -58,15 +58,15 @@ OAuth のクライアント・認可・トークンの情報は D1 ではなく 
 | `created_at` | TEXT | NOT NULL | 登録日時 |
 | `updated_at` | TEXT | NOT NULL | 行の更新日時。画面の「更新日」には使わない |
 | `last_synced_at` | TEXT | NOT NULL | 最後に同期した日時。同期の順序に使う |
-| `display_name` | TEXT | | 宣言ファイルの `name`。外部データ。NULL のときはリポジトリ名を表示する |
-| `declared_assets` | TEXT | | 宣言ファイルの配布物の宣言を JSON で保存した値。NULL のときは宣言が無い |
+| `display_name` | TEXT | | 使わない列。書かず、読まない。表示名は版ごとの `release_checks.config_json` の `name` から読む |
+| `declared_assets` | TEXT | | 使わない列。書かず、読まない。宣言の配布物は版ごとの `release_checks.config_json` の `assets` から読む |
 | `release_workflow` | TEXT | | 初めて証明を検証できた版の、署名したワークフローのパス |
 | `owner_changed_at` | TEXT | | 同期で所有者の変更を検出した日時。値がある間は、まだ掲載していない新しい版を管理者の確認待ちにする |
 | `readme_state` | TEXT | | 掲載の後の既定のブランチの README の照合の基準。案内の型に当たった行の本文の SHA-256 (16 進) の JSON の配列か、README が上限を超えたことを示す `too_large`。NULL は未照合。本文は保存しない |
 | `readme_hits` | TEXT | | 最後の照合で当たった行の JSON (`[{line, rule, text}]`、`text` は 200 文字まで) か、照合に失敗した理由 (`{error}`)。管理者の確認にだけ使う |
 | `readme_held` | INTEGER | NOT NULL、既定値 0 | 基準に無い当たった行が現れた、README が新たに上限を超えた、または照合に失敗した。1 の間は、管理者が解くまでどの版も掲載しない |
 
-配信プラグイン倉庫くんの `declared_os` は、`declared_assets` に置き換えます。宣言の形は [検査と同期](scanning.md) に記載します。
+配信プラグイン倉庫くんの `declared_os` に当たる宣言の配布物は、版ごとの `release_checks.config_json` の `assets` に持ちます。宣言の形は [検査と同期](scanning.md) に記載します。
 
 ## releases
 
@@ -166,7 +166,8 @@ OAuth のクライアント・認可・トークンの情報は D1 ではなく 
 | `license_spdx` | TEXT | | 版のタグの時点で GitHub が検出したライセンスの SPDX 識別子。ライセンスが無いときは NULL |
 | `config_state` | TEXT | NOT NULL、既定値 `pending` | 宣言ファイルの判定。`pending`・`ok`・`missing`・`invalid`・`no_declared_assets`・`mismatch` のいずれか。`mismatch` は、宣言と中身の検査の結果が食い違うとき |
 | `config_fetched_at` | TEXT | | 版のタグの時点の宣言ファイルを取得した日時。NULL は未取得 |
-| `config_json` | TEXT | | 取得して検証した宣言を正規化した JSON。宣言ファイルに書いた項目だけを持ち、省いた項目は保存しない。ファイルが無いときと未取得のときは NULL。中身の検査を終えてから照合するために持つ。作者の申告 (`paidFeatures`・`paidServices`・`restrictedAssets`・`supportUrl`) も版ごとにここに持ち、表示には掲載対象バージョンの値を使う。申告の形の誤りは、固定のコードの配列 `notices` として一緒に保存する |
+| `config_json` | TEXT | | 取得して検証した宣言を正規化した JSON。宣言ファイルに書いた項目だけを持ち、省いた項目は保存しない。ファイルが無いときと未取得のときは NULL。中身の検査を終えてから照合するために持つ。作者の申告 (`paidFeatures`・`paidServices`・`restrictedAssets`・`supportUrl`) も版ごとにここに持ち、表示には掲載対象バージョンの値を使う。申告の形の誤りは、固定のコードの配列 `notices` として一緒に保存する。表示名 (`name`) と宣言の配布物 (`assets`) も版ごとにここに持つ。表示には掲載対象バージョンの値を使い、配布物の案内の判定には、各版を、その版自身の `assets` で判定する |
+| `category` | TEXT | | 版のカテゴリ。`instrument`・`effect`・`analyzer`・`midi`・`utility` のいずれか。宣言ファイルとの照合の判定が `ok` か `missing` のときに、推定した値をその版の行に書く。推定の規則は [検査と同期](scanning.md) に記載する。宣言ではなく中身の検査からの推定のため、`config_json` には残らず、列として持つ。判定の前と、`ok` と `missing` 以外の版は NULL。表示には、表示名と同じく掲載対象バージョンの値を使い、NULL のときは `utility` を示す。管理コマンド `set-category` は全版の値を書く |
 | `review_state` | TEXT | NOT NULL、既定値 `pending` | `pending`・`done`・`failed` のいずれか |
 | `review_attempts` | INTEGER | NOT NULL、既定値 0 | レビューを試みた回数。AI Gateway の支出の上限、Workers AI の無料枠の不足、混雑は数えない |
 | `review_wait_until` | TEXT | | AI Gateway の支出の上限か Workers AI の無料枠の不足でレビューを断られたとき、次にレビューを試す日時。断られた 1 時間後 |

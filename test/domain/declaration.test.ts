@@ -148,7 +148,7 @@ describe('C13 宣言と中身の検査の結果の照合', () => {
 });
 
 describe('S14 宣言した配布物だけを案内する', () => {
-  it('plugins.declared_assets の pattern に一致しないアーカイブは、条件を満たしても案内しない', async () => {
+  it('その版の宣言の pattern に一致しないアーカイブは、条件を満たしても案内しない', async () => {
     network.use(...githubHandlers());
     const result = await submitPlugin(
       env,
@@ -160,8 +160,8 @@ describe('S14 宣言した配布物だけを案内する', () => {
     const id = `${OWNER}/${REPO}`.toLowerCase();
     expect((await getPluginViewByInternalId(env, id))?.listedRelease?.assets).toHaveLength(1);
 
-    await env.DB.prepare('UPDATE plugins SET declared_assets = ?')
-      .bind(JSON.stringify([{ pattern: '*-macos.zip', os: 'macos', arch: ['arm64'], formats: ['vst3'] }]))
+    await env.DB.prepare("UPDATE release_checks SET config_state = 'ok', config_json = ?")
+      .bind(JSON.stringify({ assets: [{ pattern: '*-macos.zip', os: 'macos', arch: ['arm64'], formats: ['vst3'] }] }))
       .run();
     const view = await getPluginViewByInternalId(env, id);
     expect(view?.status).not.toBe('listed');
@@ -253,10 +253,9 @@ describe('X09 宣言ファイルの取得の 16 KB の閾値', () => {
   });
 });
 
-describe('古い版の宣言の判定と、新しい版の判定済みの宣言', () => {
-  // 新しい版の判定の後に古い版を判定し直すと、古い版の値で plugins の表示名・カテゴリ・配布物の宣言を上書きしていた
-  // (2026-11-15、retry-declaration で simple-whitenoise のカテゴリが utility に戻った)。古い版の pattern が新しい版の
-  // ファイル名に合わないと、新しい版の配布物が案内から外れ、掲載が旧い版に移る。
+describe('宣言の判定は版ごとに保存し、掲載中の版の値を表示する', () => {
+  // 以前は、判定した版の値で plugins の表示名・カテゴリ・配布物の宣言を書き換えていた。掲載されていない新しい版が
+  // 宣言で name を変えると、掲載中の古い版の表示名が変わり、配布物の絞り込みも掲載中の版と食い違った (jtl.42)。
   const internalId = `${OWNER}/${REPO}`.toLowerCase();
   const NEW_DECLARATION = {
     name: 'New Name',
@@ -270,6 +269,44 @@ describe('古い版の宣言の判定と、新しい版の判定済みの宣言'
     assets: [{ pattern: 'old-plugin-*-windows-x64.zip', os: 'windows', arch: ['x86_64'], formats: ['vst3'] }],
   };
 
+  const columns = async (table: string) =>
+    (await env.DB.prepare('SELECT name FROM pragma_table_info(?)').bind(table).all<{ name: string }>()).results.map(
+      (row) => row.name,
+    );
+  const copy = async (table: string, where: string, overrides: Record<string, string>) => {
+    const names = await columns(table);
+    const select = names.map((name) => overrides[name] ?? name).join(', ');
+    await env.DB.prepare(
+      `INSERT INTO ${table} (${names.join(', ')}) SELECT ${select} FROM ${table} WHERE ${where}`,
+    ).run();
+  };
+  // 版 7001 の行を、別の版の行として複製する。配布物の名前は fromName を toName に替える。
+  async function cloneRelease(
+    releaseId: number,
+    tag: string,
+    publishedAt: string,
+    fromName: string,
+    toName: string,
+  ): Promise<void> {
+    const offset = releaseId * 100;
+    await copy('releases', 'github_release_id = 7001', {
+      github_release_id: String(releaseId),
+      tag: `'${tag}'`,
+      published_at: `'${publishedAt}'`,
+    });
+    await copy('release_checks', 'github_release_id = 7001', { github_release_id: String(releaseId) });
+    await copy('assets', 'release_id = 7001', {
+      github_asset_id: `github_asset_id + ${offset}`,
+      release_id: String(releaseId),
+      name: `replace(name, '${fromName}', '${toName}')`,
+    });
+    for (const table of ['attestation_checks', 'content_checks', 'macos_signing_checks']) {
+      await copy(table, 'github_asset_id IN (SELECT github_asset_id FROM assets WHERE release_id = 7001)', {
+        github_asset_id: `github_asset_id + ${offset}`,
+      });
+    }
+  }
+
   // 登録した版 7001 (v1.1.0) を掲載できる状態にし、配布物の名前を変えた旧い版 7000 (v1.0.0) を足す。
   async function setup(): Promise<void> {
     network.use(...githubHandlers());
@@ -282,76 +319,92 @@ describe('古い版の宣言の判定と、新しい版の判定済みの宣言'
     network.resetHandlers();
     await markListable(env.DB);
     await env.DB.prepare("UPDATE release_checks SET admin_approved_at = '2026-11-15T00:00:00Z'").run();
-    const columns = async (table: string) =>
-      (await env.DB.prepare('SELECT name FROM pragma_table_info(?)').bind(table).all<{ name: string }>()).results.map(
-        (row) => row.name,
-      );
-    const copy = async (table: string, where: string, overrides: Record<string, string>) => {
-      const names = await columns(table);
-      const select = names.map((name) => overrides[name] ?? name).join(', ');
-      await env.DB.prepare(
-        `INSERT INTO ${table} (${names.join(', ')}) SELECT ${select} FROM ${table} WHERE ${where}`,
-      ).run();
-    };
-    await copy('releases', 'github_release_id = 7001', {
-      github_release_id: '7000',
-      tag: "'v1.0.0'",
-      published_at: "'2026-10-01T00:00:00Z'",
-    });
-    await copy('release_checks', 'github_release_id = 7001', { github_release_id: '7000' });
-    await copy('assets', 'release_id = 7001', {
-      github_asset_id: 'github_asset_id + 100000',
-      release_id: '7000',
-      name: "replace(name, 'audio-fixture-pitchshift-1.1.0', 'old-plugin-1.0.0')",
-    });
-    for (const table of ['attestation_checks', 'content_checks', 'macos_signing_checks']) {
-      await copy(table, 'github_asset_id IN (SELECT github_asset_id FROM assets WHERE release_id = 7001)', {
-        github_asset_id: 'github_asset_id + 100000',
-      });
-    }
+    await cloneRelease(7000, 'v1.0.0', '2026-10-01T00:00:00Z', 'audio-fixture-pitchshift-1.1.0', 'old-plugin-1.0.0');
   }
 
   const settle = async (releaseId: number, declaration: unknown) => {
     await env.DB.prepare(
-      "UPDATE release_checks SET config_state = 'pending', config_fetched_at = '2026-11-15T00:00:00Z', config_json = ? WHERE github_release_id = ?",
+      "UPDATE release_checks SET config_state = 'pending', config_fetched_at = '2026-11-15T00:00:00Z', config_json = ?, category = NULL WHERE github_release_id = ?",
     )
       .bind(JSON.stringify(declaration), releaseId)
       .run();
     await settleDeclarations(env, [releaseId]);
   };
-  const plugin = () =>
-    env.DB.prepare('SELECT display_name, category, declared_assets FROM plugins').first<{
-      display_name: string | null;
-      category: string;
-      declared_assets: string | null;
-    }>();
+  const categoryOf = async (releaseId: number) =>
+    (
+      await env.DB.prepare('SELECT category FROM release_checks WHERE github_release_id = ?')
+        .bind(releaseId)
+        .first<{ category: string | null }>()
+    )?.category;
 
-  it('新しい版の判定の後に古い版を判定し直しても、表示名・カテゴリ・配布物の宣言を書き換えない', async () => {
+  it('判定したカテゴリを、その版の release_checks に書く。plugins の列は書き換えない', async () => {
     await setup();
+    const before = await env.DB.prepare('SELECT display_name, declared_assets, category FROM plugins').first();
     await settle(7001, NEW_DECLARATION);
     await settle(7000, OLD_DECLARATION);
-    expect(await plugin()).toEqual({
-      display_name: 'New Name',
-      category: 'instrument',
-      declared_assets: JSON.stringify(NEW_DECLARATION.assets),
-    });
+    expect(await categoryOf(7001)).toBe('instrument');
+    // 旧い版の宣言に category は無く、中身の検査の手がかりも無いため utility になる。
+    expect(await categoryOf(7000)).toBe('utility');
+    expect(await env.DB.prepare('SELECT display_name, declared_assets, category FROM plugins').first()).toEqual(before);
   });
 
-  it('古い版の pattern が新しい版のファイル名に合わなくても、新しい版の掲載が続く', async () => {
+  it('掲載中の版があるとき、掲載されていない新しい版が宣言を判定しても、表示名・カテゴリ・配布物は掲載中の版のまま', async () => {
     await setup();
     await settle(7001, NEW_DECLARATION);
-    expect((await getPluginViewByInternalId(env, internalId))?.listedRelease?.tag).toBe('v1.1.0');
-    await settle(7000, OLD_DECLARATION);
-    expect((await getPluginViewByInternalId(env, internalId))?.listedRelease?.tag).toBe('v1.1.0');
-  });
-
-  it('対照: 新しい版が判定待ちなら、古い版の判定で書き換える', async () => {
-    await setup();
+    await cloneRelease(
+      7002,
+      'v1.2.0',
+      '2026-12-01T00:00:00Z',
+      'audio-fixture-pitchshift-1.1.0',
+      'audio-fixture-pitchshift-1.2.0',
+    );
+    // 新しい版は差分の検査で保留のままにし、掲載しない。
     await env.DB.prepare(
-      "UPDATE release_checks SET config_state = 'pending', config_fetched_at = NULL WHERE github_release_id = 7001",
+      "UPDATE release_checks SET diff_state = 'held', admin_approved_at = NULL WHERE github_release_id = 7002",
     ).run();
+    await settle(7002, {
+      name: 'Hijacked Name',
+      category: 'effect',
+      assets: [{ pattern: 'audio-fixture-pitchshift-1.2.0-*.zip', os: 'windows', arch: ['x86_64'], formats: ['vst3'] }],
+    });
+    expect(await categoryOf(7002)).toBe('effect');
+    const view = await getPluginViewByInternalId(env, internalId);
+    expect(view?.listedRelease?.tag).toBe('v1.1.0');
+    expect(view?.name).toBe('New Name');
+    expect(view?.category).toBe('instrument');
+    expect(view?.listedRelease?.assets.map((item) => item.name)).toEqual([
+      'audio-fixture-pitchshift-1.1.0-windows-x64.zip',
+    ]);
+  });
+
+  it('各版は、その版自身の宣言の配布物で判定する', async () => {
+    await setup();
+    await settle(7001, NEW_DECLARATION);
     await settle(7000, OLD_DECLARATION);
-    expect((await plugin())?.display_name).toBe('Old Name');
+    expect((await getPluginViewByInternalId(env, internalId))?.listedRelease?.tag).toBe('v1.1.0');
+    // 新しい版が掲載できなくなれば、旧い版を旧い版の宣言で判定して案内する。plugins 全体の宣言で判定すると、
+    // 新しい版の pattern が旧い版のファイル名に合わず、旧い版の配布物が案内から外れる。
+    await env.DB.prepare(
+      "UPDATE release_checks SET diff_state = 'held', admin_approved_at = NULL WHERE github_release_id = 7001",
+    ).run();
+    const view = await getPluginViewByInternalId(env, internalId);
+    expect(view?.listedRelease?.tag).toBe('v1.0.0');
+    expect(view?.listedRelease?.assets.map((item) => item.name)).toEqual(['old-plugin-1.0.0-windows-x64.zip']);
+    expect(view?.name).toBe('Old Name');
+  });
+
+  it('掲載中の版も、掲載していた版も無ければ、検査を通った版のうちいちばん新しい版の値を使う', async () => {
+    await setup();
+    await settle(7001, NEW_DECLARATION);
+    await settle(7000, OLD_DECLARATION);
+    await env.DB.prepare('DELETE FROM listing_periods').run();
+    await env.DB.prepare("UPDATE release_checks SET diff_state = 'held', admin_approved_at = NULL").run();
+    await env.DB.prepare("UPDATE release_checks SET config_state = 'invalid' WHERE github_release_id = 7001").run();
+    const view = await getPluginViewByInternalId(env, internalId);
+    expect(view?.listedRelease).toBeNull();
+    // 7001 は invalid のため、ok の 7000 の値を使う。
+    expect(view?.name).toBe('Old Name');
+    expect(view?.category).toBe('utility');
   });
 });
 

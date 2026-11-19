@@ -65,7 +65,9 @@ describe('Web', () => {
   it('宣言ファイルの name と配布物名に含まれる script をエスケープして表示する', async () => {
     await register();
     await markListable(env.DB);
-    await env.DB.prepare("UPDATE plugins SET display_name = 'Pitch<script>alert(3)</script>'").run();
+    await env.DB.prepare("UPDATE release_checks SET config_state = 'ok', config_json = ?")
+      .bind(JSON.stringify({ name: 'Pitch<script>alert(3)</script>' }))
+      .run();
     await env.DB.prepare("UPDATE assets SET name = 'pitch<script>alert(4)</script>.zip' WHERE kind = 'archive'").run();
     for (const path of [`/plugins/${OWNER}/${REPO}?lang=en`, '/?lang=en', '/?lang=en&q=pitch']) {
       const html = await (await SELF.fetch(`${ORIGIN}${path}`)).text();

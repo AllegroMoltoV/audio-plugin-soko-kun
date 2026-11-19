@@ -329,7 +329,7 @@ describe('配布物の検証の結果', () => {
         ...releaseCheckHandlers(),
       );
     const configOf = () => env.DB.prepare('SELECT config_state, config_fetched_at FROM release_checks').first();
-    const pluginOf = () => env.DB.prepare('SELECT display_name, declared_assets, category FROM plugins').first();
+    const releaseOf = () => env.DB.prepare('SELECT config_json, category FROM release_checks').first();
 
     it('宣言を先に取得した版は pending のまま待ち、中身の検査の結果を受けたときに mismatch にする', async () => {
       await register();
@@ -339,10 +339,10 @@ describe('配布物の検証の結果', () => {
       // 宣言は vst3 と clap、検出は vst3 だけ。
       expect((await post([{ assetId: ARCHIVE_ID, content: passedWindows }])).status).toBe(200);
       expect(await configOf()).toMatchObject({ config_state: 'mismatch' });
-      expect(await pluginOf()).toMatchObject({ display_name: null, declared_assets: null });
+      expect(await releaseOf()).toMatchObject({ category: null });
     });
 
-    it('中身の検査を先に終えた版は、宣言を取得したときに判定し、ok なら表示名と配布物の宣言とカテゴリを替える', async () => {
+    it('中身の検査を先に終えた版は、宣言を取得したときに判定し、ok なら宣言とカテゴリをその版の行に書く', async () => {
       await register();
       const both = { ...passedWindows, formats: ['clap', 'vst3'], categories: ['instrument'] };
       both.bundles = [windowsBundle, { ...windowsBundle, path: 'Fixture.clap', format: 'clap' }];
@@ -351,12 +351,13 @@ describe('配布物の検証の結果', () => {
       serveDeclaration();
       await runReleaseChecks(env, new Budget());
       expect(await configOf()).toMatchObject({ config_state: 'ok' });
-      expect(await pluginOf()).toEqual({
-        display_name: 'Fixture Pitch Shift',
-        declared_assets: JSON.stringify(declaration.assets.map((item) => ({ ...item, formats: ['clap', 'vst3'] }))),
-        // 中身の検査の手がかりを宣言の category より優先する。
-        category: 'instrument',
+      // 宣言はその版の config_json に、カテゴリはその版の行に書く。中身の検査の手がかりを宣言の category より優先する。
+      const row = await releaseOf();
+      expect(JSON.parse((row as { config_json: string }).config_json)).toMatchObject({
+        name: 'Fixture Pitch Shift',
+        assets: declaration.assets.map((item) => ({ ...item, formats: ['clap', 'vst3'] })),
       });
+      expect(row).toMatchObject({ category: 'instrument' });
     });
   });
 });

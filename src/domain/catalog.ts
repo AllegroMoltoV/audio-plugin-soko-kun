@@ -1,7 +1,7 @@
 // 検索と詳細表示のためのデータ読み出し。掲載状態はここで算出し、掲載中のものだけを一覧に出す。
 import type { Env } from '../env';
 import { detectLang, type TranslationLang } from '../translate';
-import { isDeclared, NO_PRICING, type Pricing, parseDeclaredAssets, storedPricing } from './declaration';
+import { isDeclared, NO_PRICING, type Pricing, storedNameAndAssets, storedPricing } from './declaration';
 import {
   ARCH_VALUES,
   type Arch,
@@ -134,13 +134,10 @@ interface PluginRow {
   repo: string;
   summary: string | null;
   license_spdx: string;
-  category: Category;
   admin_suspended: number;
   suspended_reason: string | null;
   removed: number;
   images_hidden: number;
-  display_name: string | null;
-  declared_assets: string | null;
   owner_changed_at: string | null;
   readme_held: number;
   created_at: string;
@@ -177,6 +174,7 @@ interface CheckRow {
   admin_approved_at: string | null;
   notes_held: number;
   config_json: string | null;
+  category: Category | null;
 }
 interface ScanRow {
   digest: string;
@@ -295,11 +293,11 @@ async function loadViews(env: Env, pluginId?: string, waits?: Map<string, AdminW
            FROM release_suspensions s JOIN plugins p ON p.id = s.plugin_id ${where} ORDER BY s.suspended_at DESC`,
       ),
     ),
+    // 止めた版の掲載の期間と、掲載を終えた版の表示元の判定に使う掲載の期間。
     bind(
       env.DB.prepare(
         `SELECT l.github_release_id, l.digest, l.asset_name, l.started_at, l.ended_at FROM listing_periods l
-           JOIN release_suspensions s ON s.github_release_id = l.github_release_id
-           JOIN plugins p ON p.id = s.plugin_id ${where}`,
+           JOIN plugins p ON p.id = l.plugin_id ${where}`,
       ),
     ),
   ]);
@@ -360,9 +358,11 @@ async function loadViews(env: Env, pluginId?: string, waits?: Map<string, AdminW
   const checksByRelease = new Map<number, ReleaseChecks>();
   const licenseByRelease = new Map<number, string | null>();
   const configByRelease = new Map<number, string | null>();
+  const checkRowsByRelease = new Map<number, CheckRow>();
   for (const row of (checks?.results ?? []) as CheckRow[]) {
     licenseByRelease.set(row.github_release_id, row.license_spdx);
     configByRelease.set(row.github_release_id, row.config_json);
+    checkRowsByRelease.set(row.github_release_id, row);
     checksByRelease.set(row.github_release_id, {
       immutable: row.immutable === 1,
       licenseState: row.license_state,
@@ -467,10 +467,11 @@ async function loadViews(env: Env, pluginId?: string, waits?: Map<string, AdminW
 
   return ((plugins?.results ?? []) as PluginRow[]).map((plugin) => {
     const pluginReleases = releasesByPlugin.get(plugin.id) ?? [];
-    // 作者が配布物を宣言していれば、宣言の pattern に一致する配布物だけを案内する。
-    const declaredAssets = parseDeclaredAssets(plugin.declared_assets);
-    const statusAssets = (release: ReleaseRow) =>
-      (assetsByRelease.get(release.github_release_id) ?? []).map((asset) => {
+    // 作者が配布物を宣言していれば、その版の宣言の pattern に一致する配布物だけを案内する。
+    // 宣言は版ごとに持つため、各版を、その版自身の宣言で判定する。
+    const statusAssets = (release: ReleaseRow) => {
+      const declaredAssets = storedNameAndAssets(configByRelease.get(release.github_release_id) ?? null).assets;
+      return (assetsByRelease.get(release.github_release_id) ?? []).map((asset) => {
         const content = contentByAsset.get(asset.github_asset_id);
         return {
           row: asset,
@@ -483,6 +484,7 @@ async function loadViews(env: Env, pluginId?: string, waits?: Map<string, AdminW
           ...(declaredAssets ? { declared: isDeclared(asset.name, declaredAssets) } : {}),
         };
       });
+    };
     const forStatus: ReleaseForStatus[] = pluginReleases.map((release) => ({
       githubReleaseId: release.github_release_id,
       publishedAt: release.published_at,
@@ -516,6 +518,29 @@ async function loadViews(env: Env, pluginId?: string, waits?: Map<string, AdminW
       }
     }
     const listed = pluginReleases.find((release) => release.github_release_id === status.listedReleaseId);
+    // 表示名とカテゴリは、掲載中の版の値を使う。掲載中の版が無い間 (停止・終了・検査中) は、最後に掲載していた版の値、
+    // 一度も掲載していなければ宣言の判定を終えた版のうちいちばん新しい版の値、それも無ければいちばん新しい版の値を使う。
+    // 検査を通っていない新しい版の値 (乗っ取った側が書いた名前など) を、公開の表示に出さないため。
+    const newestFirst = [...pluginReleases].sort((a, b) => b.published_at.localeCompare(a.published_at));
+    const lastListed = pluginReleases
+      .map((release) => ({
+        release,
+        startedAt: (periodsByRelease.get(release.github_release_id) ?? [])
+          .map((period) => period.started_at)
+          .sort()
+          .at(-1),
+      }))
+      .filter((entry): entry is { release: ReleaseRow; startedAt: string } => entry.startedAt !== undefined)
+      .sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0]?.release;
+    const shownRelease =
+      listed ??
+      lastListed ??
+      newestFirst.find((release) => {
+        const state = checkRowsByRelease.get(release.github_release_id)?.config_state;
+        return state === 'ok' || state === 'missing';
+      }) ??
+      newestFirst[0];
+    const shownCheck = shownRelease ? checkRowsByRelease.get(shownRelease.github_release_id) : undefined;
     const listedStatusAssets = listed ? statusAssets(listed) : [];
     const guided = guidedAssets(listedStatusAssets);
     const listedAssets = guided.map((asset) => ({
@@ -538,7 +563,7 @@ async function loadViews(env: Env, pluginId?: string, waits?: Map<string, AdminW
       internalId: plugin.id,
       ownerChanged: plugin.owner_changed_at !== null,
       readmeHeld: plugin.readme_held === 1,
-      name: plugin.display_name ?? plugin.repo,
+      name: storedNameAndAssets(shownCheck?.config_json ?? null).name ?? plugin.repo,
       owner: plugin.owner,
       repo: plugin.repo,
       summary: plugin.summary,
@@ -548,7 +573,7 @@ async function loadViews(env: Env, pluginId?: string, waits?: Map<string, AdminW
       license: (listed ? licenseByRelease.get(listed.github_release_id) : null) ?? plugin.license_spdx,
       // 申告は版ごとに持ち、掲載対象バージョンの値だけを表示する。掲載していない新しい版の申告は出さない。
       pricing: listed ? storedPricing(configByRelease.get(listed.github_release_id) ?? null).pricing : NO_PRICING,
-      category: plugin.category,
+      category: shownCheck?.category ?? 'utility',
       os: union(
         listedAssets.map((asset) => asset.os),
         OS_VALUES,
