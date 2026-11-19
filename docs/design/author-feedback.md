@@ -267,6 +267,7 @@ sequenceDiagram
 {
   "ok": false,
   "mode": "check",
+  "important": "If you list a plugin on Audio Plugin Soko-kun, anyone can download its files for free from GitHub, and anyone can use and redistribute its code commercially under its license. ...",
   "conditions": [
     { "code": "not_admin", "result": "passed" },
     { "code": "no_release", "result": "failed", "message": "The repository has no published release.", "fix": "Publish a release on GitHub with the plugin files attached." },
@@ -279,7 +280,7 @@ sequenceDiagram
 }
 ```
 
-条件は最新のリリースで判定し、レビューは既定のブランチの最新のコミットのファイルで行います。リリースがまだ無いときは、`no_release` の後の条件 (`not_immutable`・`no_verifiable_asset`・`unsupported_tag`・`no_license`・`no_archive`・`no_attestation`) を `unchecked` として、直し方とともに返します。不変のリリースは公開の後に直せないため、作者が公開の前に条件を知れるようにするためです。リポジトリの不変のリリースの設定を読む API は管理者の読み取りの権限を求め、本サービスのサインインは権限を求めないため使いません。
+`important` は、`conditions` の前に置く作者向けの最重要の文です。固定の文で、配信プラグイン倉庫くんと同じ欄の名前です。条件は最新のリリースで判定し、レビューは既定のブランチの最新のコミットのファイルで行います。リリースがまだ無いときは、`no_release` の後の条件 (`not_immutable`・`no_verifiable_asset`・`unsupported_tag`・`no_license`・`no_archive`・`no_attestation`) を `unchecked` として、直し方とともに返します。不変のリリースは公開の後に直せないため、作者が公開の前に条件を知れるようにするためです。リポジトリの不変のリリースの設定を読む API は管理者の読み取りの権限を求め、本サービスのサインインは権限を求めないため使いません。
 
 あわせて、既定のブランチの `.audio-soko-kun/config.json` の形を確かめ、`config` の結果を返します。作者の申告の形の誤りは、`list_my_plugins` と同じ固定のコードと文言で `config` の `notices` に入れ、`result` は `ok` のままにします。申告の値は応答に含めず、レビューの事実の行にだけ渡します。結果は `ok`・`missing`・`invalid` で、外部呼び出しの予算が残っていないとき、管理者でないとき、GitHub がレート制限と障害以外の失敗を返したときは `unchecked` です。宣言は任意のため、`missing` は誤りではありません。宣言した配布物 (`assets`) とアーカイブの中身の照合と、カテゴリの推定は、中身の検査 (GitHub Actions) を終えた版でしか行えないため、確認のモードでは形だけを確かめます。
 

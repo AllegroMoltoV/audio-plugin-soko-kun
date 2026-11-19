@@ -31,6 +31,33 @@ async function toolResult(response: Response): Promise<{ isError?: boolean; payl
   return { isError: message.result.isError, payload: JSON.parse(message.result.content[0]?.text ?? '{}') };
 }
 
+// 作者向けの最重要の文を、instructions の作者向けの部分と submit_plugin の説明の最初に置く (本家と共通)。
+describe('作者向けの最重要の文', () => {
+  const KEY = 'anyone can use and redistribute its code commercially under its license';
+  it('instructions の作者向けの部分の最初と、submit_plugin の説明の最初に置く', async () => {
+    const init = await SELF.fetch(
+      new Request(`${ORIGIN}/mcp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'initialize',
+          params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '0' } },
+        }),
+      }),
+    );
+    const text = await init.text();
+    const line = text.split('\n').find((l) => l.startsWith('data:')) ?? text;
+    const instructions = (JSON.parse(line.replace(/^data:\s*/, '')) as { result: { instructions: string } }).result
+      .instructions;
+    expect(instructions).toContain(`For plugin authors: If you list a plugin on Audio Plugin Soko-kun, anyone`);
+    expect(instructions).toContain(KEY);
+    const { AUTHOR_KEY_POINT } = await import('../src/domain/submit');
+    expect(AUTHOR_KEY_POINT).toContain(KEY);
+  });
+});
+
 async function registerPendingFixture(): Promise<void> {
   network.use(...githubHandlers());
   const result = await submitPlugin(

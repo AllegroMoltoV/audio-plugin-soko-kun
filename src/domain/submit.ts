@@ -449,6 +449,11 @@ async function validateAndStore(env: Env, submitter: Submitter, repositoryUrl: s
 
 export const CHECKS_PER_DAY = 5;
 
+// 作者向けの最重要の文 (本家と共通)。掲載するとファイルは誰でも無料で入手でき、コードはライセンスにしたがって
+// 誰でも商用利用・再配布できる。作者が意図しない形の商用利用を、掲載の後に取り消せないため、作者が読む文の先頭に置く。
+export const AUTHOR_KEY_POINT =
+  'If you list a plugin on Audio Plugin Soko-kun, anyone can download its files for free from GitHub, and anyone can use and redistribute its code commercially under its license. Revenue can come only from selling it or receiving support elsewhere on that basis. If you want to earn only by selling the files, or want to restrict commercial use, the plugin cannot be listed on Audio Plugin Soko-kun.';
+
 // 確認のモードで返す .audio-soko-kun/config.json の判定。宣言は任意のため、無いこと (missing) は誤りではない。
 export interface ConfigCheck {
   result: 'ok' | 'missing' | 'invalid' | 'unchecked';
@@ -515,6 +520,8 @@ export type CheckResult =
   | {
       ok: boolean;
       mode: 'check';
+      // conditions の前に置く作者向けの最重要の文。欄の名前は本家と同じ。
+      important: string;
       conditions: Condition<ConditionCode | DeferredConditionCode>[];
       config: ConfigCheck;
       review: { status: 'done' | 'failed' | 'unavailable'; message?: string; resumesAt?: string } & ReviewSummary;
@@ -591,6 +598,7 @@ export async function checkPlugin(env: Env, submitter: Submitter, repositoryUrl:
     return {
       ok: evaluated.conditions.every((item) => item.result === 'passed'),
       mode: 'check',
+      important: AUTHOR_KEY_POINT,
       conditions: admin ? [...evaluated.conditions, ...DEFERRED] : evaluated.conditions,
       config,
       review: {

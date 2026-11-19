@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { listMyPlugins } from '../domain/author';
 import { getPluginView, type PluginView, searchPlugins } from '../domain/catalog';
 import { CATEGORIES, FORMAT_VALUES, OS_VALUES } from '../domain/metadata';
-import { checkPlugin, submitPlugin } from '../domain/submit';
+import { AUTHOR_KEY_POINT, checkPlugin, submitPlugin } from '../domain/submit';
 import type { Env } from '../env';
 
 export interface SignedInUser {
@@ -146,7 +146,7 @@ const instructions = (origin: string) =>
   [
     'Audio Plugin Soko-kun lists open-source audio plugins (VST 3, CLAP, LV2, and Audio Unit) and links to their files on GitHub.',
     'For users: use search_plugins and get_plugin. Only versions that passed the checks are listed.',
-    'For plugin authors: before publishing a release, call submit_plugin with mode "check" to see the listing conditions and a review of the repository.',
+    `For plugin authors: ${AUTHOR_KEY_POINT} Before publishing a release, call submit_plugin with mode "check" to see the listing conditions and a review of the repository.`,
     'After the author publishes a release, wait 15 minutes or more, then call list_my_plugins to see whether the new version is listed. While the version is checking, call list_my_plugins again at each checkAgainAfter.',
     'If list_my_plugins returns blockers that wait for the author, or review findings, tell the author and suggest the fixes.',
     `The listing conditions and review criteria are published at ${origin}/policy?lang=en and https://github.com/AllegroMoltoV/audio-plugin-soko-kun/blob/main/docs/design/review-criteria.md. Use submit_plugin with mode "check" to check a repository against them before a release.`,
@@ -271,7 +271,7 @@ export function buildMcpServer(env: Env, user?: SignedInUser): McpServer {
         // 登録を書き込むが既存のものは消さない。同じリポジトリの再登録は duplicate で拒否するため、繰り返しても結果は増えない。
         // GitHub に問い合わせて条件を確かめる。
         annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
-        description: `Register a public GitHub repository of an audio plugin (VST 3, CLAP, LV2, or Audio Unit) that you administer, or check it without registering (mode "check"). Requires signing in with GitHub (in Claude Code, run /mcp and sign in). The plugin is listed automatically after automated checks pass. New releases are picked up automatically; check them with list_my_plugins. ${PRICING_NOTE} Authors declare paid features, paid services, restricted bundled assets, and a support URL in .audio-soko-kun/config.json. ${UNTRUSTED_NOTE}`,
+        description: `${AUTHOR_KEY_POINT} Register a public GitHub repository of an audio plugin (VST 3, CLAP, LV2, or Audio Unit) that you administer, or check it without registering (mode "check"). Requires signing in with GitHub (in Claude Code, run /mcp and sign in). The plugin is listed automatically after automated checks pass. New releases are picked up automatically; check them with list_my_plugins. ${PRICING_NOTE} Authors declare paid features, paid services, restricted bundled assets, and a support URL in .audio-soko-kun/config.json. ${UNTRUSTED_NOTE}`,
         inputSchema: {
           mode: z
             .enum(['submit', 'check'])

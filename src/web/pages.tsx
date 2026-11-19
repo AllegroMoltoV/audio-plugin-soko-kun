@@ -134,9 +134,27 @@ const declaredFlag = (t: Dict, value: boolean | null) =>
 // 申告の文字列と URL は作者の書いた外部データなので、JSX のエスケープに任せ、属性以外に生の HTML を出さない。
 const PricingSection: FC<{ view: PluginView; t: Dict }> = ({ view, t }) => {
   const { paidFeatures, paidServices, restrictedAssets, supportUrl } = view.pricing;
+  // 商用利用の 1 行。コードは掲載の条件 (OSI か FSF) で確かめた事実、素材は作者の申告として書き分ける。
+  const commercial =
+    restrictedAssets === false
+      ? t.pricing.commercialAllowed
+      : restrictedAssets === true
+        ? t.pricing.commercialRestrictedAssets
+        : t.pricing.commercialUndeclared;
   return (
     <>
       <h2 class="bar">{t.pricing.heading}</h2>
+      <table class="info">
+        <tbody>
+          <tr>
+            <th scope="row">{t.pricing.commercialUse}</th>
+            <td>
+              {commercial}
+              {(paidServices?.length ?? 0) > 0 ? ` ${t.pricing.commercialServices}` : null}
+            </td>
+          </tr>
+        </tbody>
+      </table>
       <h3 class="sub">{t.pricing.checkedTitle}</h3>
       <table class="info">
         <tbody>
@@ -796,6 +814,13 @@ const BlockView: FC<{ block: Block; origin: string; t: Dict; lang: Lang }> = ({ 
     );
   }
   if ('contact' in block) return <ContactButton t={t} lang={lang} />;
+  if ('important' in block) {
+    return (
+      <p class="callout important">
+        <Linkified text={fill(block.important)} />
+      </p>
+    );
+  }
   // 対象の規格の行。ページの中の VST の語の初出に ® を付け、隣に VST Compatible ロゴを置く。
   if ('formats' in block) {
     return (

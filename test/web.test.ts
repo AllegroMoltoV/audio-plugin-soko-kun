@@ -426,7 +426,7 @@ describe('Web', () => {
     expect(list).toContain('<span class="pill declared">Paid features</span>');
     expect(list).toContain('<span class="pill declared">Paid services</span>');
     // false と申告した素材の制限には、タグを付けない。
-    expect(list).not.toContain('Restricted assets');
+    expect(list).not.toContain('Commercial-use restrictions on assets');
   });
 
   it('掲載していない新しい版の申告は、詳細ページにも一覧にも出さない', async () => {
@@ -462,9 +462,45 @@ describe('Web', () => {
     await markListable(env.DB);
     await declare({ paidFeatures: false, paidServices: [], restrictedAssets: true });
     const list = await listMain();
-    expect(list).toContain('<span class="pill declared">Restricted assets</span>');
+    expect(list).toContain('<span class="pill declared">Commercial-use restrictions on assets</span>');
     expect(list).not.toContain('Paid features');
     expect(list).not.toContain('Paid services');
+  });
+
+  // 商用利用の 1 行 (本家と共通)。作者に新しい項目は申告させず、ライセンスの判定と restrictedAssets から組み立てる。
+  it('商用利用の行は restrictedAssets の申告で書き分け、外部の有料サービスがあれば規約の注意を添える', async () => {
+    await register();
+    await markListable(env.DB);
+    const commercial = async () => row(await detailPage(), 'Commercial use');
+    await declare({ restrictedAssets: false });
+    expect(await commercial()).toContain('Allowed under the license terms.');
+    await declare({ restrictedAssets: true });
+    expect(await commercial()).toContain('the bundled assets restrict use, such as commercial use');
+    await declare({ paidServices: ['Cloud'] });
+    const undeclared = await commercial();
+    expect(undeclared).toContain('The author has not declared whether the bundled assets restrict use.');
+    expect(undeclared).toContain('Also check the terms of the external services it uses.');
+    await declare({ restrictedAssets: false, paidServices: [] });
+    expect(await commercial()).not.toContain('external services');
+  });
+
+  // ヘッダーの副題は入手が無料であることを示し、注意の帯は「無料のサービス」と書かない (本家と共通)。
+  it('副題は無料で入手できることを示し、注意の帯からは無料を外す', async () => {
+    const ja = await (await SELF.fetch(`${ORIGIN}/?lang=ja`)).text();
+    expect(ja).toContain('無料で入手できる、オープンソースのオーディオプラグインの倉庫');
+    expect(ja).not.toContain('非公式で無料のサービス');
+    const en = await (await SELF.fetch(`${ORIGIN}/?lang=en`)).text();
+    expect(en).toContain('A warehouse of open-source audio plugins, free to download');
+    expect(en).not.toContain('unofficial, free service');
+  });
+
+  // 作者向けの最重要の文は、/submit と /policy の先頭に枠で置く。
+  it.each(['submit', 'policy'])('/%s の本文の先頭に、作者向けの最重要の文を枠で置く', async (page) => {
+    const html = await (await SELF.fetch(`${ORIGIN}/${page}?lang=en`)).text();
+    const main = html.split('<main')[1] ?? '';
+    const first = main.indexOf('<p');
+    expect(main.slice(first, first + 40)).toContain('<p class="callout important">');
+    expect(main).toContain('anyone can use and redistribute its code commercially under its license');
   });
 
   // VST の語の表示 (ADR 0004、docs/design/testing.md の V10〜V13)。

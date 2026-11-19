@@ -191,15 +191,21 @@ export interface Dict {
     tagPaidFeatures: string;
     tagPaidServices: string;
     tagRestrictedAssets: string;
+    // 商用利用の 1 行。ライセンスの判定と restrictedAssets から組み立て、作者に新しい項目は申告させない。
+    commercialUse: string;
+    commercialAllowed: string;
+    commercialRestrictedAssets: string;
+    commercialUndeclared: string;
+    commercialServices: string;
   };
 }
 
 const en: Dict = {
-  tagline: 'A warehouse of open-source audio plugins',
+  tagline: 'A warehouse of open-source audio plugins, free to download',
   siteDescription:
     'A registry of open-source audio plugins that you can search from the web or from AI agents such as Claude Code and Codex. Every listed file has a verified build provenance attestation and is checked against a database of known malware samples.',
   notice:
-    'This platform is an unofficial, free service not affiliated with the developers of plugin formats or DAWs. It does not guarantee the safety of any plugin, so use plugins carefully and at your own risk.',
+    'This platform is an unofficial service not affiliated with the developers of plugin formats or DAWs. It does not guarantee the safety of any plugin, so use plugins carefully and at your own risk.',
   noticeShort: 'This platform is unofficial and does not guarantee the safety of any plugin, so use plugins carefully.',
   searchHeading: 'Find audio plugins',
   searchPlaceholder: 'Keyword (e.g. pitch shift)',
@@ -355,16 +361,24 @@ const en: Dict = {
     notDeclared: 'Not declared by the author',
     tagPaidFeatures: 'Paid features',
     tagPaidServices: 'Paid services',
-    tagRestrictedAssets: 'Restricted assets',
+    tagRestrictedAssets: 'Commercial-use restrictions on assets',
+    commercialUse: 'Commercial use',
+    commercialAllowed:
+      'Allowed under the license terms. This platform checked the code license, and the author declares that the bundled assets have no usage restrictions.',
+    commercialRestrictedAssets:
+      'The code can be used commercially under the license terms (checked by this platform). The author declares that the bundled assets restrict use, such as commercial use. See the README for details.',
+    commercialUndeclared:
+      'The code can be used commercially under the license terms (checked by this platform). The author has not declared whether the bundled assets restrict use.',
+    commercialServices: 'Also check the terms of the external services it uses.',
   },
 };
 
 const ja: Dict = {
-  tagline: 'オープンソースのオーディオプラグインの倉庫',
+  tagline: '無料で入手できる、オープンソースのオーディオプラグインの倉庫',
   siteDescription:
     'オープンソースのオーディオプラグインを、Web と Claude Code や Codex などの AI エージェントから探せるレジストリです。掲載する配布物は、ビルドの来歴の証明を検証し、既知のマルウェアのデータベースと照合しています。',
   notice:
-    'このプラットフォームは、プラグインの規格の策定元や DAW の開発元と無関係の、非公式で無料のサービスです。各プラグインの安全性を保証しないので、個人の責任にもとづき注意して利用してください。',
+    'このプラットフォームは、プラグインの規格の策定元や DAW の開発元と無関係の、非公式のサービスです。各プラグインの安全性を保証しないので、個人の責任にもとづき注意して利用してください。',
   noticeShort: 'このプラットフォームは非公式で、各プラグインの安全性を保証しないので、注意して利用してください。',
   searchHeading: 'オーディオプラグインを探す',
   searchPlaceholder: 'キーワード (例: pitch shift)',
@@ -520,16 +534,24 @@ const ja: Dict = {
     notDeclared: '作者の申告なし',
     tagPaidFeatures: '有料の機能あり',
     tagPaidServices: '有料サービスあり',
-    tagRestrictedAssets: '素材に利用の制限あり',
+    tagRestrictedAssets: '素材に商用利用の制限あり',
+    commercialUse: '商用利用',
+    commercialAllowed:
+      'ライセンスの条件にしたがって商用利用できます。コードのライセンスはこのプラットフォームが確かめました。同梱の素材に利用の制限が無いことは、作者が申告しています。',
+    commercialRestrictedAssets:
+      'コードはライセンスの条件にしたがって商用利用できます (このプラットフォームが確認)。同梱の素材には商用利用などの制限があると、作者が申告しています。詳しくは README を確かめてください。',
+    commercialUndeclared:
+      'コードはライセンスの条件にしたがって商用利用できます (このプラットフォームが確認)。同梱の素材の制限は、作者の申告がありません。',
+    commercialServices: '利用する外部サービスの規約も確かめてください。',
   },
 };
 
 const zhHans: Dict = {
-  tagline: '开源音频插件仓库',
+  tagline: '可免费获取的开源音频插件仓库',
   siteDescription:
     '一个可以通过网页以及 Claude Code、Codex 等 AI 代理查找开源音频插件的收录平台。收录的发布文件均已验证构建来源证明，并与已知恶意软件数据库进行比对。',
   notice:
-    '本平台是与插件格式的制定方及 DAW 开发商无关的非官方免费服务。本平台不保证各插件的安全性，请自行承担责任并谨慎使用。',
+    '本平台是与插件格式的制定方及 DAW 开发商无关的非官方服务。本平台不保证各插件的安全性，请自行承担责任并谨慎使用。',
   noticeShort: '本平台为非官方服务，不保证各插件的安全性，请谨慎使用。',
   searchHeading: '查找音频插件',
   searchPlaceholder: '关键词（例：pitch shift）',
@@ -683,17 +705,23 @@ const zhHans: Dict = {
     notDeclared: '作者未声明',
     tagPaidFeatures: '付费功能',
     tagPaidServices: '付费服务',
-    tagRestrictedAssets: '素材有使用限制',
+    tagRestrictedAssets: '素材有商业使用限制',
+    commercialUse: '商业使用',
+    commercialAllowed: '可按照许可证条款进行商业使用。代码的许可证已由本平台确认，捆绑素材没有使用限制由作者申报。',
+    commercialRestrictedAssets:
+      '代码可按照许可证条款进行商业使用（本平台已确认）。作者申报捆绑素材有商业使用等限制，详情请查看 README。',
+    commercialUndeclared: '代码可按照许可证条款进行商业使用（本平台已确认）。捆绑素材是否有限制，作者没有申报。',
+    commercialServices: '也请确认所使用的外部服务的条款。',
   },
 };
 
 const zhHant: Dict = {
   ...zhHans,
-  tagline: '開源音訊外掛倉庫',
+  tagline: '可免費取得的開源音訊外掛倉庫',
   siteDescription:
     '一個可以透過網頁以及 Claude Code、Codex 等 AI 代理尋找開源音訊外掛的收錄平台。收錄的發行檔案均已驗證建置來源證明，並與已知惡意軟體資料庫進行比對。',
   notice:
-    '本平台是與外掛格式的制定方及 DAW 開發商無關的非官方免費服務。本平台不保證各外掛的安全性，請自行承擔責任並謹慎使用。',
+    '本平台是與外掛格式的制定方及 DAW 開發商無關的非官方服務。本平台不保證各外掛的安全性，請自行承擔責任並謹慎使用。',
   noticeShort: '本平台為非官方服務，不保證各外掛的安全性，請謹慎使用。',
   searchHeading: '尋找音訊外掛',
   searchPlaceholder: '關鍵字（例：pitch shift）',
@@ -840,16 +868,22 @@ const zhHant: Dict = {
     notDeclared: '作者未聲明',
     tagPaidFeatures: '付費功能',
     tagPaidServices: '付費服務',
-    tagRestrictedAssets: '素材有使用限制',
+    tagRestrictedAssets: '素材有商業使用限制',
+    commercialUse: '商業使用',
+    commercialAllowed: '可依照授權條款進行商業使用。程式碼的授權已由本平台確認，隨附素材沒有使用限制由作者申報。',
+    commercialRestrictedAssets:
+      '程式碼可依照授權條款進行商業使用（本平台已確認）。作者申報隨附素材有商業使用等限制，詳情請查看 README。',
+    commercialUndeclared: '程式碼可依照授權條款進行商業使用（本平台已確認）。隨附素材是否有限制，作者沒有申報。',
+    commercialServices: '也請確認所使用的外部服務的條款。',
   },
 };
 
 const ko: Dict = {
-  tagline: '오픈 소스 오디오 플러그인 창고',
+  tagline: '무료로 받을 수 있는 오픈 소스 오디오 플러그인 창고',
   siteDescription:
     '웹과 Claude Code, Codex 같은 AI 에이전트에서 오픈 소스 오디오 플러그인을 찾을 수 있는 레지스트리입니다. 게재하는 배포 파일은 빌드 출처 증명을 검증하고, 알려진 악성 코드 데이터베이스와 대조합니다.',
   notice:
-    '이 플랫폼은 플러그인 규격의 제정 주체나 DAW 개발사와 관계없는 비공식 무료 서비스입니다. 각 플러그인의 안전성을 보장하지 않으므로, 본인의 책임하에 주의해서 이용해 주세요.',
+    '이 플랫폼은 플러그인 규격의 제정 주체나 DAW 개발사와 관계없는 비공식 서비스입니다. 각 플러그인의 안전성을 보장하지 않으므로, 본인의 책임하에 주의해서 이용해 주세요.',
   noticeShort: '이 플랫폼은 비공식이며 각 플러그인의 안전성을 보장하지 않으므로 주의해서 이용해 주세요.',
   searchHeading: '오디오 플러그인 찾기',
   searchPlaceholder: '키워드 (예: pitch shift)',
@@ -1004,16 +1038,24 @@ const ko: Dict = {
     notDeclared: '작성자의 신고 없음',
     tagPaidFeatures: '유료 기능',
     tagPaidServices: '유료 서비스',
-    tagRestrictedAssets: '소재 이용 제한',
+    tagRestrictedAssets: '소재에 상업적 이용 제한 있음',
+    commercialUse: '상업적 이용',
+    commercialAllowed:
+      '라이선스 조건에 따라 상업적으로 이용할 수 있습니다. 코드의 라이선스는 이 플랫폼이 확인했으며, 동봉된 소재에 이용 제한이 없다는 것은 작성자가 신고했습니다.',
+    commercialRestrictedAssets:
+      '코드는 라이선스 조건에 따라 상업적으로 이용할 수 있습니다(이 플랫폼이 확인). 동봉된 소재에는 상업적 이용 등의 제한이 있다고 작성자가 신고했습니다. 자세한 내용은 README를 확인해 주세요.',
+    commercialUndeclared:
+      '코드는 라이선스 조건에 따라 상업적으로 이용할 수 있습니다(이 플랫폼이 확인). 동봉된 소재의 제한 여부는 작성자가 신고하지 않았습니다.',
+    commercialServices: '이용하는 외부 서비스의 약관도 확인해 주세요.',
   },
 };
 
 const ptBR: Dict = {
-  tagline: 'Um depósito de plugins de áudio de código aberto',
+  tagline: 'Um depósito de plugins de áudio de código aberto, com download gratuito',
   siteDescription:
     'Um registro de plugins de áudio de código aberto que você pode pesquisar pela web ou por agentes de IA como Claude Code e Codex. Cada arquivo listado tem a atestação de procedência da build verificada e é comparado com um banco de dados de malware conhecido.',
   notice:
-    'Esta plataforma é um serviço gratuito e não oficial, sem vínculo com os criadores dos formatos de plugin nem com os desenvolvedores de DAWs. Ela não garante a segurança de nenhum plugin; por isso, use os plugins com cuidado e por sua conta e risco.',
+    'Esta plataforma é um serviço não oficial, sem vínculo com os criadores dos formatos de plugin nem com os desenvolvedores de DAWs. Ela não garante a segurança de nenhum plugin; por isso, use os plugins com cuidado e por sua conta e risco.',
   noticeShort: 'Esta plataforma não é oficial e não garante a segurança dos plugins; por isso, use-os com cuidado.',
   searchHeading: 'Encontre plugins de áudio',
   searchPlaceholder: 'Palavra-chave (ex.: pitch shift)',
@@ -1170,16 +1212,24 @@ const ptBR: Dict = {
     notDeclared: 'Não declarado pelo autor',
     tagPaidFeatures: 'Recursos pagos',
     tagPaidServices: 'Serviços pagos',
-    tagRestrictedAssets: 'Materiais com restrições',
+    tagRestrictedAssets: 'Restrições de uso comercial em materiais',
+    commercialUse: 'Uso comercial',
+    commercialAllowed:
+      'Permitido nos termos da licença. Esta plataforma verificou a licença do código, e o autor declara que os materiais incluídos não têm restrições de uso.',
+    commercialRestrictedAssets:
+      'O código pode ser usado comercialmente nos termos da licença (verificado por esta plataforma). O autor declara que os materiais incluídos têm restrições, como de uso comercial. Consulte o README para mais detalhes.',
+    commercialUndeclared:
+      'O código pode ser usado comercialmente nos termos da licença (verificado por esta plataforma). O autor não declarou se os materiais incluídos têm restrições.',
+    commercialServices: 'Confira também os termos dos serviços externos utilizados.',
   },
 };
 
 const es419: Dict = {
-  tagline: 'Un depósito de plugins de audio de código abierto',
+  tagline: 'Un depósito de plugins de audio de código abierto, con descarga gratuita',
   siteDescription:
     'Un registro de plugins de audio de código abierto que puedes buscar desde la web o desde agentes de IA como Claude Code y Codex. Cada archivo listado tiene verificada la atestación de procedencia de la compilación y se compara con una base de datos de malware conocido.',
   notice:
-    'Esta plataforma es un servicio gratuito y no oficial, sin relación con los creadores de los formatos de plugin ni con los desarrolladores de DAW. No garantiza la seguridad de ningún plugin; por eso, usa los plugins con cuidado y bajo tu propia responsabilidad.',
+    'Esta plataforma es un servicio no oficial, sin relación con los creadores de los formatos de plugin ni con los desarrolladores de DAW. No garantiza la seguridad de ningún plugin; por eso, usa los plugins con cuidado y bajo tu propia responsabilidad.',
   noticeShort: 'Esta plataforma no es oficial y no garantiza la seguridad de los plugins; por eso, úsalos con cuidado.',
   searchHeading: 'Encuentra plugins de audio',
   searchPlaceholder: 'Palabra clave (p. ej., pitch shift)',
@@ -1338,7 +1388,15 @@ const es419: Dict = {
     notDeclared: 'No declarado por el autor',
     tagPaidFeatures: 'Funciones de pago',
     tagPaidServices: 'Servicios de pago',
-    tagRestrictedAssets: 'Materiales con restricciones',
+    tagRestrictedAssets: 'Restricciones de uso comercial en materiales',
+    commercialUse: 'Uso comercial',
+    commercialAllowed:
+      'Permitido según los términos de la licencia. Esta plataforma verificó la licencia del código, y el autor declara que los materiales incluidos no tienen restricciones de uso.',
+    commercialRestrictedAssets:
+      'El código puede usarse comercialmente según los términos de la licencia (verificado por esta plataforma). El autor declara que los materiales incluidos tienen restricciones, como de uso comercial. Consulta el README para más detalles.',
+    commercialUndeclared:
+      'El código puede usarse comercialmente según los términos de la licencia (verificado por esta plataforma). El autor no declaró si los materiales incluidos tienen restricciones.',
+    commercialServices: 'Revisa también los términos de los servicios externos que usa.',
   },
 };
 
