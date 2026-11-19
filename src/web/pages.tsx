@@ -143,7 +143,15 @@ const PricingSection: FC<{ view: PluginView; t: Dict }> = ({ view, t }) => {
           <tr>
             <th scope="row">{t.license}</th>
             <td>
-              <span translate="no">{view.license}</span> <span class="note">{t.pricing.licenseChecked}</span>
+              {/* 単一の SPDX 識別子は、再配布の条件を本文で確かめられるよう SPDX のライセンスの一覧へリンクする。 */}
+              {/^[A-Za-z0-9.+-]+$/.test(view.license) ? (
+                <a href={`https://spdx.org/licenses/${view.license}.html`} rel="noopener noreferrer">
+                  <span translate="no">{view.license}</span>
+                </a>
+              ) : (
+                <span translate="no">{view.license}</span>
+              )}{' '}
+              <span class="note">{t.pricing.licenseChecked}</span>
             </td>
           </tr>
         </tbody>

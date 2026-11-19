@@ -391,6 +391,16 @@ describe('Web', () => {
     expect(await listMain()).not.toContain('pill declared');
   });
 
+  // U4: 再配布の条件を本文で確かめられるよう、確かめたライセンスを SPDX の本文へリンクする。
+  it('確かめたライセンスの SPDX 識別子を、SPDX のライセンスの本文へリンクする', async () => {
+    await register();
+    await markListable(env.DB);
+    const license = row(await detailPage(), 'License');
+    expect(license).toMatch(
+      /<a href="https:\/\/spdx\.org\/licenses\/[A-Za-z0-9.+-]+\.html" rel="noopener noreferrer">/,
+    );
+  });
+
   it('申告した値を作者の申告の区画に表示し、作者の文字列はエスケープし、支援のページには nofollow を付ける', async () => {
     await register();
     await markListable(env.DB);
