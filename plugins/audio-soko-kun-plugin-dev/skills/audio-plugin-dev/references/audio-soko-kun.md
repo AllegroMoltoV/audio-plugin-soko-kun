@@ -28,18 +28,29 @@ Put these files in `.audio-soko-kun/` at the repository root:
 
 SVG is not accepted. The catalog reads these files at the tag of the latest release, so commit them before you tag.
 
-`config.json` declares the display name and the category, and optionally the archives:
+`config.json` declares the display name and the category, and optionally the archives and the declarations about payment and bundled assets:
 
 ```json
 {
   "name": "My Gain",
-  "category": "effect"
+  "category": "effect",
+  "paidFeatures": false,
+  "paidServices": [],
+  "restrictedAssets": false
 }
 ```
 
 - `name`: 1 to 60 characters.
 - `category`: `instrument`, `effect`, `analyzer`, `midi`, or `utility`. Write it: the catalog cannot read the category from a VST 3 plugin built by clap-wrapper.
 - `assets` (optional): a list of `{ "pattern": "my-gain-*-windows-x64.zip", "os": "windows", "arch": ["x86_64"], "formats": ["vst3", "clap"] }`. A release whose archives do not match the declaration is not listed.
+- `paidFeatures` (optional): `true` if paying the author unlocks features, otherwise `false`.
+- `paidServices` (optional): names of paid services that users subscribe to separately, such as `["OpenAI API"]`; up to 5 names of 1 to 60 characters. `[]` declares that there are none.
+- `restrictedAssets` (optional): `true` if a bundled asset (impulse responses, HRTF data, models, samples, fonts, images) restricts use, such as commercial use. Describe the origin and license of each bundled asset in the README or a NOTICE file.
+- `supportUrl` (optional): one https URL on booth.pm, gumroad.com, itch.io, patreon.com, ko-fi.com (or their subdomains), or `https://github.com/sponsors/<name>`, up to 300 characters. Put shop and donation links here.
+
+The four declarations are shown on the plugin page and in `search_plugins` as the author's declarations; the catalog does not verify them. A missing item is shown as "not declared by the author". A wrong value only drops that item and returns a notice; it does not stop listing. The terms' obligation not to list false information covers these declarations. The files are always free on GitHub: selling the same files elsewhere or taking donations is fine, features unlocked by payment are listed when declared, and paid plugins without public source are not listed.
+
+Licenses: the VST 3 SDK and CLAP are MIT, so the plugin's license is free to choose. JUCE requires AGPLv3 or a commercial license.
 
 For the logo, draw about three SVG candidates and let the author choose. A familiar object that suggests the effect (a broom for a noise remover, a prism for a spectrum analyzer) is easier to recognize at small sizes than an abstract waveform, and authors chose such objects over waveforms in the projects behind this skill. Show the candidates in a local HTML page that places each at 16, 32, 64, 128, and 256 px on light and dark backgrounds, next to the author's existing logos if there are any, and ask the author to open it. Keep the chosen SVG as `docs/logo.svg`, so that later edits start from the source, and export it to a 512 px PNG for `.audio-soko-kun/logo.png`. A GIF of the plugin running in a DAW makes a good description image; let the author record it, and note that the still image shows its first frame.
 
@@ -51,7 +62,7 @@ Findings with `judgedBy: "rule"` are deterministic. Findings with `judgedBy: "ll
 
 ## Register: `submit_plugin`
 
-With the author's approval, call `submit_plugin` with the repository URL after the first release is published. It can be called up to 10 times in 24 hours. If it is refused, it returns a code and how to fix it: `not_admin`, `private_repository`, `archived_repository`, `no_release`, `not_immutable`, `no_verifiable_asset`, `no_archive`, `no_attestation`, `no_license`, `unsupported_tag`, `duplicate`, or `name_reserved`.
+With the author's approval, call `submit_plugin` with the repository URL after the first release is published. It can be called up to 10 times in 24 hours. If it is refused, it returns a code and how to fix it: `not_admin`, `private_repository`, `archived_repository`, `no_release`, `not_immutable`, `no_verifiable_asset`, `no_archive`, `no_attestation`, `no_license`, `license_unrecognized`, `license_not_open`, `unsupported_tag`, `duplicate`, or `name_reserved`.
 
 After registration, the archives are inspected for plugin bundles and checked against MalwareBazaar, and the repository is reviewed. The plugin page appears when a release passes, usually within an hour.
 
@@ -67,6 +78,8 @@ New releases are picked up without a new submission. Call `list_my_plugins` with
 | `rejected` | A listing condition failed | Fix the blockers and publish a new release |
 | `suspended` | Stopped by an administrator, or malware detected | Read the blockers and contact the administrator |
 
+`notices` on a plugin and on each version do not stop listing. `declarations_missing` means the listed version has none of the four declarations; the other notices name a declaration with a wrong value. Suggest their fixes to the author with the next release.
+
 Each blocker has `waitsFor`. Suggest fixes to the author only for `"author"`. `"admin"` waits for an administrator without a fixed deadline. `"system"` carries a `resumesAt` time, the latest expected time counted from the release; checks often finish much earlier. `checkAgainAfter` is when to call again, not when the checks will finish: it moves later on each call, and that is not a delay. Judge a delay only by `resumesAt`.
 
 The first version usually lists within 20 minutes. Later versions take longer: the review waits for a scan of the source for network use, and the change since the listed version is checked. While a new version is checked or held, the previously listed version stays listed.
@@ -79,10 +92,10 @@ Some changes since the listed version hold the new version for an administrator,
 | --- | --- |
 | Any file under `.github/workflows/`, `.github/actions/`, or `.github/scripts/`, including Dependabot updates | `diff-workflow-changed` |
 | A binary file added or changed: images, audio samples, impulse responses, presets | `diff-binary-added` |
-| A new link to a host other than this repository, the catalog, and the allowed SDK documentation hosts | `diff-external-link` |
+| A new link to a host other than this repository, the catalog, and the allowed SDK documentation hosts, including a `supportUrl` added to `config.json` and links to shops, donation pages, or asset licenses added to the README | `diff-external-link` |
 | A large change that touches `.github/`, build scripts, or binaries | `diff-too-large` |
 
-Tell the author in advance when a release will be held. To avoid holds, add the logo, the description image, and the final workflow before the first release.
+Tell the author in advance when a release will be held. To avoid holds, add the logo, the description image, the final workflow, the `supportUrl`, and the links to asset licenses before the first release.
 
 These rules read every changed file, including agent and editor settings such as `.claude/settings.json` or `.vscode/settings.json`, whose `$schema` line is a link to another host. The template's `.gitignore` keeps these settings out of the repository; check `git status` before each commit, and commit them only if the author means to publish them (`agent-editor-config`).
 

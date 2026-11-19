@@ -21,6 +21,11 @@
 | Latency | <0 samples, or the reported latency> |
 | GUI | <none (the host's generic view) / own window: why> |
 | License | <MIT> |
+| Distribution | <A: free on GitHub, also sold or donated elsewhere / B: some features unlocked by payment> (C, paid files without public source, cannot be listed) |
+| Paid features (`paidFeatures`) | <none / what is unlocked by payment> |
+| Paid services (`paidServices`) | <none / names of paid services users subscribe to separately> |
+| Restricted bundled assets (`restrictedAssets`) | <none / assets whose license restricts use, such as commercial use> |
+| Support or purchase page (`supportUrl`) | <none / an https URL on booth.pm, gumroad.com, itch.io, patreon.com, ko-fi.com, or github.com/sponsors/<name>> |
 
 | Parameter | Range | Default | Unit | Description |
 | --- | --- | --- | --- | --- |
@@ -31,6 +36,10 @@
 | Library | Version and pin | License | Bundled in the release | Why |
 | --- | --- | --- | --- | --- |
 | clap-wrapper | <tag and commit SHA> | MIT | yes (with CLAP, VST 3 SDK, {fmt}) | VST 3 from the CLAP plugin |
+
+| Bundled asset (impulse responses, HRTF data, models, samples, fonts, images) | Origin | License | Restricts use |
+| --- | --- | --- | --- |
+| <asset> | <URL or project> | <license> | <no / what is restricted> |
 
 ## Decisions
 

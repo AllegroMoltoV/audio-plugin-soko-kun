@@ -70,7 +70,13 @@ The archives contain these third-party components. Their license texts are in `T
 | {fmt} | Used by clap-wrapper | MIT |
 | VST 3 SDK | The VST 3 format | MIT |
 
+The plugin bundles no samples, impulse responses, models, fonts, or images. If you add any, list each one here with its origin and license, and say whether its license restricts use such as commercial use.
+
 VST is a registered trademark of Steinberg Media Technologies GmbH.
+
+## Price and paid services
+
+The plugin is free. No feature is unlocked by payment, and it needs no paid service.
 
 ## AI disclosure
 
