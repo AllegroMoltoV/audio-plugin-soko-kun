@@ -108,6 +108,8 @@ export const Linkified: FC<{ text: string }> = ({ text }) => {
 };
 
 // 一覧のカードと詳細の見出しの下のタグ (本家と共通)。掲載中のものはすべて無料で入手できる。
+// 有料の機能か外部の有料サービスを申告したものだけ「入手は無料」とし、それ以外は「無料」とする。
+// 全件を「入手は無料」にすると、無料のものに留保の含みが付くため。
 // 素材の制限を申告したものには制限のタグ、それ以外 (制限なしの申告と申告なし) には、ライセンスの判定を通った
 // 掲載中のものに商用利用可のタグを付け、2 つは同時に出さない。有料の機能・サービスは申告が真のときだけ付ける。
 // 見た目はほかのタグと同じ素の .pill にする。
@@ -115,7 +117,7 @@ const PricingTags: FC<{ view: PluginView; t: Dict }> = ({ view, t }) => {
   if (view.status !== 'listed') return null;
   const { paidFeatures, paidServices, restrictedAssets } = view.pricing;
   const tags = [
-    t.pricing.tagFree,
+    paidFeatures === true || (paidServices?.length ?? 0) > 0 ? t.pricing.tagFree : t.pricing.tagFreeOfCharge,
     restrictedAssets === true ? t.pricing.tagRestrictedAssets : t.pricing.tagCommercialOk,
     paidFeatures === true ? t.pricing.tagPaidFeatures : null,
     (paidServices?.length ?? 0) > 0 ? t.pricing.tagPaidServices : null,

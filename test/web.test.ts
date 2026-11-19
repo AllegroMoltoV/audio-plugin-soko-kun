@@ -390,7 +390,7 @@ describe('Web', () => {
     expect(detail).toContain('This platform does not verify them.');
     // 申告なしでも、掲載中のものには無料と商用利用可のタグを付け、有料と素材の制限のタグは付けない。
     const list = await listMain();
-    expect(list).toContain('<span class="pill">Free to download</span>');
+    expect(list).toContain('<span class="pill">Free</span>');
     expect(list).toContain('<span class="pill">Commercial use OK</span>');
     for (const tag of ['Paid features', 'Needs paid external services', 'Assets restrict commercial use']) {
       expect(list, tag).not.toContain(tag);
@@ -470,6 +470,18 @@ describe('Web', () => {
     expect(await listMain()).not.toContain('Paid features');
   });
 
+  // 無料のものに「入手は無料」と書くと留保に見える (依頼者 2026-11-19)。有料の申告が無ければ「無料」にする。
+  it('有料の申告があるときだけ「入手は無料」を付け、無いときは「無料」を付ける', async () => {
+    await register();
+    await markListable(env.DB);
+    expect(await listMain()).toContain('<span class="pill">Free</span>');
+    expect(await listMain()).not.toContain('Free to download');
+    await declare({ paidFeatures: false, paidServices: ['Example Cloud'], restrictedAssets: false });
+    const paid = await listMain();
+    expect(paid).toContain('<span class="pill">Free to download</span>');
+    expect(paid).not.toContain('<span class="pill">Free</span>');
+  });
+
   it('素材の制限を true と申告したプラグインにだけ、一覧で素材の制限のタグを付ける', async () => {
     await register();
     await markListable(env.DB);
@@ -489,7 +501,7 @@ describe('Web', () => {
     await declare({ restrictedAssets: false });
     const detail = await detailPage();
     const tags = detail.split('<ul class="tags">')[1]?.split('</ul>')[0] ?? '';
-    expect(tags).toContain('<span class="pill">Free to download</span>');
+    expect(tags).toContain('<span class="pill">Free</span>');
     expect(tags).toContain('<span class="pill">Commercial use OK</span>');
     expect(detail).not.toContain('pill declared');
     // カードの中のタグの li に点線と余白を当てない。
@@ -529,10 +541,10 @@ describe('Web', () => {
   // ヘッダーの副題は入手が無料であることを示し、注意の帯は「無料のサービス」と書かない (本家と共通)。
   it('副題は無料で入手できることを示し、注意の帯からは無料を外す', async () => {
     const ja = await (await SELF.fetch(`${ORIGIN}/?lang=ja`)).text();
-    expect(ja).toContain('無料で入手できる、オープンソースのオーディオプラグインの倉庫');
+    expect(ja).toContain('無料で入手できるオーディオプラグインの倉庫');
     expect(ja).not.toContain('非公式で無料のサービス');
     const en = await (await SELF.fetch(`${ORIGIN}/?lang=en`)).text();
-    expect(en).toContain('A warehouse of free-to-download open-source audio plugins');
+    expect(en).toContain('A warehouse of free-to-download audio plugins');
     expect(en).not.toContain('unofficial, free service');
   });
 
