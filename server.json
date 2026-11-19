@@ -3,7 +3,7 @@
   "name": "io.github.AllegroMoltoV/audio-plugin-soko-kun",
   "title": "Audio Plugin Soko-kun",
   "description": "Search, inspect, and submit open-source VST 3, CLAP, LV2, and AU plugins in an unofficial registry.",
-  "version": "0.1.27",
+  "version": "0.1.28",
   "websiteUrl": "https://audio-soko-kun.allegromoltov.jp",
   "icons": [
     {

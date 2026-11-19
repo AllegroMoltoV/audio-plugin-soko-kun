@@ -164,7 +164,7 @@ export function buildMcpServer(env: Env, user?: SignedInUser): McpServer {
     {
       name: 'audio-plugin-soko-kun',
       title: 'Audio Plugin Soko-kun',
-      version: '0.1.27',
+      version: '0.1.28',
       websiteUrl: env.ORIGIN,
       icons: [
         { src: `${env.ORIGIN}/logo.png`, mimeType: 'image/png', sizes: ['256x256'] },
