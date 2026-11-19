@@ -262,6 +262,34 @@ describe('checkPlugin (確認のモード)', () => {
     expect(keys.indexOf('important')).toBeLessThan(keys.indexOf('conditions'));
   });
 
+  // 作者は公開の前に確認のモードを使う。既定のブランチの宣言の name が VST を含むとき、その指摘を公開の前に届ける。
+  it('既定のブランチの宣言の name が単語としての VST を含むと、review に plugin-name の not_met を返す', async () => {
+    const withAi = {
+      ...env,
+      AI: {
+        run: async () => ({ output: [{ type: 'message', content: [{ text: '{"findings":[]}' }] }] }),
+      },
+    } as unknown as Env;
+    const pluginNameOf = async (name: string): Promise<string | undefined> => {
+      network.resetHandlers();
+      network.use(
+        http.get('https://api.github.com/repos/:owner/:repo/contents/.audio-soko-kun/config.json', () =>
+          HttpResponse.text(JSON.stringify({ name })),
+        ),
+        ...githubHandlers({ release: 'none' }),
+        ...releaseCheckHandlers(),
+      );
+      const result = (await checkPlugin(withAi, submitter, url)) as {
+        review: { status: string; findings: Array<{ id: string; result: string }> };
+      };
+      expect(result.review.status).toBe('done');
+      return result.review.findings.find((finding) => finding.id === 'plugin-name')?.result;
+    };
+    expect(await pluginNameOf('Fancy VST Delay')).toBe('not_met');
+    // 対照: VST を含まない name では指摘が出ない。
+    expect(await pluginNameOf('Fancy Delay')).toBeUndefined();
+  });
+
   it('登録せずに条件ごとの結果を返し、1 人 24 時間 5 回を超えたら断る', async () => {
     network.use(...githubHandlers({ immutable: false }), ...releaseCheckHandlers());
     const first = await checkPlugin(env, submitter, url);

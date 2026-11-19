@@ -18,7 +18,14 @@ import {
   type RepositorySnapshot,
 } from '../review/rules';
 import { getPluginViewByInternalId } from './catalog';
-import { type Pricing, readDeclaration, serializeDeclaration, settleDeclarations, storedPricing } from './declaration';
+import {
+  type Pricing,
+  readDeclaration,
+  serializeDeclaration,
+  settleDeclarations,
+  storedNameAndAssets,
+  storedPricing,
+} from './declaration';
 import { licenseAtCommit } from './license';
 import { readReleaseNotesHits } from './release-notes';
 import { MAX_REVIEW_ATTEMPTS } from './status';
@@ -128,9 +135,12 @@ async function checkOne(env: Env, budget: Budget, github: GitHubClient, row: Pen
   // レビューに渡す申告。別の起動で取得した版は保存した値から、同じ起動で取得した版はその場の値から読む。
   // 同じ起動の版で保存した値を待つと、レビューの事実の行が申告なしになるため。
   let pricing: Pricing | null = row.config_json !== null ? storedPricing(row.config_json).pricing : null;
+  // 審査の名前の照合に使う、審査する版の宣言の name。申告と同じ二経路で求める。
+  let declaredName: string | null = storedNameAndAssets(row.config_json).name;
   if (row.config_state === 'pending' && row.config_fetched_at === null) {
     const parsed = await readDeclaration(github, row.owner, row.repo, row.commit_sha);
     pricing = parsed.state === 'parsed' ? parsed.declaration.pricing : null;
+    declaredName = parsed.state === 'parsed' ? parsed.declaration.name : null;
     const fetchedAt = new Date().toISOString();
     if (parsed.state === 'invalid') {
       update("config_state = 'invalid', config_fetched_at = ?", fetchedAt);
@@ -154,11 +164,11 @@ async function checkOne(env: Env, budget: Budget, github: GitHubClient, row: Pen
   // 版のコミットが既定のブランチにあるかは、掲載中の版の有無にかかわらず確かめる。
   let diff: string | null = null;
   let diffFacts: string[] = [];
-  let names = [row.repo];
+  // 審査で名前を照合する対象。掲載中の版の表示名は入れない。審査する版が掲載されたときの表示名は、その版の宣言か repo で決まるため。
+  const names = [...new Set([row.repo, ...(declaredName === null ? [] : [declaredName])])];
   if (row.diff_state === 'pending' || row.review_state !== 'done') {
     budget.takeD1Query();
     const view = await getPluginViewByInternalId(env, row.plugin_id);
-    if (view && view.name !== row.repo) names = [row.repo, view.name];
     const base = view?.listedRelease ?? null;
     try {
       const hits: DiffHit[] = [];
@@ -390,7 +400,7 @@ export async function reviewRepository(
   repository: string,
   collected: CollectedFiles,
   diff: string | null,
-  // names はリポジトリ名と表示名。diffFacts は差分が上限を超えたときの事実の行。pricing は宣言ファイルの申告
+  // names はリポジトリ名と、審査する版 (確認のモードでは既定のブランチ) の宣言の name。diffFacts は差分が上限を超えたときの事実の行。pricing は宣言ファイルの申告
   // (宣言ファイルが無い・読めない版は null)。
   context: { names?: string[]; diffFacts?: string[]; pricing?: Pricing | null } = {},
 ): Promise<ReviewOutcome> {
