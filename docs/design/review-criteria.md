@@ -164,8 +164,11 @@ LLM には、この事実と差分の先頭の 24,000 文字を渡します。LL
 | `license-notices` | 同梱する依存と素材のライセンスを列挙する。VST Compatible ロゴを同梱する場合は、Steinberg の商標でありプラグインのライセンスの対象外であることを書く | 判定しない | live-backgroundremoval-lite の README、Steinberg VST usage guidelines |
 | `diagnostic-logging` | 失敗の原因を特定できるログを出す | 判定しない | スライド 11 枚目 |
 | `security-policy` | SECURITY.md で報告の窓口と、対応する版を示す | ルール (将来) | live-backgroundremoval-lite の SECURITY.md |
+| `pricing-declaration` | 宣言ファイルの申告 (`paidFeatures`・`paidServices`・`restrictedAssets`) が README の記述と食い違わない。`restrictedAssets` が真なら、README か NOTICE・THIRD_PARTY_LICENSES に素材の出所とライセンスがある | LLM | 配信プラグイン倉庫くんと共通の有料・素材の申告 (2026-11-19 依頼者の承認) |
 
 「ルール (将来)」の項目は、配布物の中身やリポジトリの設定を読む仕組みが要るため、初めは判定せず、作者にも返しません。「判定しない」の項目のうち、`realtime-safety` と `diagnostic-logging` はソースコードを読む項目です。`license-notices` は、同梱する依存と素材を知るのに配布物の中身が要ります。
+
+`pricing-declaration` は LLM が判定する推奨で、当たっても掲載は止めません。LLM はソースと NOTICE の本文を読まないため、宣言ファイルの申告の値と、ファイルの一覧にある NOTICE・THIRD_PARTY_LICENSES の有無を事実として渡し、README の記述と照らし合わせます。README に書かれていない課金や素材の制限は見抜けません。
 
 ルールで判定する推奨の観点は次のとおりです。推奨のため、当たっても掲載は止めません。
 

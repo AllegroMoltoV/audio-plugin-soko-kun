@@ -1,7 +1,7 @@
 // 検索と詳細表示のためのデータ読み出し。掲載状態はここで算出し、掲載中のものだけを一覧に出す。
 import type { Env } from '../env';
 import { detectLang, type TranslationLang } from '../translate';
-import { isDeclared, parseDeclaredAssets } from './declaration';
+import { isDeclared, NO_PRICING, type Pricing, parseDeclaredAssets, storedPricing } from './declaration';
 import {
   ARCH_VALUES,
   type Arch,
@@ -102,6 +102,8 @@ export interface PluginView {
   summaryLang: TranslationLang | null;
   translations: Partial<Record<TranslationLang, string>>;
   license: string;
+  // 掲載対象バージョンの宣言ファイルにある作者の申告。掲載していなければ申告なし。本サービスは確かめない。
+  pricing: Pricing;
   category: Category;
   // 掲載対象バージョンの案内する配布物の中身の検査の結果を合わせたもの。
   os: Os[];
@@ -174,6 +176,7 @@ interface CheckRow {
   review_serious: number;
   admin_approved_at: string | null;
   notes_held: number;
+  config_json: string | null;
 }
 interface ScanRow {
   digest: string;
@@ -356,8 +359,10 @@ async function loadViews(env: Env, pluginId?: string, waits?: Map<string, AdminW
 
   const checksByRelease = new Map<number, ReleaseChecks>();
   const licenseByRelease = new Map<number, string | null>();
+  const configByRelease = new Map<number, string | null>();
   for (const row of (checks?.results ?? []) as CheckRow[]) {
     licenseByRelease.set(row.github_release_id, row.license_spdx);
+    configByRelease.set(row.github_release_id, row.config_json);
     checksByRelease.set(row.github_release_id, {
       immutable: row.immutable === 1,
       licenseState: row.license_state,
@@ -541,6 +546,8 @@ async function loadViews(env: Env, pluginId?: string, waits?: Map<string, AdminW
       translations: translationsByPlugin.get(plugin.id) ?? {},
       // 掲載対象バージョンのタグの時点のライセンス。掲載していなければ登録のときの値。
       license: (listed ? licenseByRelease.get(listed.github_release_id) : null) ?? plugin.license_spdx,
+      // 申告は版ごとに持ち、掲載対象バージョンの値だけを表示する。掲載していない新しい版の申告は出さない。
+      pricing: listed ? storedPricing(configByRelease.get(listed.github_release_id) ?? null).pricing : NO_PRICING,
       category: plugin.category,
       os: union(
         listedAssets.map((asset) => asset.os),
@@ -631,6 +638,9 @@ export interface SearchQuery {
   os?: Os;
   format?: Format;
   category?: Category;
+  // 作者の申告で絞り込む。申告なし (null) のものは除かない。
+  excludePaid?: boolean;
+  excludeRestrictedAssets?: boolean;
   limit?: number;
   offset?: number;
 }
@@ -647,6 +657,11 @@ export async function searchPlugins(env: Env, query: SearchQuery): Promise<{ tot
     // 規格の絞り込みは中身の検査で検出した規格だけで行う。VST 3 には VST 3 のバンドルを検出したものだけを出す (ADR 0004)。
     .filter((view) => !query.format || view.formats.includes(query.format))
     .filter((view) => !query.category || view.category === query.category)
+    .filter(
+      (view) =>
+        !query.excludePaid || !(view.pricing.paidFeatures === true || (view.pricing.paidServices?.length ?? 0) > 0),
+    )
+    .filter((view) => !query.excludeRestrictedAssets || view.pricing.restrictedAssets !== true)
     .filter((view) => {
       if (tokens.length === 0) return true;
       // 概要は原文に加えて機械翻訳も照合し、どの言語のキーワードでも見つかるようにする。
