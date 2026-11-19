@@ -172,7 +172,7 @@ LLM には、この事実と差分の先頭の 24,000 文字を渡します。LL
 
 ルールで判定する推奨の観点は次のとおりです。推奨のため、当たっても掲載は止めません。
 
-- `plugin-name`: リポジトリ名と、分かっていれば宣言ファイルの表示名に、単語としての `VST` が含まれるときに当たる。`VST3` のように数字が続く形も当たる。大文字と小文字は区別しない
+- `plugin-name`: リポジトリ名と、審査する版の宣言ファイルの name に、単語としての `VST` が含まれるときに当たる。`VST3` のように数字が続く形も当たる。大文字と小文字は区別しない
 - `user-verification-guide`: README に `gh attestation verify`・SHA-256・チェックサム・`Get-FileHash`・ハッシュの語がある
 - `install-location`: README に、`Common Files\VST3`・`Common Files\CLAP`・`Common Files\LV2`・`~/Library/Audio/Plug-Ins`・`~/.vst3`・`~/.clap`・`~/.lv2` のような規格ごとの標準の導入先がある
 - `cpu-compatibility`: ルートのビルド系のファイルとワークフローに、`/arch:AVX2`・`-mavx2`・`-march=native`・`target-cpu=native` のような命令の指定が無い

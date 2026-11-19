@@ -9,6 +9,8 @@ import { Budget } from '../src/budget';
 import { VERIFY_WORKFLOW_REF } from '../src/checks/oidc';
 import { runReleaseChecks } from '../src/domain/release-checks';
 import { submitPlugin } from '../src/domain/submit';
+import type { Env } from '../src/env';
+import { markListable } from './fixtures/checks';
 import { githubHandlers, OWNER, REPO, REPO_ID, releaseCheckHandlers, USER_TOKEN } from './fixtures/github';
 import { encode, installActionsJwks, sign, signHs256WithPublicKey, validClaims, workflowRef } from './fixtures/oidc';
 import { network } from './setup';
@@ -474,5 +476,87 @@ describe('通信の API の検出の結果', () => {
     });
     expect(response.status).toBe(401);
     expect(await scanOf()).toMatchObject({ network_state: 'pending' });
+  });
+});
+
+describe('審査の名前の照合は、審査する版の宣言の name を使う', () => {
+  const NEW_RELEASE_ID = 7002;
+  const nameConfig = (name: string) => JSON.stringify({ name });
+  const emptyAi = {
+    ...env,
+    AI: { run: async () => ({ output: [{ type: 'message', content: [{ text: '{"findings":[]}' }] }] }) },
+  } as unknown as Env;
+
+  // 掲載中の v1.1.0 (宣言の name は listedName) と、審査だけが残る v1.2.0 を作る。
+  async function prepare(listedName: string): Promise<void> {
+    network.use(...githubHandlers());
+    const result = await submitPlugin(
+      env,
+      { githubUserId: 4242, githubToken: USER_TOKEN },
+      `https://github.com/${OWNER}/${REPO}`,
+    );
+    if (!result.ok) throw new Error(result.code);
+    network.resetHandlers();
+    await markListable(env.DB);
+    await env.DB.prepare('UPDATE release_checks SET config_json = ?').bind(nameConfig(listedName)).run();
+    const plugin = await env.DB.prepare('SELECT plugin_id FROM releases LIMIT 1').first<{ plugin_id: string }>();
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO releases (github_release_id, plugin_id, tag, name, commit_sha, published_at, html_url)
+         VALUES (?, ?, 'v1.2.0', 'v1.2.0', ?, '2026-11-01T00:00:00Z', 'https://github.com/x/y/releases/tag/v1.2.0')`,
+      ).bind(NEW_RELEASE_ID, plugin?.plugin_id, 'b'.repeat(40)),
+      env.DB.prepare(
+        "INSERT INTO release_checks (github_release_id, immutable, config_state, license_state, diff_state, network_state) VALUES (?, 1, 'missing', 'passed', 'skipped', 'skipped')",
+      ).bind(NEW_RELEASE_ID),
+    ]);
+  }
+
+  async function pluginNameResult(): Promise<string | undefined> {
+    const json = await env.DB.prepare('SELECT review_json FROM release_checks WHERE github_release_id = ?')
+      .bind(NEW_RELEASE_ID)
+      .first<string>('review_json');
+    const review = JSON.parse(json ?? '{"findings":[]}') as { findings: Array<{ id: string; result: string }> };
+    return review.findings.find((finding) => finding.id === 'plugin-name')?.result;
+  }
+
+  // 審査中の版の宣言を、前の起動で取得済み (config_json あり) の状態か、この起動で取得する状態にする。
+  async function declareNew(route: 'stored' | 'fetched', name: string): Promise<void> {
+    if (route === 'stored') {
+      await env.DB.prepare(
+        "UPDATE release_checks SET config_state = 'pending', config_fetched_at = '2026-11-15T00:00:00Z', config_json = ? WHERE github_release_id = ?",
+      )
+        .bind(nameConfig(name), NEW_RELEASE_ID)
+        .run();
+      network.use(...releaseCheckHandlers());
+      return;
+    }
+    await env.DB.prepare(
+      "UPDATE release_checks SET config_state = 'pending', config_fetched_at = NULL WHERE github_release_id = ?",
+    )
+      .bind(NEW_RELEASE_ID)
+      .run();
+    network.use(
+      http.get(`https://api.github.com/repos/${OWNER}/${REPO}/contents/.audio-soko-kun/config.json`, () =>
+        HttpResponse.text(nameConfig(name)),
+      ),
+      ...releaseCheckHandlers(),
+    );
+  }
+
+  for (const route of ['stored', 'fetched'] as const) {
+    const label = route === 'stored' ? '前の起動で取得済みの宣言' : '同じ起動で取得する宣言';
+    it(`${label}の name が VST を含めば、掲載中の版の名前が含まなくても not_met にする`, async () => {
+      await prepare('Fixture Synth');
+      await declareNew(route, 'Fixture VST Synth');
+      await runReleaseChecks(emptyAi, new Budget());
+      expect(await pluginNameResult()).toBe('not_met');
+    });
+  }
+
+  it('審査する版の宣言で VST を外せば、掲載中の版の名前が含んでいても met にする', async () => {
+    await prepare('Fixture VST Synth');
+    await declareNew('stored', 'Fixture Synth');
+    await runReleaseChecks(emptyAi, new Budget());
+    expect(await pluginNameResult()).toBe('met');
   });
 });
