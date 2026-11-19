@@ -390,9 +390,9 @@ describe('Web', () => {
     expect(detail).toContain('This platform does not verify them.');
     // 申告なしでも、掲載中のものには無料と商用利用可のタグを付け、有料と素材の制限のタグは付けない。
     const list = await listMain();
-    expect(list).toContain('<span class="pill">Free</span>');
+    expect(list).toContain('<span class="pill">Free to download</span>');
     expect(list).toContain('<span class="pill">Commercial use OK</span>');
-    for (const tag of ['Paid features or services', 'Assets restrict commercial use']) {
+    for (const tag of ['Paid features', 'Needs paid external services', 'Assets restrict commercial use']) {
       expect(list, tag).not.toContain(tag);
     }
   });
@@ -429,7 +429,15 @@ describe('Web', () => {
     expect(detail.indexOf('Approved by the OSI')).toBeLessThan(detail.indexOf('Declared by the author'));
 
     const list = await listMain();
-    expect(list).toContain('<span class="pill">Paid features or services</span>');
+    // 有料の機能と外部の有料サービスは別のタグで、両方を申告すれば両方を付ける。並びは無料・商用・機能・サービスの順。
+    const order = [
+      '<span class="pill">Free to download</span>',
+      '<span class="pill">Commercial use OK</span>',
+      '<span class="pill">Paid features</span>',
+      '<span class="pill">Needs paid external services</span>',
+    ].map((tag) => list.indexOf(tag));
+    expect(order.every((index) => index >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
     // false と申告した素材の制限には、タグを付けない。
     expect(list).not.toContain('Assets restrict commercial use');
   });
@@ -459,7 +467,7 @@ describe('Web', () => {
     expect(detail).not.toContain('NEW-SERVICE-MARKER');
     expect(detail).not.toContain('ko-fi.com/newmarker');
     expect(row(detail, 'Features unlocked by payment')).toBe('Not declared by the author');
-    expect(await listMain()).not.toContain('Paid features or services');
+    expect(await listMain()).not.toContain('Paid features');
   });
 
   it('素材の制限を true と申告したプラグインにだけ、一覧で素材の制限のタグを付ける', async () => {
@@ -470,7 +478,8 @@ describe('Web', () => {
     expect(list).toContain('<span class="pill">Assets restrict commercial use</span>');
     // 制限のタグと商用利用可のタグは同時に出さない。
     expect(list).not.toContain('Commercial use OK');
-    expect(list).not.toContain('Paid features or services');
+    expect(list).not.toContain('Paid features');
+    expect(list).not.toContain('Needs paid external services');
   });
 
   // 詳細の見出しの下にも、一覧と同じタグを付ける (本家と共通)。見た目はほかのタグと同じ素の .pill。
@@ -480,7 +489,7 @@ describe('Web', () => {
     await declare({ restrictedAssets: false });
     const detail = await detailPage();
     const tags = detail.split('<ul class="tags">')[1]?.split('</ul>')[0] ?? '';
-    expect(tags).toContain('<span class="pill">Free</span>');
+    expect(tags).toContain('<span class="pill">Free to download</span>');
     expect(tags).toContain('<span class="pill">Commercial use OK</span>');
     expect(detail).not.toContain('pill declared');
     // カードの中のタグの li に点線と余白を当てない。
@@ -490,6 +499,16 @@ describe('Web', () => {
   });
 
   // 商用利用の 1 行 (本家と共通)。作者に新しい項目は申告させず、ライセンスの判定と restrictedAssets から組み立てる。
+  // 外部の有料サービスだけを申告したものに、作者に払う有料の機能があるように見えるタグを付けない (本家 0.3.0 の不具合)。
+  it('外部の有料サービスだけを申告したものには、有料の機能のタグを付けない', async () => {
+    await register();
+    await markListable(env.DB);
+    await declare({ paidFeatures: false, paidServices: ['OpenAI API'] });
+    const list = await listMain();
+    expect(list).toContain('<span class="pill">Needs paid external services</span>');
+    expect(list).not.toContain('<span class="pill">Paid features</span>');
+  });
+
   it('商用利用の行は restrictedAssets の申告で書き分け、外部の有料サービスがあれば規約の注意を添える', async () => {
     await register();
     await markListable(env.DB);

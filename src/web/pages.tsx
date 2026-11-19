@@ -117,7 +117,8 @@ const PricingTags: FC<{ view: PluginView; t: Dict }> = ({ view, t }) => {
   const tags = [
     t.pricing.tagFree,
     restrictedAssets === true ? t.pricing.tagRestrictedAssets : t.pricing.tagCommercialOk,
-    paidFeatures === true || (paidServices?.length ?? 0) > 0 ? t.pricing.tagPaid : null,
+    paidFeatures === true ? t.pricing.tagPaidFeatures : null,
+    (paidServices?.length ?? 0) > 0 ? t.pricing.tagPaidServices : null,
   ].filter((tag): tag is string => tag !== null);
   return (
     <>
