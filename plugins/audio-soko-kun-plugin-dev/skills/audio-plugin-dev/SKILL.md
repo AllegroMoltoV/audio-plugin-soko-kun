@@ -5,6 +5,12 @@ description: Build an open-source audio plugin (VST 3 and CLAP, optionally with 
 
 # Building an audio plugin and listing it on Audio Plugin Soko-kun
 
+## Tell the author first
+
+Before planning, tell the author the following, and ask them to confirm it. It decides whether the plugin can be listed at all, and a license cannot be taken back after the files are public:
+
+> When your plugin is listed on Audio Plugin Soko-kun, anyone can download its files from GitHub for free, and anyone can use and redistribute its code commercially under the conditions of its license. Income from sales is limited to selling or support outside this platform on that basis. If you want to earn only by selling the files, or to restrict commercial use, your plugin is not eligible for listing. If bundled assets restrict commercial use, declare restrictedAssets in .audio-soko-kun/config.json. Without the declaration, the plugin is shown as OK for commercial use.
+
 This skill walks through the stages of building a DAW plugin with Claude Code, from the first requirements to a listing on Audio Plugin Soko-kun. The knowledge comes from building six published plugins with Claude Code: noise generators, a pitch shifter, a glitch effect, a binaural spatializer, and a spectrum analyzer with a GPU-drawn GUI. Each stage lists what to do, what tends to go wrong, and when it is done. Details live in `references/`, and a project that builds and passes the validators as it is lives in `templates/project/`.
 
 Audio Plugin Soko-kun checks every release against its review criteria. The single source of truth for the criteria is:

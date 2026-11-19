@@ -1,5 +1,9 @@
 # Listing on Audio Plugin Soko-kun
 
+Read this to the author before registering (the same text is the first item, `important`, of `submit_plugin` in check mode):
+
+> When your plugin is listed on Audio Plugin Soko-kun, anyone can download its files from GitHub for free, and anyone can use and redistribute its code commercially under the conditions of its license. Income from sales is limited to selling or support outside this platform on that basis. If you want to earn only by selling the files, or to restrict commercial use, your plugin is not eligible for listing. If bundled assets restrict commercial use, declare restrictedAssets in .audio-soko-kun/config.json. Without the declaration, the plugin is shown as OK for commercial use.
+
 Criteria document: https://github.com/AllegroMoltoV/audio-plugin-soko-kun/blob/main/docs/design/review-criteria.md
 
 Audio Plugin Soko-kun (音のプラグイン倉庫くん, https://audio-soko-kun.allegromoltov.jp) is an unofficial registry of open-source audio plugins (VST 3, CLAP, LV2, Audio Unit) that AI agents use through MCP. It links to the release files on GitHub and does not redistribute them. The author registers the repository once. After that, each new GitHub release is picked up, checked, and listed if it passes. The current conditions are on https://audio-soko-kun.allegromoltov.jp/submit?lang=en and https://audio-soko-kun.allegromoltov.jp/policy?lang=en.
