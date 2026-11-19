@@ -212,7 +212,7 @@ export interface Dict {
 }
 
 const en: Dict = {
-  tagline: 'A warehouse of free-to-download open-source audio plugins',
+  tagline: 'A warehouse of free-to-download audio plugins',
   siteDescription:
     'A registry of open-source audio plugins that you can search from the web or from AI agents such as Claude Code and Codex. Every listed file has a verified build provenance attestation and is checked against a database of known malware samples.',
   notice:
@@ -390,7 +390,7 @@ const en: Dict = {
 };
 
 const ja: Dict = {
-  tagline: '無料で入手できる、オープンソースのオーディオプラグインの倉庫',
+  tagline: '無料で入手できるオーディオプラグインの倉庫',
   siteDescription:
     'オープンソースのオーディオプラグインを、Web と Claude Code や Codex などの AI エージェントから探せるレジストリです。掲載する配布物は、ビルドの来歴の証明を検証し、既知のマルウェアのデータベースと照合しています。',
   notice:
@@ -568,7 +568,7 @@ const ja: Dict = {
 };
 
 const zhHans: Dict = {
-  tagline: '可免费获取的开源音频插件仓库',
+  tagline: '可免费获取的音频插件仓库',
   siteDescription:
     '一个可以通过网页以及 Claude Code、Codex 等 AI 代理查找开源音频插件的收录平台。收录的发布文件均已验证构建来源证明，并与已知恶意软件数据库进行比对。',
   notice:
@@ -744,7 +744,7 @@ const zhHans: Dict = {
 
 const zhHant: Dict = {
   ...zhHans,
-  tagline: '可免費取得的開源音訊外掛倉庫',
+  tagline: '可免費取得的音訊外掛倉庫',
   siteDescription:
     '一個可以透過網頁以及 Claude Code、Codex 等 AI 代理尋找開源音訊外掛的收錄平台。收錄的發行檔案均已驗證建置來源證明，並與已知惡意軟體資料庫進行比對。',
   notice:
@@ -912,7 +912,7 @@ const zhHant: Dict = {
 };
 
 const ko: Dict = {
-  tagline: '무료로 받을 수 있는 오픈 소스 오디오 플러그인 창고',
+  tagline: '무료로 받을 수 있는 오디오 플러그인 창고',
   siteDescription:
     '웹과 Claude Code, Codex 같은 AI 에이전트에서 오픈 소스 오디오 플러그인을 찾을 수 있는 레지스트리입니다. 게재하는 배포 파일은 빌드 출처 증명을 검증하고, 알려진 악성 코드 데이터베이스와 대조합니다.',
   notice:
@@ -1089,7 +1089,7 @@ const ko: Dict = {
 };
 
 const ptBR: Dict = {
-  tagline: 'Um depósito de plugins de áudio de código aberto com download gratuito',
+  tagline: 'Um depósito de plugins de áudio com download gratuito',
   siteDescription:
     'Um registro de plugins de áudio de código aberto que você pode pesquisar pela web ou por agentes de IA como Claude Code e Codex. Cada arquivo listado tem a atestação de procedência da build verificada e é comparado com um banco de dados de malware conhecido.',
   notice:
@@ -1269,7 +1269,7 @@ const ptBR: Dict = {
 };
 
 const es419: Dict = {
-  tagline: 'Un depósito de plugins de audio de código abierto con descarga gratuita',
+  tagline: 'Un depósito de plugins de audio con descarga gratuita',
   siteDescription:
     'Un registro de plugins de audio de código abierto que puedes buscar desde la web o desde agentes de IA como Claude Code y Codex. Cada archivo listado tiene verificada la atestación de procedencia de la compilación y se compara con una base de datos de malware conocido.',
   notice:

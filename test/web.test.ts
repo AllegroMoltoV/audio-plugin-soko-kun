@@ -541,10 +541,10 @@ describe('Web', () => {
   // ヘッダーの副題は入手が無料であることを示し、注意の帯は「無料のサービス」と書かない (本家と共通)。
   it('副題は無料で入手できることを示し、注意の帯からは無料を外す', async () => {
     const ja = await (await SELF.fetch(`${ORIGIN}/?lang=ja`)).text();
-    expect(ja).toContain('無料で入手できる、オープンソースのオーディオプラグインの倉庫');
+    expect(ja).toContain('無料で入手できるオーディオプラグインの倉庫');
     expect(ja).not.toContain('非公式で無料のサービス');
     const en = await (await SELF.fetch(`${ORIGIN}/?lang=en`)).text();
-    expect(en).toContain('A warehouse of free-to-download open-source audio plugins');
+    expect(en).toContain('A warehouse of free-to-download audio plugins');
     expect(en).not.toContain('unofficial, free service');
   });
 
