@@ -25,6 +25,12 @@ function declared(view: PluginView) {
   return { paidFeatures: view.pricing.paidFeatures, restrictedAssets: view.pricing.restrictedAssets };
 }
 
+// ライセンスは本サービスが確かめた事実。掲載中の版は、掲載の条件で OSI か FSF の判定を通っている。
+// 形は本家と同じ { spdx, openSource }。
+function license(view: PluginView) {
+  return { spdx: view.license, openSource: view.status === 'listed' };
+}
+
 function untrustedPricing(view: PluginView) {
   return { paidServices: view.pricing.paidServices, supportUrl: view.pricing.supportUrl };
 }
@@ -45,7 +51,7 @@ function summaryItem(env: Env, view: PluginView) {
     os: view.os,
     arches: view.arches,
     category: view.category,
-    license: view.license,
+    license: license(view),
     declared: declared(view),
     listedVersion: view.listedRelease?.tag ?? null,
     status: view.status,
@@ -99,7 +105,7 @@ function detailItem(env: Env, view: PluginView) {
     author: view.owner,
     githubUrl: view.githubUrl,
     releasesUrl: view.releasesUrl,
-    license: view.license,
+    license: license(view),
     declared: declared(view),
     formats: view.formats,
     os: view.os,

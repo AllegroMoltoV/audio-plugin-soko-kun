@@ -307,6 +307,12 @@ Cron の定期処理は、`release_checks` のうち未完了の行を、1 回�
 | `os` | `windows`・`macos`・`linux` のいずれか |
 | `arch` | `x86_64`・`x86`・`arm64` の配列。fat binary の配布物は、含むアーキテクチャをすべて並べる |
 | `formats` | `vst3`・`clap`・`lv2`・`au` の配列 |
+| `paidFeatures` | 真偽の値。作者への支払いで解放する機能がある。省略できる |
+| `paidServices` | 利用者が別に契約する有料サービスの名前の配列。1 件 1〜60 文字、5 件まで。`[]` は無いと申告したことを表す。省略できる |
+| `restrictedAssets` | 真偽の値。同梱の素材 (インパルス応答・HRTF のデータ・モデル・音源・フォント・画像) に、商用不可などの利用の制限がある。省略できる |
+| `supportUrl` | 支援・購入のページの https の URL を 1 つ。宛先は `booth.pm`・`gumroad.com`・`itch.io`・`patreon.com`・`ko-fi.com` とそれぞれのサブドメイン、`github.com` の `/sponsors/<名前>` に限る。ホストは完全一致かサブドメインで判定し、`evilbooth.pm` のような名前は通さない。省略できる |
+
+`paidFeatures`・`paidServices`・`restrictedAssets`・`supportUrl` の 4 項目は、作者の申告です。本サービスは中身を確かめません。形が誤っていても宣言ファイル全体を `invalid` にせず、その項目を申告なしとして扱い、固定のコードの注意を `config_json` の `notices` に保存します。導線と審査を変えない方針のため、申告の誤りで掲載を止めません。申告は版ごとに `config_json` に持ち、表示には掲載対象バージョンの値だけを使います。掲載されていない新しい版の申告が、掲載中の版の表示に出ないようにするためです。
 
 判定の結果は `release_checks` の `config_state` に書きます。
 

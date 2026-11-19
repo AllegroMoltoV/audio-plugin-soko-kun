@@ -166,7 +166,7 @@ OAuth のクライアント・認可・トークンの情報は D1 ではなく 
 | `license_spdx` | TEXT | | 版のタグの時点で GitHub が検出したライセンスの SPDX 識別子。ライセンスが無いときは NULL |
 | `config_state` | TEXT | NOT NULL、既定値 `pending` | 宣言ファイルの判定。`pending`・`ok`・`missing`・`invalid`・`no_declared_assets`・`mismatch` のいずれか。`mismatch` は、宣言と中身の検査の結果が食い違うとき |
 | `config_fetched_at` | TEXT | | 版のタグの時点の宣言ファイルを取得した日時。NULL は未取得 |
-| `config_json` | TEXT | | 取得して検証した宣言を正規化した JSON。宣言ファイルに書いた項目だけを持ち、省いた項目は保存しない。ファイルが無いときと未取得のときは NULL。中身の検査を終えてから照合するために持つ |
+| `config_json` | TEXT | | 取得して検証した宣言を正規化した JSON。宣言ファイルに書いた項目だけを持ち、省いた項目は保存しない。ファイルが無いときと未取得のときは NULL。中身の検査を終えてから照合するために持つ。作者の申告 (`paidFeatures`・`paidServices`・`restrictedAssets`・`supportUrl`) も版ごとにここに持ち、表示には掲載対象バージョンの値を使う。申告の形の誤りは、固定のコードの配列 `notices` として一緒に保存する |
 | `review_state` | TEXT | NOT NULL、既定値 `pending` | `pending`・`done`・`failed` のいずれか |
 | `review_attempts` | INTEGER | NOT NULL、既定値 0 | レビューを試みた回数。AI Gateway の支出の上限、Workers AI の無料枠の不足、混雑は数えない |
 | `review_wait_until` | TEXT | | AI Gateway の支出の上限か Workers AI の無料枠の不足でレビューを断られたとき、次にレビューを試す日時。断られた 1 時間後 |

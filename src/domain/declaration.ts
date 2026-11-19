@@ -92,7 +92,8 @@ function parseAsset(raw: unknown): DeclaredAsset | null {
 
 const MAX_SERVICES = 5;
 const MAX_SERVICE_LENGTH = 60;
-const MAX_SUPPORT_URL_LENGTH = 500;
+// 本家の配信プラグイン倉庫くんと同じ上限。
+const MAX_SUPPORT_URL_LENGTH = 300;
 // 支援・購入のページとして許可する宛先。ホストの完全一致か、そのサブドメインだけを通す。
 const SUPPORT_HOSTS = ['booth.pm', 'gumroad.com', 'itch.io', 'patreon.com', 'ko-fi.com'];
 // GitHub は github.com の Sponsors のページだけを通す。サブドメインと別のパスは通さない。
