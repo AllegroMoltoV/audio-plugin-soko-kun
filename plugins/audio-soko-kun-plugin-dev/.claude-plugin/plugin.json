@@ -2,7 +2,7 @@
   "name": "audio-soko-kun-plugin-dev",
   "displayName": "Audio Soko-kun Plugin Dev",
   "description": "A skill for building VST 3 and CLAP audio plugins with Claude Code: planning, a CLAP-first project with clap-wrapper, validation with pluginval and clap-validator in CI, GUI testing, releases with build provenance attestations, and listing on Audio Plugin Soko-kun",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "author": {
     "name": "AllegroMoltoV",
     "url": "https://github.com/AllegroMoltoV"
