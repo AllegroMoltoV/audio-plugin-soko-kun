@@ -43,7 +43,7 @@ export const ptBR: Record<PageKey, PageContent> = {
         paragraphs: [
           {
             important:
-              'Ao listar um plugin no Audio Plugin Soko-kun, qualquer pessoa pode baixar os arquivos gratuitamente no GitHub, e qualquer pessoa pode usar e redistribuir o código comercialmente nos termos da licença. A receita só pode vir de vendas ou apoio externos com base nisso. Se você quer obter receita apenas vendendo os arquivos, ou quer restringir o uso comercial, o plugin não pode ser listado no Audio Plugin Soko-kun.',
+              'Ao listar um plugin no Audio Plugin Soko-kun, qualquer pessoa pode baixar os arquivos gratuitamente no GitHub, e qualquer pessoa pode usar e redistribuir o código comercialmente nos termos da licença. A receita só pode vir de vendas ou apoio externos com base nisso. Se você quer obter receita apenas vendendo os arquivos, ou quer restringir o uso comercial, o plugin não pode ser listado no Audio Plugin Soko-kun. Se os materiais incluídos restringem o uso comercial, declare restrictedAssets em .audio-soko-kun/config.json. Sem essa declaração, o plugin é exibido como de uso comercial permitido.',
           },
           'Esta plataforma lista plugins de áudio de código aberto enviados pelo autor que administra o repositório no GitHub e que cumprem todas as condições abaixo.',
           { formats: 'Formatos suportados' },
@@ -102,7 +102,7 @@ export const ptBR: Record<PageKey, PageContent> = {
         paragraphs: [
           {
             important:
-              'Ao listar um plugin no Audio Plugin Soko-kun, qualquer pessoa pode baixar os arquivos gratuitamente no GitHub, e qualquer pessoa pode usar e redistribuir o código comercialmente nos termos da licença. A receita só pode vir de vendas ou apoio externos com base nisso. Se você quer obter receita apenas vendendo os arquivos, ou quer restringir o uso comercial, o plugin não pode ser listado no Audio Plugin Soko-kun.',
+              'Ao listar um plugin no Audio Plugin Soko-kun, qualquer pessoa pode baixar os arquivos gratuitamente no GitHub, e qualquer pessoa pode usar e redistribuir o código comercialmente nos termos da licença. A receita só pode vir de vendas ou apoio externos com base nisso. Se você quer obter receita apenas vendendo os arquivos, ou quer restringir o uso comercial, o plugin não pode ser listado no Audio Plugin Soko-kun. Se os materiais incluídos restringem o uso comercial, declare restrictedAssets em .audio-soko-kun/config.json. Sem essa declaração, o plugin é exibido como de uso comercial permitido.',
           },
           'Esta plataforma lista plugins de áudio de código aberto enviados pelo autor que administra o repositório no GitHub.',
           { formats: 'Formatos suportados' },

@@ -197,6 +197,9 @@ export interface Dict {
     commercialRestrictedAssets: string;
     commercialUndeclared: string;
     commercialServices: string;
+    // すべての掲載に付けるタグ。入手が無料であることと、商用利用できること (素材の制限の申告が無いとき)。
+    tagFree: string;
+    tagCommercialOk: string;
   };
 }
 
@@ -370,6 +373,8 @@ const en: Dict = {
     commercialUndeclared:
       'The code can be used commercially under the license terms (checked by this platform). The author has not declared whether the bundled assets restrict use.',
     commercialServices: 'Also check the terms of the external services it uses.',
+    tagFree: 'Free',
+    tagCommercialOk: 'Commercial use OK',
   },
 };
 
@@ -543,6 +548,8 @@ const ja: Dict = {
     commercialUndeclared:
       'コードはライセンスの条件にしたがって商用利用できます (このプラットフォームが確認)。同梱の素材の制限は、作者の申告がありません。',
     commercialServices: '利用する外部サービスの規約も確かめてください。',
+    tagFree: '無料',
+    tagCommercialOk: '商用利用可',
   },
 };
 
@@ -712,6 +719,8 @@ const zhHans: Dict = {
       '代码可按照许可证条款进行商业使用（本平台已确认）。作者申报捆绑素材有商业使用等限制，详情请查看 README。',
     commercialUndeclared: '代码可按照许可证条款进行商业使用（本平台已确认）。捆绑素材是否有限制，作者没有申报。',
     commercialServices: '也请确认所使用的外部服务的条款。',
+    tagFree: '免费',
+    tagCommercialOk: '可商用',
   },
 };
 
@@ -875,6 +884,8 @@ const zhHant: Dict = {
       '程式碼可依照授權條款進行商業使用（本平台已確認）。作者申報隨附素材有商業使用等限制，詳情請查看 README。',
     commercialUndeclared: '程式碼可依照授權條款進行商業使用（本平台已確認）。隨附素材是否有限制，作者沒有申報。',
     commercialServices: '也請確認所使用的外部服務的條款。',
+    tagFree: '免費',
+    tagCommercialOk: '可商用',
   },
 };
 
@@ -1047,6 +1058,8 @@ const ko: Dict = {
     commercialUndeclared:
       '코드는 라이선스 조건에 따라 상업적으로 이용할 수 있습니다(이 플랫폼이 확인). 동봉된 소재의 제한 여부는 작성자가 신고하지 않았습니다.',
     commercialServices: '이용하는 외부 서비스의 약관도 확인해 주세요.',
+    tagFree: '무료',
+    tagCommercialOk: '상업적 이용 가능',
   },
 };
 
@@ -1221,6 +1234,8 @@ const ptBR: Dict = {
     commercialUndeclared:
       'O código pode ser usado comercialmente nos termos da licença (verificado por esta plataforma). O autor não declarou se os materiais incluídos têm restrições.',
     commercialServices: 'Confira também os termos dos serviços externos utilizados.',
+    tagFree: 'Grátis',
+    tagCommercialOk: 'Uso comercial permitido',
   },
 };
 
@@ -1397,6 +1412,8 @@ const es419: Dict = {
     commercialUndeclared:
       'El código puede usarse comercialmente según los términos de la licencia (verificado por esta plataforma). El autor no declaró si los materiales incluidos tienen restricciones.',
     commercialServices: 'Revisa también los términos de los servicios externos que usa.',
+    tagFree: 'Gratis',
+    tagCommercialOk: 'Uso comercial permitido',
   },
 };
 

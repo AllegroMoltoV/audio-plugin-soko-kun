@@ -388,7 +388,13 @@ describe('Web', () => {
     // [] は無いと申告したことで、申告なしと区別する。
     expect(row(detail, 'Paid services used separately')).toBe('None (declared)');
     expect(detail).toContain('This platform does not verify them.');
-    expect(await listMain()).not.toContain('pill declared');
+    // 申告なしでも、掲載中のものには無料と商用利用可のタグを付け、有料と素材の制限のタグは付けない。
+    const list = await listMain();
+    expect(list).toContain('<span class="pill">Free</span>');
+    expect(list).toContain('<span class="pill">Commercial use OK</span>');
+    for (const tag of ['Paid features', 'Paid services', 'Commercial-use restrictions on assets']) {
+      expect(list, tag).not.toContain(tag);
+    }
   });
 
   // U4: 再配布の条件を本文で確かめられるよう、確かめたライセンスを SPDX の本文へリンクする。
@@ -423,8 +429,8 @@ describe('Web', () => {
     expect(detail.indexOf('Approved by the OSI')).toBeLessThan(detail.indexOf('Declared by the author'));
 
     const list = await listMain();
-    expect(list).toContain('<span class="pill declared">Paid features</span>');
-    expect(list).toContain('<span class="pill declared">Paid services</span>');
+    expect(list).toContain('<span class="pill">Paid features</span>');
+    expect(list).toContain('<span class="pill">Paid services</span>');
     // false と申告した素材の制限には、タグを付けない。
     expect(list).not.toContain('Commercial-use restrictions on assets');
   });
@@ -454,7 +460,7 @@ describe('Web', () => {
     expect(detail).not.toContain('NEW-SERVICE-MARKER');
     expect(detail).not.toContain('ko-fi.com/newmarker');
     expect(row(detail, 'Features unlocked by payment')).toBe('Not declared by the author');
-    expect(await listMain()).not.toContain('pill declared');
+    expect(await listMain()).not.toContain('Paid features');
   });
 
   it('素材の制限を true と申告したプラグインにだけ、一覧で素材の制限のタグを付ける', async () => {
@@ -462,9 +468,27 @@ describe('Web', () => {
     await markListable(env.DB);
     await declare({ paidFeatures: false, paidServices: [], restrictedAssets: true });
     const list = await listMain();
-    expect(list).toContain('<span class="pill declared">Commercial-use restrictions on assets</span>');
+    expect(list).toContain('<span class="pill">Commercial-use restrictions on assets</span>');
+    // 制限のタグと商用利用可のタグは同時に出さない。
+    expect(list).not.toContain('Commercial use OK');
     expect(list).not.toContain('Paid features');
     expect(list).not.toContain('Paid services');
+  });
+
+  // 詳細の見出しの下にも、一覧と同じタグを付ける (本家と共通)。見た目はほかのタグと同じ素の .pill。
+  it('詳細の見出しの下に無料と商用利用可のタグを付け、カードの区切りの線はカードの li にだけ当てる', async () => {
+    await register();
+    await markListable(env.DB);
+    await declare({ restrictedAssets: false });
+    const detail = await detailPage();
+    const tags = detail.split('<ul class="tags">')[1]?.split('</ul>')[0] ?? '';
+    expect(tags).toContain('<span class="pill">Free</span>');
+    expect(tags).toContain('<span class="pill">Commercial use OK</span>');
+    expect(detail).not.toContain('pill declared');
+    // カードの中のタグの li に点線と余白を当てない。
+    const css = await (await SELF.fetch(`${ORIGIN}/style.css`)).text();
+    expect(css).toContain('ol.cards > li {');
+    expect(css).not.toContain('ol.cards li {');
   });
 
   // 商用利用の 1 行 (本家と共通)。作者に新しい項目は申告させず、ライセンスの判定と restrictedAssets から組み立てる。

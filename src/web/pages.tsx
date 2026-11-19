@@ -107,19 +107,24 @@ export const Linkified: FC<{ text: string }> = ({ text }) => {
   );
 };
 
-// 一覧の申告のタグ。有料の機能・有料サービス・素材の制限があると申告したものだけに付け、申告なし (null) には付けない。
+// 一覧のカードと詳細の見出しの下のタグ (本家と共通)。掲載中のものはすべて無料で入手できる。
+// 素材の制限を申告したものには制限のタグ、それ以外 (制限なしの申告と申告なし) には、ライセンスの判定を通った
+// 掲載中のものに商用利用可のタグを付け、2 つは同時に出さない。有料の機能・サービスは申告が真のときだけ付ける。
+// 見た目はほかのタグと同じ素の .pill にする。
 const PricingTags: FC<{ view: PluginView; t: Dict }> = ({ view, t }) => {
+  if (view.status !== 'listed') return null;
   const { paidFeatures, paidServices, restrictedAssets } = view.pricing;
   const tags = [
+    t.pricing.tagFree,
+    restrictedAssets === true ? t.pricing.tagRestrictedAssets : t.pricing.tagCommercialOk,
     paidFeatures === true ? t.pricing.tagPaidFeatures : null,
     paidServices && paidServices.length > 0 ? t.pricing.tagPaidServices : null,
-    restrictedAssets === true ? t.pricing.tagRestrictedAssets : null,
   ].filter((tag): tag is string => tag !== null);
   return (
     <>
       {tags.map((tag) => (
         <li>
-          <span class="pill declared">{tag}</span>
+          <span class="pill">{tag}</span>
         </li>
       ))}
     </>
@@ -630,6 +635,7 @@ export const PluginDetail: FC<{ view: PluginView; t: Dict; lang: Lang; showOrigi
               </li>
             ))
           : null}
+        <PricingTags view={view} t={t} />
         {/* VST Compatible ロゴはタグの間に挟まず、同じ行の最後に置く。タグの高さをそろえて並べるため。 */}
         {view.status === 'listed' && view.formats.includes('vst3') ? (
           <li class="vst-logo-item">
