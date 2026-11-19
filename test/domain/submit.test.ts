@@ -2,6 +2,7 @@
 import { env } from 'cloudflare:test';
 import { HttpResponse, http } from 'msw';
 import { describe, expect, it } from 'vitest';
+import { NOTICE_TEXT } from '../../src/domain/author';
 import { checkPlugin, parseRepositoryUrl, SUBMITS_PER_DAY, submitPlugin } from '../../src/domain/submit';
 import type { Env } from '../../src/env';
 import { githubHandlers, OWNER, REPO, REPO_ID, releaseCheckHandlers, USER_TOKEN } from '../fixtures/github';
@@ -314,6 +315,24 @@ describe('checkPlugin (確認のモード)', () => {
     declare('{"name": "White Noise"}');
     const ok = (await checkPlugin(env, submitter, url)) as { config: { result: string } };
     expect(ok.config.result).toBe('ok');
+  });
+
+  // R11・X10: 申告の形の誤りは宣言を invalid にせず、固定の文言の notices で返す。作者の書いた URL を応答に含めない。
+  it('既定のブランチの supportUrl の形の誤りは、ok と support_url_invalid の notice を返し、URL を応答に含めない', async () => {
+    network.use(
+      http.get(`https://api.github.com/repos/${OWNER}/${REPO}/contents/.audio-soko-kun/config.json`, () =>
+        HttpResponse.text(JSON.stringify({ name: 'Fixture', supportUrl: 'https://evil.example/AUTHOR-URL-MARKER' })),
+      ),
+      ...githubHandlers({ release: 'none' }),
+      ...releaseCheckHandlers(),
+    );
+    const result = await checkPlugin(env, submitter, url);
+    expect((result as { config: unknown }).config).toEqual({
+      result: 'ok',
+      message: expect.any(String),
+      notices: [{ code: 'support_url_invalid', ...NOTICE_TEXT.support_url_invalid, waitsFor: 'author' }],
+    });
+    expect(JSON.stringify(result)).not.toContain('AUTHOR-URL-MARKER');
   });
 
   // 既定のブランチの名前は / などを含みうる。名前を API のパスに使うと、確認のモードが結果を返さず内部エラーになる。

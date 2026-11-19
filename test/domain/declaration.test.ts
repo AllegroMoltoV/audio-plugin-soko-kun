@@ -10,9 +10,12 @@ import {
   type Declaration,
   judgeDeclaration,
   matchesPattern,
+  NO_PRICING,
   parseDeclaration,
+  parseSupportUrl,
   serializeDeclaration,
   settleDeclarations,
+  storedPricing,
 } from '../../src/domain/declaration';
 import { runReleaseChecks } from '../../src/domain/release-checks';
 import { submitPlugin } from '../../src/domain/submit';
@@ -87,13 +90,21 @@ describe('X09 宣言ファイルの形の誤りは invalid にする', () => {
         name: 'Simple Pitch Shift',
         category: 'effect',
         assets: [{ pattern: asset.pattern, os: 'windows', arch: ['x86_64'], formats: ['clap', 'vst3'] }],
+        pricing: NO_PRICING,
+        notices: [],
       },
     });
   });
 });
 
 describe('C13 宣言と中身の検査の結果の照合', () => {
-  const declaration = (assets: Declaration['assets']): Declaration => ({ name: null, category: null, assets });
+  const declaration = (assets: Declaration['assets']): Declaration => ({
+    name: null,
+    category: null,
+    assets,
+    pricing: NO_PRICING,
+    notices: [],
+  });
   const detected = (changes: Partial<ArchiveForDeclaration> = {}): ArchiveForDeclaration => ({
     name: WINDOWS_ZIP,
     result: 'passed',
@@ -166,6 +177,8 @@ describe('保存した宣言の再解析', () => {
     ['category だけ', { category: 'effect' }],
     ['assets だけ', { assets: [asset] }],
     ['すべて', { name: 'Fixture', category: 'instrument', assets: [asset] }],
+    ['申告だけ', { paidFeatures: false, paidServices: [], restrictedAssets: true }],
+    ['申告と支援のページ', { paidServices: ['OpenAI API'], supportUrl: 'https://example.booth.pm/items/1' }],
   ];
   for (const [label, body] of cases) {
     it(`${label}の宣言は、保存して読み直しても parsed のまま同じ内容になる`, () => {
@@ -339,5 +352,90 @@ describe('古い版の宣言の判定と、新しい版の判定済みの宣言'
     ).run();
     await settle(7000, OLD_DECLARATION);
     expect((await plugin())?.display_name).toBe('Old Name');
+  });
+});
+
+// 申告の 4 項目 (docs/design/testing.md の X10)。形の誤りで掲載を止めず、その項目だけを申告なしにする。
+describe('X10 宣言ファイルの有料・素材の申告', () => {
+  const parse = (body: Record<string, unknown>) => {
+    const parsed = parseDeclaration(JSON.stringify(body));
+    if (parsed.state !== 'parsed') throw new Error(parsed.state);
+    return parsed.declaration;
+  };
+
+  it('項目が無ければ申告なし (null)、[] と false は申告として区別する', () => {
+    expect(parse({}).pricing).toEqual(NO_PRICING);
+    expect(parse({ paidFeatures: false, paidServices: [], restrictedAssets: false }).pricing).toEqual({
+      paidFeatures: false,
+      paidServices: [],
+      restrictedAssets: false,
+      supportUrl: null,
+    });
+  });
+
+  it('形の誤った項目は null にして注意のコードを返し、宣言ファイル全体は invalid にしない', () => {
+    const declaration = parse({
+      name: 'Fixture',
+      paidFeatures: 'yes',
+      paidServices: ['a', 'b', 'c', 'd', 'e', 'f'],
+      restrictedAssets: 1,
+      supportUrl: 'http://booth.pm/x',
+    });
+    expect(declaration.name).toBe('Fixture');
+    expect(declaration.pricing).toEqual(NO_PRICING);
+    expect(declaration.notices).toEqual([
+      'paid_features_invalid',
+      'paid_services_invalid',
+      'restricted_assets_invalid',
+      'support_url_invalid',
+    ]);
+  });
+
+  it.each([[['x'.repeat(61)]], [['']], [['line\nbreak']], [[1]], ['OpenAI API']])(
+    'paidServices の形の誤り: %j',
+    (value) => {
+      expect(parse({ paidServices: value }).notices).toEqual(['paid_services_invalid']);
+    },
+  );
+
+  it('paidServices の名前は前後の空白を除いて残す', () => {
+    expect(parse({ paidServices: [' OpenAI API '] }).pricing.paidServices).toEqual(['OpenAI API']);
+  });
+
+  it.each([
+    'https://booth.pm/ja/items/1',
+    'https://example.booth.pm/',
+    'https://gumroad.com/l/x',
+    'https://someone.gumroad.com/',
+    'https://someone.itch.io/game',
+    'https://www.patreon.com/someone',
+    'https://ko-fi.com/someone',
+    'https://github.com/sponsors/AllegroMoltoV',
+  ])('許可する支援のページ: %s', (url) => {
+    expect(parseSupportUrl(url)).toBe(new URL(url).href);
+  });
+
+  it.each([
+    'http://booth.pm/',
+    'https://evilbooth.pm/',
+    'https://booth.pm.evil.example/',
+    'https://gist.github.com/sponsors/x',
+    'https://github.com/AllegroMoltoV',
+    'https://github.com/sponsors/x/../../evil',
+    'https://user:pass@booth.pm/',
+    'https://booth.pm:8443/',
+    'javascript:alert(1)',
+    'not a url',
+    42,
+  ])('許可しない支援のページ: %s', (url) => {
+    expect(parseSupportUrl(url)).toBe('invalid');
+  });
+
+  it('作者の宣言ファイルに書いた notices は読まず、保存した値の notices だけを読む', () => {
+    const declaration = parse({ paidFeatures: true, notices: ['support_url_invalid'] });
+    expect(declaration.notices).toEqual([]);
+    const stored = storedPricing(serializeDeclaration(parse({ paidFeatures: 'yes' })));
+    expect(stored).toEqual({ pricing: NO_PRICING, notices: ['paid_features_invalid'] });
+    expect(storedPricing(null)).toEqual({ pricing: NO_PRICING, notices: [] });
   });
 });

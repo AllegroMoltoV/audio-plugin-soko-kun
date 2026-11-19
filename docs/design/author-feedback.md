@@ -87,6 +87,7 @@ sequenceDiagram
       "detailUrl": "https://audio-soko-kun.allegromoltov.jp/plugins/example-owner/example-delay",
       "publicStatus": "listed",
       "listedVersion": "v1.1.0",
+      "notices": [],
       "versions": [
         {
           "tag": "v1.1.0",
@@ -94,6 +95,7 @@ sequenceDiagram
           "state": "listed",
           "checkAgainAfter": null,
           "blockers": [],
+          "notices": [],
           "assets": [
             {
               "guided": true,
@@ -194,6 +196,8 @@ sequenceDiagram
 
 `checkAgainAfter` は、作者の LLM が次に `list_my_plugins` を呼ぶ時刻です。値は、次の定期処理の区切りの 5 分後と、`resumesAt` のうち最も遅い時刻の、早いほうです。5 分は、定期処理と、定期処理が起動する検証のワークフローの結果が届くまでの余裕です。支出の上限か無料枠の不足でレビューだけを待つときは、その再開の時刻を返します。その時刻より前にはレビューが進まないためです。本サービスから作者へ知らせる手段は無く、作者の LLM が呼んだときにしか状態の変化を伝えられません。配信プラグイン倉庫くんで上限の時刻を返したところ、作者の LLM が完了の見込みと読み、重大の指摘で `held` になった後も上限まで待ち続けました。そのため、状態が変わりうる次の時刻を返します。この時刻より前に状態は変わりませんが、この時刻に変わるとは限りません。`checkAgainAfter` は呼ぶたびに後ろへ動くため、`notes` で、完了の見込みではないことと、遅れの判断は `resumesAt` で行うことを伝えます。
 
+`notices` は、掲載を止めない作者への注意です。`blockers` と違い、版の状態を変えません。`blockers` に入れると、`waitsFor` が `"author"` の理由がある版を `rejected` と判定するためです。プラグインの `notices` には、掲載中の版の宣言ファイルに作者の申告 (`paidFeatures`・`paidServices`・`restrictedAssets`・`supportUrl`) が 1 つも無いときの `declarations_missing` を入れます。掲載済みの作者が、新しい申告の項目を知る経路になります。版の `notices` には、申告の形の誤り (`paid_features_invalid`・`paid_services_invalid`・`restricted_assets_invalid`・`support_url_invalid`) を入れます。どの注意も固定のコードと固定の文言だけで、拒否した URL のような作者の文字列を入れません。`waitsFor` は `"author"` です。
+
 `"admin"` の `blockers` のうち、掲載の後に既定のブランチの README へ新しい案内が足されたときの理由 `readme_held` は、プラグインのすべての版に付きます。管理者が確かめるまで、どの版も掲載しません。
 
 `checks.diffRules.hits` と `diff_held` の `hits` は、当たった乗っ取りの兆候の `rule` と `title` と、`untrusted.file` のファイルです。ファイルの無い当たりには `untrusted` を付けません。`diff-too-large` では、当たった事実を `fact` に入れます。値は `github-changed`・`build-script-changed`・`binary-added`・`list-incomplete` です。
@@ -277,7 +281,7 @@ sequenceDiagram
 
 条件は最新のリリースで判定し、レビューは既定のブランチの最新のコミットのファイルで行います。リリースがまだ無いときは、`no_release` の後の条件 (`not_immutable`・`no_verifiable_asset`・`unsupported_tag`・`no_license`・`no_archive`・`no_attestation`) を `unchecked` として、直し方とともに返します。不変のリリースは公開の後に直せないため、作者が公開の前に条件を知れるようにするためです。リポジトリの不変のリリースの設定を読む API は管理者の読み取りの権限を求め、本サービスのサインインは権限を求めないため使いません。
 
-あわせて、既定のブランチの `.audio-soko-kun/config.json` の形を確かめ、`config` の結果を返します。結果は `ok`・`missing`・`invalid` で、外部呼び出しの予算が残っていないとき、管理者でないとき、GitHub がレート制限と障害以外の失敗を返したときは `unchecked` です。宣言は任意のため、`missing` は誤りではありません。宣言した配布物 (`assets`) とアーカイブの中身の照合と、カテゴリの推定は、中身の検査 (GitHub Actions) を終えた版でしか行えないため、確認のモードでは形だけを確かめます。
+あわせて、既定のブランチの `.audio-soko-kun/config.json` の形を確かめ、`config` の結果を返します。作者の申告の形の誤りは、`list_my_plugins` と同じ固定のコードと文言で `config` の `notices` に入れ、`result` は `ok` のままにします。申告の値は応答に含めず、レビューの事実の行にだけ渡します。結果は `ok`・`missing`・`invalid` で、外部呼び出しの予算が残っていないとき、管理者でないとき、GitHub がレート制限と障害以外の失敗を返したときは `unchecked` です。宣言は任意のため、`missing` は誤りではありません。宣言した配布物 (`assets`) とアーカイブの中身の照合と、カテゴリの推定は、中身の検査 (GitHub Actions) を終えた版でしか行えないため、確認のモードでは形だけを確かめます。
 
 中身の検査と macOS の署名と公証の判定は、確認のモードでは行わず、それぞれの条件の説明だけを返します。どちらも GitHub Actions で配布物を取得して行うためです。また、確認のモードを使う公開前のリリースには、まだ配布物がありません。通信の API の検出も新しい版にだけ行うため、確認のモードの `user-data-handling` は README とワークフローだけで判定します。`no-security-bypass` と `no-terminal-paste` は、README に加えて、README 以外の文書も新しい版の検査と同じ選び方で照合します ([検査と同期](scanning.md) の「README 以外の文書の照合」)。照合できなかったときも重大の指摘にします。新しい版の検査でだけ当たると、作者は不変のリリースの公開の後にしか直せないためです。
 

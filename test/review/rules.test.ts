@@ -262,9 +262,10 @@ describe('judgeByRules', () => {
 });
 
 describe('LLM に渡す情報', () => {
-  it('LLM が判定するのは、文章の意図を読む 2 項目だけ', () => {
+  it('LLM が判定するのは、文章の意図を読む 3 項目だけ', () => {
     expect(LLM_CRITERIA.map((criterion) => criterion.id).sort()).toEqual([
       'ci-plugin-validation',
+      'pricing-declaration',
       'user-data-handling',
     ]);
   });

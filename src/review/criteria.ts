@@ -330,6 +330,16 @@ export const CRITERIA: Criterion[] = [
     title: 'SECURITY.md states how to report issues',
     fix: 'Add SECURITY.md with a reporting channel and the supported versions.',
   },
+  {
+    id: 'pricing-declaration',
+    kind: 'recommendation',
+    judgedBy: 'llm',
+    title: 'The declarations about paid features, paid services, and restricted assets match the README',
+    // ソースは読まない。README と、事実の行の申告の値・通信の検出・ライセンスの文書の有無だけで判定する。掲載は止めない。
+    viewpoint:
+      'Compare the declarations in the facts with the README. Answer not_met when the README says that features are unlocked by paying, by a license key, or by a subscription and paidFeatures is not true; when the README says that users need an account or a paid plan of an external service (for example an API key of a paid AI service) and paidServices does not name it; when the README says bundled samples, impulse responses, HRTF data, models, fonts, or images may not be used commercially and restrictedAssets is not true; or when restrictedAssets is true and neither the README nor a NOTICE or THIRD_PARTY_LICENSES file in the file list describes the origin and license of the bundled assets. If there are no declarations, answer not_met only when the README shows one of these cases. Otherwise answer met.',
+    fix: 'Declare paidFeatures, paidServices, and restrictedAssets in .audio-soko-kun/config.json so that they match the README, and describe each bundled asset with its origin and license in the README or NOTICE. This does not stop listing.',
+  },
 ];
 
 export const CRITERIA_BY_ID = new Map(CRITERIA.map((criterion) => [criterion.id, criterion]));

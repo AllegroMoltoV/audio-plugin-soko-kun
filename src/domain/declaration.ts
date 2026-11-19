@@ -31,10 +31,35 @@ export interface DeclaredAsset {
   formats: Format[];
 }
 
+// 作者の申告 (docs/design/scanning.md の「有料・素材の申告」)。本サービスは中身を確かめない。null は申告なし。
+export interface Pricing {
+  // 作者への支払いで解放する機能がある。
+  paidFeatures: boolean | null;
+  // 利用者が別に契約する有料サービスの名前。[] は無いと申告したこと。
+  paidServices: string[] | null;
+  // 同梱の素材に、商用不可などの利用の制限がある。
+  restrictedAssets: boolean | null;
+  // 支援・購入のページ。許可した宛先の https の URL だけ。
+  supportUrl: string | null;
+}
+
+// 申告の形の誤り。掲載は止めず、その項目を申告なしにして作者に知らせる。固定のコードだけを持ち、作者の文字列を持たない。
+export const PRICING_NOTICES = [
+  'paid_features_invalid',
+  'paid_services_invalid',
+  'restricted_assets_invalid',
+  'support_url_invalid',
+] as const;
+export type PricingNotice = (typeof PRICING_NOTICES)[number];
+
+export const NO_PRICING: Pricing = { paidFeatures: null, paidServices: null, restrictedAssets: null, supportUrl: null };
+
 export interface Declaration {
   name: string | null;
   category: Category | null;
   assets: DeclaredAsset[] | null;
+  pricing: Pricing;
+  notices: PricingNotice[];
 }
 
 export type ParsedDeclaration =
@@ -65,8 +90,73 @@ function parseAsset(raw: unknown): DeclaredAsset | null {
   return { pattern, os: os as Os, arch, formats };
 }
 
+const MAX_SERVICES = 5;
+const MAX_SERVICE_LENGTH = 60;
+// 本家の配信プラグイン倉庫くんと同じ上限。
+const MAX_SUPPORT_URL_LENGTH = 300;
+// 支援・購入のページとして許可する宛先。ホストの完全一致か、そのサブドメインだけを通す。
+const SUPPORT_HOSTS = ['booth.pm', 'gumroad.com', 'itch.io', 'patreon.com', 'ko-fi.com'];
+// GitHub は github.com の Sponsors のページだけを通す。サブドメインと別のパスは通さない。
+const GITHUB_SPONSORS = /^\/sponsors\/[A-Za-z0-9-]{1,39}\/?$/;
+
+function parseFlag(value: unknown): boolean | null | 'invalid' {
+  if (value === undefined) return null;
+  return typeof value === 'boolean' ? value : 'invalid';
+}
+
+function parseServices(value: unknown): string[] | null | 'invalid' {
+  if (value === undefined) return null;
+  if (!Array.isArray(value) || value.length > MAX_SERVICES) return 'invalid';
+  const services: string[] = [];
+  for (const item of value) {
+    if (typeof item !== 'string') return 'invalid';
+    const name = item.trim();
+    if (name.length === 0 || name.length > MAX_SERVICE_LENGTH || /\p{Cc}/u.test(name)) return 'invalid';
+    services.push(name);
+  }
+  return services;
+}
+
+export function parseSupportUrl(value: unknown): string | null | 'invalid' {
+  if (value === undefined) return null;
+  if (typeof value !== 'string' || value.length > MAX_SUPPORT_URL_LENGTH) return 'invalid';
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return 'invalid';
+  }
+  if (url.protocol !== 'https:' || url.username || url.password || url.port) return 'invalid';
+  const host = url.hostname.toLowerCase();
+  const allowed =
+    SUPPORT_HOSTS.some((suffix) => host === suffix || host.endsWith(`.${suffix}`)) ||
+    (host === 'github.com' && GITHUB_SPONSORS.test(url.pathname));
+  return allowed ? url.href : 'invalid';
+}
+
+// 申告の 4 項目を読む。形の誤った項目は null にし、注意のコードを返す。
+function parsePricing(body: Record<string, unknown>): { pricing: Pricing; notices: PricingNotice[] } {
+  const notices: PricingNotice[] = [];
+  const pick = <T>(value: T | 'invalid', notice: PricingNotice): T | null => {
+    if (value === 'invalid') {
+      notices.push(notice);
+      return null;
+    }
+    return value;
+  };
+  return {
+    pricing: {
+      paidFeatures: pick(parseFlag(body.paidFeatures), 'paid_features_invalid'),
+      paidServices: pick(parseServices(body.paidServices), 'paid_services_invalid'),
+      restrictedAssets: pick(parseFlag(body.restrictedAssets), 'restricted_assets_invalid'),
+      supportUrl: pick(parseSupportUrl(body.supportUrl), 'support_url_invalid'),
+    },
+    notices,
+  };
+}
+
 // 宣言ファイルの形を検証する。text は取得した本文。null はファイルが無いこと、too_large は 16 KB を超えたこと。
-// 知らない項目は無視する。
+// 知らない項目は無視する。申告の 4 項目の形の誤りでは invalid にせず、その項目を null にして notices に入れる。
 export function parseDeclaration(text: string | 'too_large' | null): ParsedDeclaration {
   if (text === null) return { state: 'missing' };
   if (text === 'too_large') return { state: 'invalid' };
@@ -92,15 +182,42 @@ export function parseDeclaration(text: string | 'too_large' | null): ParsedDecla
       declared.push(asset);
     }
   }
+  const { pricing, notices } = parsePricing(body);
   return {
     state: 'parsed',
     declaration: {
       name: typeof name === 'string' ? name.trim() : null,
       category: (category as Category | undefined) ?? null,
       assets: declared,
+      pricing,
+      notices,
     },
   };
 }
+
+// 保存した config_json から、申告と取得したときの注意を読む。宣言が無い・読めない版は申告なし。
+// notices は serializeDeclaration が書いた値だけを読む。作者の宣言ファイルの notices は parseDeclaration が読まない。
+export function storedPricing(configJson: string | null): { pricing: Pricing; notices: PricingNotice[] } {
+  if (configJson === null) return { pricing: NO_PRICING, notices: [] };
+  const parsed = parseDeclaration(configJson);
+  if (parsed.state !== 'parsed') return { pricing: NO_PRICING, notices: [] };
+  let stored: unknown;
+  try {
+    stored = (JSON.parse(configJson) as { notices?: unknown }).notices;
+  } catch {
+    stored = undefined;
+  }
+  const notices = Array.isArray(stored)
+    ? stored.filter((code): code is PricingNotice => (PRICING_NOTICES as readonly unknown[]).includes(code))
+    : [];
+  return { pricing: parsed.declaration.pricing, notices };
+}
+
+export const hasAnyPricing = (pricing: Pricing) =>
+  pricing.paidFeatures !== null ||
+  pricing.paidServices !== null ||
+  pricing.restrictedAssets !== null ||
+  pricing.supportUrl !== null;
 
 // 配布物の名前の型。* だけを任意の文字列として扱い、ほかの文字はそのまま照合する。
 export function matchesPattern(pattern: string, name: string): boolean {
@@ -305,10 +422,17 @@ export async function settleDeclarations(env: Env, releaseIds: readonly number[]
 
 // config_json に保存する形。照合のときに parseDeclaration で読み直すため、宣言ファイルと同じ形で書き、
 // 未指定の項目は書かない。null で書くと、正しい宣言が読み直しで invalid になる (2026-11-15 に見つけた不具合)。
+// 申告も同じく、null の項目は書かない。[] は「無いと申告した」値のため残す。形の誤りの注意は notices に書く。
 export function serializeDeclaration(declaration: Declaration): string {
+  const { pricing } = declaration;
   return JSON.stringify({
     ...(declaration.name !== null ? { name: declaration.name } : {}),
     ...(declaration.category !== null ? { category: declaration.category } : {}),
     ...(declaration.assets !== null ? { assets: declaration.assets } : {}),
+    ...(pricing.paidFeatures !== null ? { paidFeatures: pricing.paidFeatures } : {}),
+    ...(pricing.paidServices !== null ? { paidServices: pricing.paidServices } : {}),
+    ...(pricing.restrictedAssets !== null ? { restrictedAssets: pricing.restrictedAssets } : {}),
+    ...(pricing.supportUrl !== null ? { supportUrl: pricing.supportUrl } : {}),
+    ...(declaration.notices.length > 0 ? { notices: declaration.notices } : {}),
   });
 }

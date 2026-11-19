@@ -12,9 +12,9 @@ import {
 import { scanDocsForCheck } from '../review/check-docs';
 import { CRITERIA_BY_ID, referenceOf } from '../review/criteria';
 import type { Finding } from '../review/llm';
-import { type ReviewSummary, reviewView } from './author';
+import { NOTICE_TEXT, type ReviewSummary, reviewView } from './author';
 import { resetAttestationStatement, resetContentStatements, resetScanStatements } from './cron';
-import { CONFIG_DIR, readDeclaration } from './declaration';
+import { CONFIG_DIR, type Pricing, readDeclaration } from './declaration';
 import { type LicenseFailure, licenseAtCommit } from './license';
 import { assetKind, summarizeReadme } from './metadata';
 import {
@@ -454,35 +454,59 @@ export interface ConfigCheck {
   result: 'ok' | 'missing' | 'invalid' | 'unchecked';
   message?: string;
   fix?: string;
+  // 申告の形の誤り。掲載は止めない。固定のコードと固定の文言だけで、作者の文字列を入れない。
+  notices?: Array<{ code: string; message: string; fix: string; waitsFor: 'author' }>;
 }
 
 const CONFIG_PATH = `${CONFIG_DIR}/config.json`;
-const CONFIG_FIX = `Write a JSON object such as {"name": "<display name, 1-60 characters>"}. Every field is optional. "category" must be one of instrument, effect, analyzer, midi, utility. Each entry of "assets" needs "pattern", "os", "arch", and "formats". Commit ${CONFIG_PATH} before you tag the release, because the catalog reads the file at the release tag.`;
+const CONFIG_FIX = `Write a JSON object such as {"name": "<display name, 1-60 characters>"}. Every field is optional. "category" must be one of instrument, effect, analyzer, midi, utility. Each entry of "assets" needs "pattern", "os", "arch", and "formats". Optional declarations: "paidFeatures" (true or false), "paidServices" (names of paid services, [] for none), "restrictedAssets" (true or false), and "supportUrl" (an https URL on booth.pm, gumroad.com, itch.io, patreon.com, ko-fi.com, or github.com/sponsors/<name>); a wrong value there only drops that declaration and does not stop listing. Commit ${CONFIG_PATH} before you tag the release, because the catalog reads the file at the release tag.`;
 
 // 既定のブランチの宣言ファイルの形を確かめる。宣言した配布物と、アーカイブの中身の検査の結果の照合は、
 // 中身の検査 (GitHub Actions) を終えた版でしか行えないため、確認のモードでは形 (ok・missing・invalid) だけを返す。
-async function checkConfig(github: GitHubClient, owner: string, repo: string, ref: string): Promise<ConfigCheck> {
+// pricing は、レビューの事実の行に渡す申告。応答には含めない (作者の文字列のため)。
+async function checkConfig(
+  github: GitHubClient,
+  owner: string,
+  repo: string,
+  ref: string,
+): Promise<{ check: ConfigCheck; pricing: Pricing | null }> {
   let parsed: Awaited<ReturnType<typeof readDeclaration>>;
   try {
     parsed = await readDeclaration(github, owner, repo, ref);
   } catch (error) {
     if (error instanceof GitHubError && error.kind !== 'rate_limited' && error.kind !== 'unavailable') {
-      return { result: 'unchecked' };
+      return { check: { result: 'unchecked' }, pricing: null };
     }
     throw error;
   }
   if (parsed.state === 'missing') {
     return {
-      result: 'missing',
-      message: `The default branch has no ${CONFIG_PATH}. The declaration is optional: without it, the catalog shows the repository name and decides the category from the plugin bundles, or uses utility.`,
+      check: {
+        result: 'missing',
+        message: `The default branch has no ${CONFIG_PATH}. The declaration is optional: without it, the catalog shows the repository name and decides the category from the plugin bundles, or uses utility, and shows paid features, paid services, and restricted assets as not declared by the author.`,
+        fix: CONFIG_FIX,
+      },
+      pricing: null,
     };
   }
   if (parsed.state === 'invalid') {
-    return { result: 'invalid', message: `${CONFIG_PATH} on the default branch is not valid.`, fix: CONFIG_FIX };
+    return {
+      check: { result: 'invalid', message: `${CONFIG_PATH} on the default branch is not valid.`, fix: CONFIG_FIX },
+      pricing: null,
+    };
   }
+  const notices = parsed.declaration.notices.map((code) => ({
+    code,
+    ...NOTICE_TEXT[code],
+    waitsFor: 'author' as const,
+  }));
   return {
-    result: 'ok',
-    message: `${CONFIG_PATH} on the default branch is valid. Declared assets are compared with the archive contents only when a release is checked.`,
+    check: {
+      result: 'ok',
+      message: `${CONFIG_PATH} on the default branch is valid. Declared assets are compared with the archive contents only when a release is checked.`,
+      ...(notices.length > 0 ? { notices } : {}),
+    },
+    pricing: parsed.declaration.pricing,
   };
 }
 
@@ -535,8 +559,9 @@ export async function checkPlugin(env: Env, submitter: Submitter, repositoryUrl:
     const ref = 'HEAD';
     // 宣言ファイルは版の検査でだけ読んでいたため、誤りが不変のリリースの公開の後に分かった。公開の前に形を確かめる。
     let config: ConfigCheck = { result: 'unchecked' };
+    let pricing: Pricing | null = null;
     if (admin && budget.canFetch(1 + REVIEW_FILES_COST + TARBALL_COST + 1)) {
-      config = await checkConfig(asApp, repo.owner.login, repo.name, ref);
+      ({ check: config, pricing } = await checkConfig(asApp, repo.owner.login, repo.name, ref));
     }
     let review: { findings: Finding[]; unreadFiles: string[] } | null = null;
     let unavailable: ReviewOutcome['kind'] | null = null;
@@ -549,7 +574,10 @@ export async function checkPlugin(env: Env, submitter: Submitter, repositoryUrl:
             missing:
               'Checked by rules: the documents other than the README could not be checked in the check mode because this request ran out of its budget of GitHub API calls (the latest release has many files). The check after a release checks them.',
           };
-      const outcome = await reviewRepository(env, budget, `${repo.owner.login}/${repo.name}`, collected, null);
+      // 宣言の申告をレビューの事実の行に渡す。宣言の判定とレビューは別の処理のため、ここで受け渡す。
+      const outcome = await reviewRepository(env, budget, `${repo.owner.login}/${repo.name}`, collected, null, {
+        pricing,
+      });
       if (outcome.kind === 'done') review = { findings: outcome.findings, unreadFiles: collected.unreadFiles };
       else unavailable = outcome.kind;
     }

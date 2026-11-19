@@ -165,6 +165,7 @@ main { min-width: 0; background: var(--paper); border: 1px solid var(--line); pa
 
 h1 { font-size: 17px; margin: 0 0 6px; line-height: 1.35; color: var(--heading); }
 h2.bar { font-size: 13px; margin: 14px 0 6px; padding: 3px 8px; color: var(--bar-text); background: var(--bar-bg); border: 1px solid var(--sub-dark); border-left: 5px solid var(--primary); }
+h3.sub { font-size: 12px; margin: 8px 0 4px; color: var(--heading); }
 .tags { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 0; margin: 4px 0; list-style: none; }
 .tag { display: inline-block; padding: 0 6px; font-size: 11px; text-decoration: none; color: var(--on-primary); background: var(--primary); border: 1px solid var(--primary-dark); }
 .tag:visited, .tag:hover { color: var(--on-primary); }
@@ -187,6 +188,10 @@ form.search select { font-size: 12px; max-width: 100%; background: var(--paper);
 .vst-note, .trademark { display: flex; align-items: center; gap: 8px; }
 .vst-note { margin: 4px 0 8px; font-size: 12px; color: var(--ink); }
 .pill.format { font-weight: bold; }
+/* 作者の申告のタグ。このプラットフォームが確かめた規格や OS のタグと見分けられるよう、副の色の淡い背景にする。 */
+.pill.declared { color: var(--caution-text); background: var(--sub-pale); border-color: var(--sub-dark); }
+/* 作者の申告の表。確かめた項目の表と見分けられるよう、副の色の線で囲む。 */
+table.info.declared th, table.info.declared td { border-color: var(--sub-dark); }
 p.formats-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
 
 ol.cards { list-style: none; margin: 0; padding: 0; }

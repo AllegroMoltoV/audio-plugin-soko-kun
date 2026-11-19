@@ -12,6 +12,7 @@ export const zhHant: Record<PageKey, PageContent> = {
           { formats: '支援的格式' },
           '本平台不保存檔案。它記錄公開 GitHub 儲存庫的資訊，並引導使用者前往作者在 GitHub Releases 發布的 zip 壓縮檔。',
           '本平台不保存檔案，請直接從 GitHub 下載檔案。',
+          '本平台收錄的檔案隨時可以從 GitHub 的公開發行免費下載。有些作者也在其他地方販售外掛或接受捐款。外掛頁面上顯示的付費功能、付費服務、隨附素材的使用限制與支持頁面皆由作者聲明，本平台未加查核。哪些發布方式可以收錄，請參閱收錄政策：{{ORIGIN}}/policy',
         ],
       },
       {
@@ -55,6 +56,14 @@ export const zhHant: Record<PageKey, PageContent> = {
             ],
           },
           '授權檢查依據 GitHub 為儲存庫偵測到的授權。本平台不保證取樣音色、預設、字型等隨附素材的授權。',
+          '有些作者也會販售外掛或接受付款。能否收錄取決於檔案的發布方式：',
+          {
+            list: [
+              'A. 相同的檔案在 GitHub 上免費提供，同時也在其他地方販售或接受捐款：可以收錄。',
+              'B. 部分功能需付費解鎖：作者在 .audio-soko-kun/config.json 中聲明 paidFeatures 後即可收錄。',
+              'C. 不公開原始碼，只發布付費檔案：由於使用者無法在購買前確認內容，因此不收錄。',
+            ],
+          },
         ],
       },
       {
@@ -62,6 +71,21 @@ export const zhHant: Record<PageKey, PageContent> = {
         paragraphs: [
           '是否使用 AI 開發不影響收錄。所有外掛適用相同條件，也不要求申報 AI 的使用。',
           '本平台不會因收錄而認證安全性或品質，請自行確認後再使用。',
+          '收錄的檔案隨時可以從 GitHub 的公開發行免費下載。外掛頁面上顯示的付費功能、付費服務、隨附素材的使用限制與支持頁面，是作者在 .audio-soko-kun/config.json 中聲明的內容。本平台不查核這些聲明。',
+        ],
+      },
+      {
+        heading: '音訊外掛的授權',
+        paragraphs: [
+          '這是一份協助作者選擇授權的簡短指南。它不是法律建議，本平台不提供任何法律保證。',
+          {
+            list: [
+              'VST 3 SDK 與 CLAP SDK 皆以 MIT 授權提供，因此外掛的授權可以由作者自由選擇。',
+              'JUCE 以 AGPLv3 或商業授權提供。沒有商業授權而使用 JUCE 建置的外掛，必須以 AGPLv3 發布。',
+              '對於脈衝響應、HRTF 資料、模型、取樣音色、字型、圖片等隨附素材，請在 README 或 NOTICE 中逐項寫明來源與授權。',
+              '如果隨附素材禁止商業使用或有其他使用限制，請在 .audio-soko-kun/config.json 中將 restrictedAssets 聲明為 true。',
+            ],
+          },
         ],
       },
     ],
@@ -197,6 +221,21 @@ export const zhHant: Record<PageKey, PageContent> = {
           { code: '{\n  "name": "Simple Pitch Shift"\n}' },
           '本平台依以下順序決定類別。首先，根據檢查過的外掛套件推斷類別：依據是 Audio Unit 元件的 type（aumu、aufx、aumf、aumi）和 VST 3 外掛套件中 moduleinfo.json 的 Sub Categories。當線索指向多個類別時，依 instrument、midi、analyzer、effect 的順序優先採用。無法推斷時使用此檔案中的 category，如果也沒有則為 utility。推斷出的類別優先於宣告的類別。',
           '由於本平台不執行外掛的二進位檔，CLAP 的 features 不用於判斷類別。沒有 moduleinfo.json 的 VST 3 外掛套件（例如以 clap-wrapper 建置的外掛套件）也無法提供線索。只以 CLAP 發布的外掛，請在此檔案中宣告 category。',
+          '作者也可以聲明關於付費與隨附素材的 4 個選用項目：',
+          {
+            code: '{\n  "name": "Simple Pitch Shift",\n  "paidFeatures": false,\n  "paidServices": ["Example Cloud"],\n  "restrictedAssets": true,\n  "supportUrl": "https://example.booth.pm/items/1"\n}',
+          },
+          {
+            list: [
+              'paidFeatures：如果有透過向作者付費解鎖的功能則為 true，否則為 false。',
+              'paidServices：使用者需另行訂閱的付費服務名稱的陣列，最多 5 個，每個最多 60 個字元。[] 表示聲明沒有此類服務。',
+              'restrictedAssets：如果隨附素材有禁止商業使用等使用限制則為 true，否則為 false。',
+              'supportUrl：支持或購買頁面，最多 300 個字元。只接受 booth.pm、gumroad.com、itch.io、patreon.com、ko-fi.com 及其子網域上的 https URL，以及 https://github.com/sponsors/<name>。',
+            ],
+          },
+          '本平台將這些項目作為作者聲明顯示在外掛頁面上，不查核其內容。未填寫的項目顯示為作者未聲明。值的格式有誤時，只會把該項目視為未聲明，不會停止收錄。可以用 list_my_plugins 查看哪些項目被視為未聲明。',
+          '請從第一個發行起就寫好 supportUrl 以及商店頁面、支持頁面、素材授權頁面等外部連結。如果在首個收錄版本之後加入 supportUrl 或其他外部連結，該版本將等待管理員確認（diff-external-link）。商店連結請寫在 supportUrl 中。',
+          '使用條款中作者須遵守的「不刊登虛假資訊」也適用於這些聲明：{{ORIGIN}}/terms',
         ],
       },
       {
@@ -273,6 +312,7 @@ export const zhHant: Record<PageKey, PageContent> = {
         heading: '公開檢舉',
         paragraphs: [
           '錯誤資訊或收錄政策相關問題，請在 GitHub 儲存庫的 Issues 中提交：https://github.com/AllegroMoltoV/audio-plugin-soko-kun/issues',
+          '作者關於付費功能、付費服務、素材限制或支持頁面的錯誤聲明，也請以相同方式回報。',
         ],
       },
       {

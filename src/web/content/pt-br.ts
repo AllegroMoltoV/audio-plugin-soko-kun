@@ -12,6 +12,7 @@ export const ptBR: Record<PageKey, PageContent> = {
           { formats: 'Formatos suportados' },
           'O registro não hospeda arquivos. Ele registra informações de repositórios públicos do GitHub e aponta para os arquivos zip que os autores publicam no GitHub Releases.',
           'Esta plataforma não hospeda arquivos; por isso, baixe os arquivos diretamente do GitHub.',
+          'Os arquivos listados aqui podem sempre ser baixados gratuitamente das versões públicas no GitHub. Alguns autores também vendem seus plugins ou aceitam doações em outros lugares. Recursos pagos, serviços pagos, restrições de materiais incluídos e páginas de apoio mostrados na página de um plugin são declarados pelo autor, e esta plataforma não os verifica. A política de listagem explica quais formas de distribuição podem ser listadas: {{ORIGIN}}/policy',
         ],
       },
       {
@@ -55,6 +56,14 @@ export const ptBR: Record<PageKey, PageContent> = {
             ],
           },
           'A verificação de licença se baseia na licença que o GitHub detecta no repositório. Esta plataforma não garante as licenças de materiais incluídos, como samples, presets ou fontes.',
+          'Alguns autores também vendem seus plugins ou aceitam pagamentos por eles. A possibilidade de listar um plugin depende de como seus arquivos são distribuídos:',
+          {
+            list: [
+              'A. Os mesmos arquivos são gratuitos no GitHub e também são vendidos ou oferecidos por doação em outros lugares: o plugin pode ser listado.',
+              'B. Alguns recursos são liberados mediante pagamento: o plugin pode ser listado se o autor declarar paidFeatures em .audio-soko-kun/config.json.',
+              'C. Apenas arquivos pagos são distribuídos, sem código-fonte público: o plugin não é listado, porque os usuários não conseguem verificar o conteúdo antes da compra.',
+            ],
+          },
         ],
       },
       {
@@ -62,6 +71,21 @@ export const ptBR: Record<PageKey, PageContent> = {
         paragraphs: [
           'O uso de IA no desenvolvimento de um plugin não afeta a listagem. As mesmas condições valem para todos os plugins, e não é preciso declarar o uso de IA.',
           'Esta plataforma não certifica segurança nem qualidade ao listar um plugin; por isso, verifique os plugins antes de usá-los.',
+          'Os arquivos listados podem sempre ser baixados gratuitamente das versões públicas no GitHub. Recursos pagos, serviços pagos, restrições de materiais incluídos e páginas de apoio mostrados na página de um plugin são declarados pelo autor em .audio-soko-kun/config.json. Esta plataforma não verifica essas declarações.',
+        ],
+      },
+      {
+        heading: 'Licenças para plugins de áudio',
+        paragraphs: [
+          'Este breve guia ajuda os autores a escolher uma licença. Não é aconselhamento jurídico, e esta plataforma não oferece nenhuma garantia jurídica.',
+          {
+            list: [
+              'O VST 3 SDK e o CLAP SDK estão disponíveis sob a licença MIT; por isso, a licença do seu plugin fica à sua escolha.',
+              'O JUCE está disponível sob a AGPLv3 ou sob uma licença comercial. Um plugin feito com JUCE sem licença comercial deve ser publicado sob a AGPLv3.',
+              'Liste cada material incluído, como respostas a impulso, dados HRTF, modelos, samples, fontes e imagens, com sua origem e licença no README ou no NOTICE.',
+              'Se um material incluído proíbe o uso comercial ou tem outras restrições de uso, declare restrictedAssets como true em .audio-soko-kun/config.json.',
+            ],
+          },
         ],
       },
     ],
@@ -197,6 +221,21 @@ export const ptBR: Record<PageKey, PageContent> = {
           { code: '{\n  "name": "Simple Pitch Shift"\n}' },
           'Esta plataforma decide a categoria nesta ordem. Primeiro, ela infere a categoria a partir dos bundles inspecionados: o type dos componentes Audio Unit (aumu, aufx, aumf, aumi) e as Sub Categories no moduleinfo.json dos bundles VST 3. Quando os bundles indicam várias categorias, instrument, midi, analyzer e effect têm prioridade nessa ordem. Se nada puder ser inferido, ela usa category deste arquivo e, se não houver, utility. Uma categoria inferida tem prioridade sobre a declarada.',
           'As features do CLAP não são usadas para a categoria, porque esta plataforma não executa os binários dos plugins. Bundles VST 3 sem moduleinfo.json, como os gerados com clap-wrapper, também não dão pistas. Para um plugin distribuído apenas como CLAP, declare category neste arquivo.',
+          'Os autores também podem declarar quatro itens opcionais sobre pagamentos e materiais incluídos:',
+          {
+            code: '{\n  "name": "Simple Pitch Shift",\n  "paidFeatures": false,\n  "paidServices": ["Example Cloud"],\n  "restrictedAssets": true,\n  "supportUrl": "https://example.booth.pm/items/1"\n}',
+          },
+          {
+            list: [
+              'paidFeatures: true se alguns recursos forem liberados mediante pagamento ao autor; caso contrário, false.',
+              'paidServices: Um array com até 5 nomes, cada um com até 60 caracteres, de serviços pagos que os usuários contratam à parte. [] declara que não há nenhum.',
+              'restrictedAssets: true se um material incluído tiver restrições de uso, como a proibição de uso comercial; caso contrário, false.',
+              'supportUrl: Uma página de apoio ou compra, com até 300 caracteres. Só são aceitas URLs https em booth.pm, gumroad.com, itch.io, patreon.com, ko-fi.com ou seus subdomínios, e https://github.com/sponsors/<name>.',
+            ],
+          },
+          'Esta plataforma mostra esses itens na página do plugin como declarações do autor e não os verifica. Um item que não for escrito aparece como não declarado pelo autor. Um valor inválido apenas faz esse item ser tratado como não declarado e não impede a listagem. O list_my_plugins mostra quais itens foram tratados como não declarados.',
+          'Escreva o supportUrl e qualquer outro link externo, como uma loja, uma página de apoio ou a página de licença de um material, desde a primeira versão. Se um supportUrl ou outro link externo for adicionado depois da primeira versão listada, essa versão aguarda a confirmação de um administrador (diff-external-link). Coloque os links de loja no supportUrl.',
+          'A obrigação "Não publicar informações falsas" dos termos de uso também abrange essas declarações: {{ORIGIN}}/terms',
         ],
       },
       {
@@ -275,6 +314,7 @@ export const ptBR: Record<PageKey, PageContent> = {
         heading: 'Denúncias públicas',
         paragraphs: [
           'Informe dados incorretos ou problemas de política como issue no repositório do GitHub: https://github.com/AllegroMoltoV/audio-plugin-soko-kun/issues',
+          'Informe da mesma forma declarações incorretas dos autores sobre recursos pagos, serviços pagos, materiais com restrições ou páginas de apoio.',
         ],
       },
       {

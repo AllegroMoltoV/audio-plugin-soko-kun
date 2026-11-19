@@ -12,6 +12,7 @@ export const ja: Record<PageKey, PageContent> = {
           { formats: '対象の規格' },
           'このプラットフォームは配布物を保管しません。公開されている GitHub リポジトリの情報を記録し、作者が GitHub Releases で公開した zip のアーカイブへ案内します。',
           'このプラットフォームは配布物を保管しないので、配布物は GitHub から直接ダウンロードしてください。',
+          'ここに掲載する配布物は、GitHub の公開リリースからいつでも無料でダウンロードできます。作者によっては、プラグインをほかの場所で販売したり、寄付を受け付けたりしています。プラグインのページに示す有料の機能・有料サービス・同梱の素材の制限・支援のページは作者の申告で、このプラットフォームは確かめていません。掲載できる配り方は、掲載ポリシーで説明しています: {{ORIGIN}}/policy',
         ],
       },
       {
@@ -55,6 +56,14 @@ export const ja: Record<PageKey, PageContent> = {
             ],
           },
           'ライセンスの判定は、GitHub がリポジトリについて検出したライセンスにもとづきます。このプラットフォームは、サンプル・プリセット・フォントなど、同梱の素材のライセンスを保証しません。',
+          'プラグインを販売したり、支払いを受け付けたりする作者もいます。掲載の可否は、配布物の配り方で次のように決まります。',
+          {
+            list: [
+              'A. 同じ配布物を GitHub で無料で配り、ほかの場所でも販売や寄付の受け付けをしている: 掲載できます。',
+              'B. 一部の機能を支払いで解放する: 作者が .audio-soko-kun/config.json で paidFeatures を申告すれば掲載できます。',
+              'C. ソースコードを公開せず、有料の配布物だけを配る: 購入の前に中身を確かめられないため、掲載しません。',
+            ],
+          },
         ],
       },
       {
@@ -62,6 +71,21 @@ export const ja: Record<PageKey, PageContent> = {
         paragraphs: [
           '開発での AI の使用の有無は掲載に影響しません。このプラットフォームはすべてのプラグインに同じ条件を適用し、AI の使用の申告も求めません。',
           'このプラットフォームは掲載によって安全性や品質を認証しないので、各自で確かめてから利用してください。',
+          '掲載する配布物は、GitHub の公開リリースからいつでも無料でダウンロードできます。プラグインのページに示す有料の機能・有料サービス・同梱の素材の制限・支援のページは、作者が .audio-soko-kun/config.json で申告したものです。このプラットフォームは、これらの申告を確かめていません。',
+        ],
+      },
+      {
+        heading: 'オーディオプラグインのライセンス',
+        paragraphs: [
+          '作者がライセンスを選ぶときの手引きです。法的な助言ではなく、このプラットフォームは法的な保証をしません。',
+          {
+            list: [
+              'VST 3 SDK と CLAP の SDK は MIT ライセンスで提供されているので、プラグインのライセンスは作者が自由に選べます。',
+              'JUCE は AGPLv3 か商用のライセンスで提供されています。商用のライセンスを持たずに JUCE で作ったプラグインは、AGPLv3 で公開する必要があります。',
+              'インパルス応答・HRTF のデータ・モデル・サンプル・フォント・画像などの同梱の素材は、素材ごとに出所とライセンスを README か NOTICE に記載してください。',
+              '商用の利用を禁じるなど、利用の制限がある素材を同梱するときは、.audio-soko-kun/config.json で restrictedAssets を true と申告してください。',
+            ],
+          },
         ],
       },
     ],
@@ -197,6 +221,21 @@ export const ja: Record<PageKey, PageContent> = {
           { code: '{\n  "name": "Simple Pitch Shift"\n}' },
           'カテゴリは次の順に決めます。まず、検査したバンドルから推定します。手がかりは、Audio Unit のコンポーネントの type (aumu・aufx・aumf・aumi) と、VST 3 のバンドルの moduleinfo.json の Sub Categories です。手がかりが複数のカテゴリを示すときは、instrument・midi・analyzer・effect の順に先のものを採ります。推定できなければこのファイルの category を使い、それも無ければ utility にします。推定したカテゴリは、宣言したカテゴリより優先します。',
           'CLAP の features は、このプラットフォームがプラグインのバイナリを実行しないため、カテゴリに使いません。clap-wrapper で作った VST 3 のように moduleinfo.json の無いバンドルも、手がかりになりません。CLAP だけで配るプラグインは、このファイルで category を宣言してください。',
+          '作者は、支払いと同梱の素材について、任意の 4 項目も申告できます。',
+          {
+            code: '{\n  "name": "Simple Pitch Shift",\n  "paidFeatures": false,\n  "paidServices": ["Example Cloud"],\n  "restrictedAssets": true,\n  "supportUrl": "https://example.booth.pm/items/1"\n}',
+          },
+          {
+            list: [
+              'paidFeatures: 作者への支払いで解放する機能があれば true、無ければ false です。',
+              'paidServices: 利用者が別に契約する有料サービスの名前の配列です。名前は 5 件まで、それぞれ 60 文字以内で書いてください。[] は、有料サービスが無いという申告です。',
+              'restrictedAssets: 同梱の素材に、商用の利用の禁止などの制限があれば true、無ければ false です。',
+              'supportUrl: 支援・購入のページです。300 文字以内の https の URL で、booth.pm・gumroad.com・itch.io・patreon.com・ko-fi.com とそのサブドメインのもの、または https://github.com/sponsors/<name> だけを受け付けます。',
+            ],
+          },
+          'このプラットフォームは、これらの項目を作者の申告としてプラグインのページに表示し、内容を確かめません。書かなかった項目は「作者の申告なし」と表示します。値の形が誤っていても、その項目を申告なしとして扱うだけで、掲載は止めません。申告なしとして扱った項目は list_my_plugins で確かめられます。',
+          'supportUrl と、販売のページ・支援のページ・素材のライセンスのページなどの外部へのリンクは、最初のリリースから書いてください。掲載した最初の版より後に supportUrl やほかの外部へのリンクを足すと、その版は管理者の確認待ちになります (diff-external-link)。販売のページへのリンクは supportUrl に書いてください。',
+          '利用規約の作者の義務「虚偽の情報を掲載しないこと」は、これらの申告にも適用します: {{ORIGIN}}/terms',
         ],
       },
       {
@@ -275,6 +314,7 @@ export const ja: Record<PageKey, PageContent> = {
         heading: '公開でよい通報',
         paragraphs: [
           '誤った情報や掲載ポリシーに関する問題は、GitHub リポジトリの Issues で報告してください: https://github.com/AllegroMoltoV/audio-plugin-soko-kun/issues',
+          '有料の機能・有料サービス・素材の制限・支援のページについての作者の誤った申告も、同じ方法で報告してください。',
         ],
       },
       {

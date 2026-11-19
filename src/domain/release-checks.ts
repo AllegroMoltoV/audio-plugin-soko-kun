@@ -18,7 +18,7 @@ import {
   type RepositorySnapshot,
 } from '../review/rules';
 import { getPluginViewByInternalId } from './catalog';
-import { readDeclaration, serializeDeclaration, settleDeclarations } from './declaration';
+import { type Pricing, readDeclaration, serializeDeclaration, settleDeclarations, storedPricing } from './declaration';
 import { licenseAtCommit } from './license';
 import { readReleaseNotesHits } from './release-notes';
 import { MAX_REVIEW_ATTEMPTS } from './status';
@@ -53,6 +53,7 @@ interface PendingRow {
   license_state: string;
   config_state: string;
   config_fetched_at: string | null;
+  config_json: string | null;
   review_state: string;
   review_attempts: number;
   network_state: string;
@@ -73,7 +74,7 @@ export async function runReleaseChecks(env: Env, budget: Budget): Promise<number
   budget.takeD1Query();
   const row = await env.DB.prepare(
     `SELECT c.github_release_id, r.plugin_id, p.owner, p.repo, r.tag, r.commit_sha, c.diff_state, c.license_state, c.config_state,
-       c.config_fetched_at, c.review_state, c.review_attempts, c.network_state, c.network_hits, c.notes_hits, c.doc_hits,
+       c.config_fetched_at, c.config_json, c.review_state, c.review_attempts, c.network_state, c.network_hits, c.notes_hits, c.doc_hits,
        ${NETWORK_READY} AS network_ready
      FROM release_checks c JOIN releases r ON r.github_release_id = c.github_release_id JOIN plugins p ON p.id = r.plugin_id
      WHERE p.removed = 0 AND c.review_attempts < ? AND (c.diff_state = 'pending'
@@ -124,8 +125,12 @@ async function checkOne(env: Env, budget: Budget, github: GitHubClient, row: Pen
   // 宣言ファイル。形の誤りはその場で invalid にし、それ以外は取得の結果を保存する。
   // 宣言と中身の検査の結果の照合は、中身の検査が終わってから settleDeclarations が行う。
   let declarationFetched = false;
+  // レビューに渡す申告。別の起動で取得した版は保存した値から、同じ起動で取得した版はその場の値から読む。
+  // 同じ起動の版で保存した値を待つと、レビューの事実の行が申告なしになるため。
+  let pricing: Pricing | null = row.config_json !== null ? storedPricing(row.config_json).pricing : null;
   if (row.config_state === 'pending' && row.config_fetched_at === null) {
     const parsed = await readDeclaration(github, row.owner, row.repo, row.commit_sha);
+    pricing = parsed.state === 'parsed' ? parsed.declaration.pricing : null;
     const fetchedAt = new Date().toISOString();
     if (parsed.state === 'invalid') {
       update("config_state = 'invalid', config_fetched_at = ?", fetchedAt);
@@ -196,6 +201,7 @@ async function checkOne(env: Env, budget: Budget, github: GitHubClient, row: Pen
     const outcome = await reviewRepository(env, budget, `${row.owner}/${row.repo}`, input, diff, {
       names,
       diffFacts,
+      pricing,
     });
     if (outcome.kind === 'done') {
       const findings = outcome.findings;
@@ -337,6 +343,31 @@ export async function collectReviewFiles(
   return { paths, truncated, files, unreadFiles, rulesets, readmePath, readmeUnread };
 }
 
+// 申告と、素材のライセンスの文書の有無の事実の行 (pricing-declaration の判定に使う)。
+// LLM は NOTICE の本文を読まないため、ファイルの一覧から有無だけを渡す。収集の対象は増やさない。
+const LICENSE_DOCUMENT =
+  /^(?:[^/]+\/)?(?:NOTICE|THIRD[_-]PARTY[_-]LICENSES?|THIRD[_-]PARTY[_-]NOTICES?)(?:\.(?:md|txt))?(?:\/|$)/i;
+
+export function pricingFacts(pricing: Pricing | null, paths: readonly string[]): string[] {
+  const flag = (value: boolean | null) => (value === null ? 'not declared' : String(value));
+  const services =
+    pricing?.paidServices === null || pricing === null
+      ? 'not declared'
+      : pricing.paidServices.length === 0
+        ? 'none'
+        : pricing.paidServices.map(clean).join(', ');
+  const documents = [...new Set(paths.filter((path) => LICENSE_DOCUMENT.test(path)).map((path) => clean(path)))].slice(
+    0,
+    5,
+  );
+  return [
+    pricing === null
+      ? 'Declarations in .audio-soko-kun/config.json: no declaration file'
+      : `Declarations in .audio-soko-kun/config.json: paidFeatures ${flag(pricing.paidFeatures)}; paidServices ${services}; restrictedAssets ${flag(pricing.restrictedAssets)}`,
+    `License and notice files for bundled assets: ${documents.length > 0 ? documents.join(', ') : 'none found'}`,
+  ];
+}
+
 // 取得するファイルの順番と、上限で読まないファイル。上限は REVIEW_FILES_COST の内訳に合わせる。
 export function reviewFilePlan(paths: string[]): { fetch: string[]; skipped: string[] } {
   const sorted = [...paths].sort();
@@ -359,8 +390,9 @@ export async function reviewRepository(
   repository: string,
   collected: CollectedFiles,
   diff: string | null,
-  // names はリポジトリ名と表示名。diffFacts は差分が上限を超えたときの事実の行。
-  context: { names?: string[]; diffFacts?: string[] } = {},
+  // names はリポジトリ名と表示名。diffFacts は差分が上限を超えたときの事実の行。pricing は宣言ファイルの申告
+  // (宣言ファイルが無い・読めない版は null)。
+  context: { names?: string[]; diffFacts?: string[]; pricing?: Pricing | null } = {},
 ): Promise<ReviewOutcome> {
   // テストの環境には Workers AI が無い。レビューできない版は失敗として記録し、管理者の判断に回る。
   if (!env.AI) return { kind: 'failed' };
@@ -373,7 +405,10 @@ export async function reviewRepository(
         repository,
         files: llmFiles(collected),
         unreadFiles: collected.unreadFiles,
-        facts: computeFacts(collected, ruled, context.diffFacts),
+        facts: computeFacts(collected, ruled, [
+          ...(context.diffFacts ?? []),
+          ...pricingFacts(context.pricing ?? null, collected.paths),
+        ]),
         criteria: LLM_CRITERIA.map((criterion) => criterion.id),
         sourceFiles: networkFiles(collected),
         diff,

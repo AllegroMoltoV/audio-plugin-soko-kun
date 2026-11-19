@@ -171,6 +171,27 @@ export interface Dict {
   downloadsAsOf: string;
   downloadsNote: string;
   sideWeeklyTitle: string;
+  // 詳細ページで、このプラットフォームが確かめた項目と作者の申告を分けて示す区画と、一覧の申告のタグ。
+  // 申告は作者の主張で、このプラットフォームは確かめない (docs/design/scanning.md の「有料・素材の申告」)。
+  pricing: {
+    heading: string;
+    checkedTitle: string;
+    licenseChecked: string;
+    declaredTitle: string;
+    declaredNote: string;
+    paidFeatures: string;
+    paidServices: string;
+    restrictedAssets: string;
+    supportUrl: string;
+    yes: string;
+    no: string;
+    // paidServices が [] のとき。申告なしと区別するため、申告した旨を添える。
+    none: string;
+    notDeclared: string;
+    tagPaidFeatures: string;
+    tagPaidServices: string;
+    tagRestrictedAssets: string;
+  };
 }
 
 const en: Dict = {
@@ -317,6 +338,25 @@ const en: Dict = {
   attestationVerified: 'Verified',
   macosSigningLabel: 'macOS signing and notarization',
   macosSigningPassed: 'Developer ID signature and notarization confirmed',
+  pricing: {
+    heading: 'License and author declarations',
+    checkedTitle: 'Checked by this platform',
+    licenseChecked: 'Approved by the OSI or recognized as free by the FSF',
+    declaredTitle: 'Declared by the author',
+    declaredNote:
+      'The author declared these items in .audio-soko-kun/config.json. This platform does not verify them. The files are always free to download from the public GitHub releases.',
+    paidFeatures: 'Features unlocked by payment',
+    paidServices: 'Paid services used separately',
+    restrictedAssets: 'Bundled assets with usage restrictions',
+    supportUrl: 'Support or purchase page',
+    yes: 'Yes',
+    no: 'No',
+    none: 'None (declared)',
+    notDeclared: 'Not declared by the author',
+    tagPaidFeatures: 'Paid features',
+    tagPaidServices: 'Paid services',
+    tagRestrictedAssets: 'Restricted assets',
+  },
 };
 
 const ja: Dict = {
@@ -463,6 +503,25 @@ const ja: Dict = {
   attestationVerified: '検証済み',
   macosSigningLabel: 'macOS の署名と公証',
   macosSigningPassed: 'Developer ID の署名と公証を確認済み',
+  pricing: {
+    heading: 'ライセンスと作者の申告',
+    checkedTitle: 'このプラットフォームが確かめた項目',
+    licenseChecked: 'OSI の承認、または FSF の自由なライセンスの認定を確認済み',
+    declaredTitle: '作者の申告',
+    declaredNote:
+      '以下は作者が .audio-soko-kun/config.json で申告した内容で、このプラットフォームは確かめていません。配布物は、GitHub の公開リリースからいつでも無料でダウンロードできます。',
+    paidFeatures: '支払いで解放する機能',
+    paidServices: '別に契約する有料サービス',
+    restrictedAssets: '利用の制限がある同梱の素材',
+    supportUrl: '支援・購入のページ',
+    yes: 'あり',
+    no: 'なし',
+    none: 'なし (申告済み)',
+    notDeclared: '作者の申告なし',
+    tagPaidFeatures: '有料の機能あり',
+    tagPaidServices: '有料サービスあり',
+    tagRestrictedAssets: '素材に利用の制限あり',
+  },
 };
 
 const zhHans: Dict = {
@@ -607,6 +666,25 @@ const zhHans: Dict = {
   attestationVerified: '已验证',
   macosSigningLabel: 'macOS 签名与公证',
   macosSigningPassed: '已确认 Developer ID 签名与公证',
+  pricing: {
+    heading: '许可证与作者声明',
+    checkedTitle: '本平台确认的项目',
+    licenseChecked: '已确认获得 OSI 批准或被 FSF 认定为自由许可证',
+    declaredTitle: '作者声明',
+    declaredNote:
+      '以下内容由作者在 .audio-soko-kun/config.json 中声明，本平台未加核实。文件始终可以从 GitHub 的公开发布免费下载。',
+    paidFeatures: '付费解锁的功能',
+    paidServices: '需另行订阅的付费服务',
+    restrictedAssets: '有使用限制的附带素材',
+    supportUrl: '支持或购买页面',
+    yes: '有',
+    no: '无',
+    none: '无（已声明）',
+    notDeclared: '作者未声明',
+    tagPaidFeatures: '付费功能',
+    tagPaidServices: '付费服务',
+    tagRestrictedAssets: '素材有使用限制',
+  },
 };
 
 const zhHant: Dict = {
@@ -745,6 +823,25 @@ const zhHant: Dict = {
   attestationVerified: '已驗證',
   macosSigningLabel: 'macOS 簽署與公證',
   macosSigningPassed: '已確認 Developer ID 簽署與公證',
+  pricing: {
+    heading: '授權與作者聲明',
+    checkedTitle: '本平台確認的項目',
+    licenseChecked: '已確認獲得 OSI 核准或被 FSF 認定為自由授權',
+    declaredTitle: '作者聲明',
+    declaredNote:
+      '以下內容由作者在 .audio-soko-kun/config.json 中聲明，本平台未加查核。檔案隨時可以從 GitHub 的公開發行免費下載。',
+    paidFeatures: '付費解鎖的功能',
+    paidServices: '需另行訂閱的付費服務',
+    restrictedAssets: '有使用限制的隨附素材',
+    supportUrl: '支持或購買頁面',
+    yes: '有',
+    no: '無',
+    none: '無（已聲明）',
+    notDeclared: '作者未聲明',
+    tagPaidFeatures: '付費功能',
+    tagPaidServices: '付費服務',
+    tagRestrictedAssets: '素材有使用限制',
+  },
 };
 
 const ko: Dict = {
@@ -890,6 +987,25 @@ const ko: Dict = {
   attestationVerified: '검증됨',
   macosSigningLabel: 'macOS 서명과 공증',
   macosSigningPassed: 'Developer ID 서명과 공증 확인됨',
+  pricing: {
+    heading: '라이선스와 작성자의 신고',
+    checkedTitle: '이 플랫폼이 확인한 항목',
+    licenseChecked: 'OSI 승인 또는 FSF의 자유 라이선스 인정을 확인함',
+    declaredTitle: '작성자의 신고',
+    declaredNote:
+      '아래 항목은 작성자가 .audio-soko-kun/config.json에서 신고한 내용이며, 이 플랫폼은 확인하지 않습니다. 배포 파일은 GitHub의 공개 릴리스에서 언제나 무료로 다운로드할 수 있습니다.',
+    paidFeatures: '결제로 잠금 해제되는 기능',
+    paidServices: '별도로 계약하는 유료 서비스',
+    restrictedAssets: '이용 제한이 있는 동봉 소재',
+    supportUrl: '후원·구매 페이지',
+    yes: '있음',
+    no: '없음',
+    none: '없음 (신고함)',
+    notDeclared: '작성자의 신고 없음',
+    tagPaidFeatures: '유료 기능',
+    tagPaidServices: '유료 서비스',
+    tagRestrictedAssets: '소재 이용 제한',
+  },
 };
 
 const ptBR: Dict = {
@@ -1037,6 +1153,25 @@ const ptBR: Dict = {
   attestationVerified: 'Verificada',
   macosSigningLabel: 'Assinatura e notarização no macOS',
   macosSigningPassed: 'Assinatura Developer ID e notarização confirmadas',
+  pricing: {
+    heading: 'Licença e declarações do autor',
+    checkedTitle: 'Verificado por esta plataforma',
+    licenseChecked: 'Aprovada pela OSI ou reconhecida como livre pela FSF',
+    declaredTitle: 'Declarado pelo autor',
+    declaredNote:
+      'O autor declarou estes itens em .audio-soko-kun/config.json. Esta plataforma não os verifica. Os arquivos podem sempre ser baixados gratuitamente das versões públicas no GitHub.',
+    paidFeatures: 'Recursos liberados por pagamento',
+    paidServices: 'Serviços pagos contratados à parte',
+    restrictedAssets: 'Materiais incluídos com restrições de uso',
+    supportUrl: 'Página de apoio ou compra',
+    yes: 'Sim',
+    no: 'Não',
+    none: 'Nenhum (declarado)',
+    notDeclared: 'Não declarado pelo autor',
+    tagPaidFeatures: 'Recursos pagos',
+    tagPaidServices: 'Serviços pagos',
+    tagRestrictedAssets: 'Materiais com restrições',
+  },
 };
 
 const es419: Dict = {
@@ -1186,6 +1321,25 @@ const es419: Dict = {
   attestationVerified: 'Verificada',
   macosSigningLabel: 'Firma y notarización en macOS',
   macosSigningPassed: 'Firma Developer ID y notarización confirmadas',
+  pricing: {
+    heading: 'Licencia y declaraciones del autor',
+    checkedTitle: 'Verificado por esta plataforma',
+    licenseChecked: 'Aprobada por la OSI o reconocida como libre por la FSF',
+    declaredTitle: 'Declarado por el autor',
+    declaredNote:
+      'El autor declaró estos datos en .audio-soko-kun/config.json. Esta plataforma no los verifica. Los archivos siempre se pueden descargar gratis desde las versiones públicas en GitHub.',
+    paidFeatures: 'Funciones que se desbloquean con un pago',
+    paidServices: 'Servicios de pago que se contratan aparte',
+    restrictedAssets: 'Materiales incluidos con restricciones de uso',
+    supportUrl: 'Página de apoyo o compra',
+    yes: 'Sí',
+    no: 'No',
+    none: 'Ninguno (declarado)',
+    notDeclared: 'No declarado por el autor',
+    tagPaidFeatures: 'Funciones de pago',
+    tagPaidServices: 'Servicios de pago',
+    tagRestrictedAssets: 'Materiales con restricciones',
+  },
 };
 
 export const DICTS: Record<Lang, Dict> = {
