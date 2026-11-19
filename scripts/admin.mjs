@@ -60,16 +60,23 @@ if (command === 'suspend') {
   // 再開は管理者の停止を解くだけで、掲載の可否は検査結果から改めて算出される。
   sql = `UPDATE plugins SET admin_suspended = 0, suspended_reason = NULL, updated_at = ${quote(now)} WHERE id = ${PID}; SELECT id, admin_suspended FROM plugins WHERE id = ${PID};`;
 } else if (command === 'set-category') {
-  // 自動の推定が誤っていたカテゴリを、管理者が直す。
+  // 自動の推定が誤っていたカテゴリを、管理者が直す。カテゴリは版ごとに持つため、全版に書く。
+  // 表示には掲載中の版の値を使うので、どの版が掲載中でも直る。新しい版が推定した値は、その版の行にだけ書かれる。
   if (!CATEGORIES.includes(reason)) fail(`category must be one of: ${CATEGORIES.join(', ')}`);
-  sql = `UPDATE plugins SET category = ${quote(reason)}, updated_at = ${quote(now)} WHERE id = ${PID}; SELECT id, category FROM plugins WHERE id = ${PID};`;
+  sql = `UPDATE release_checks SET category = ${quote(reason)} WHERE github_release_id IN (SELECT github_release_id FROM releases WHERE plugin_id = ${PID});
+         SELECT r.tag, c.category FROM releases r JOIN release_checks c ON c.github_release_id = r.github_release_id
+           WHERE r.plugin_id = ${PID} ORDER BY r.published_at DESC;`;
 } else if (command === 'hide-images' || command === 'show-images') {
   // 不適切な画像の通報を受けたとき、掲載を続けたまま画像だけを止める。
   const hidden = command === 'hide-images' ? 1 : 0;
   sql = `UPDATE plugins SET images_hidden = ${hidden}, updated_at = ${quote(now)} WHERE id = ${PID}; SELECT id, images_hidden FROM plugins WHERE id = ${PID};`;
 } else if (command === 'show') {
-  sql = `SELECT id, owner, repo, display_name, admin_suspended, suspended_reason, removed, images_hidden, last_synced_at
+  // 表示名とカテゴリは版ごとの値で、表示には掲載中の版の値を使う。
+  sql = `SELECT id, owner, repo, admin_suspended, suspended_reason, removed, images_hidden, last_synced_at
            FROM plugins WHERE id = ${PID};
+         SELECT r.tag, c.config_state, json_extract(c.config_json, '$.name') AS display_name, c.category
+           FROM releases r JOIN release_checks c ON c.github_release_id = r.github_release_id
+           WHERE r.plugin_id = ${PID} ORDER BY r.published_at DESC;
          SELECT tag, asset_name, digest, started_at, ended_at FROM listing_periods WHERE plugin_id = ${PID}
            ORDER BY started_at DESC;
          SELECT tag, reason, note, suspended_at FROM release_suspensions WHERE plugin_id = ${PID} ORDER BY suspended_at DESC;`;

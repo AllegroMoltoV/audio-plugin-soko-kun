@@ -44,9 +44,9 @@
 
 ### 各コマンドの内容
 
-`show` は、プラグインの `owner`・`repo`・`display_name`・`admin_suspended`・`suspended_reason`・`removed`・`images_hidden`・`last_synced_at` と、`listing_periods` の掲載の期間、`release_suspensions` の止めた版を表示します。
+`show` は、プラグインの `owner`・`repo`・`admin_suspended`・`suspended_reason`・`removed`・`images_hidden`・`last_synced_at` と、版ごとの `config_state`・表示名・`category`、`listing_periods` の掲載の期間、`release_suspensions` の止めた版を表示します。表示名とカテゴリは版ごとの値で、公開のページには掲載中の版の値が出ます。
 
-`set-category` は、自動で推定したカテゴリが誤っていたときに、管理者がカテゴリを直すコマンドです。
+`set-category` は、自動で推定したカテゴリが誤っていたときに、管理者がカテゴリを直すコマンドです。カテゴリは版ごとに持つため、そのプラグインの全版の値を書きます。新しい版の検査は、その版の行にだけ推定した値を書くため、新しい版が掲載されたときは、その版が推定した値に替わります。
 
 `hide-images` は、掲載を続けたままロゴと説明の画像だけを止めます。不適切な画像の通報を受けたときに使います。`show-images` で元に戻します。
 
