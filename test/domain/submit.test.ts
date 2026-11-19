@@ -251,6 +251,17 @@ describe('checkPlugin (確認のモード)', () => {
     expect(runs.length).toBeGreaterThan(0);
   });
 
+  // 作者向けの最重要の文を、確認のモードの結果の先頭 (conditions の前) に置く (本家と共通の欄の名前 important)。
+  it('確認のモードの結果は、conditions の前に作者向けの最重要の文 important を持つ', async () => {
+    network.use(...githubHandlers({ release: 'none' }), ...releaseCheckHandlers());
+    const result = (await checkPlugin(env, submitter, url)) as Record<string, unknown>;
+    expect(result.important).toContain(
+      'anyone can use and redistribute its code commercially under the conditions of its license',
+    );
+    const keys = Object.keys(result);
+    expect(keys.indexOf('important')).toBeLessThan(keys.indexOf('conditions'));
+  });
+
   it('登録せずに条件ごとの結果を返し、1 人 24 時間 5 回を超えたら断る', async () => {
     network.use(...githubHandlers({ immutable: false }), ...releaseCheckHandlers());
     const first = await checkPlugin(env, submitter, url);

@@ -41,6 +41,7 @@ export const ko: Record<PageKey, PageContent> = {
       {
         heading: '게재 조건',
         paragraphs: [
+          { important: true },
           '이 플랫폼은 GitHub 저장소의 관리자인 작성자가 등록하고 다음 조건을 모두 충족한 오픈 소스 오디오 플러그인을 게재합니다.',
           { formats: '지원 규격' },
           {
@@ -96,6 +97,7 @@ export const ko: Record<PageKey, PageContent> = {
       {
         heading: '등록할 수 있는 플러그인',
         paragraphs: [
+          { important: true },
           '이 플랫폼은 GitHub 저장소의 관리자인 작성자가 등록한 오픈 소스 오디오 플러그인을 게재합니다.',
           { formats: '지원 규격' },
           '등록하기 전에 저장소와 최신 릴리스가 게재 조건을 충족하는지 확인해 주세요: {{ORIGIN}}/policy',

@@ -41,6 +41,7 @@ export const zhHans: Record<PageKey, PageContent> = {
       {
         heading: '收录条件',
         paragraphs: [
+          { important: true },
           '本平台收录由 GitHub 仓库管理员即作者本人提交、并满足以下全部条件的开源音频插件。',
           { formats: '支持的格式' },
           {
@@ -96,6 +97,7 @@ export const zhHans: Record<PageKey, PageContent> = {
       {
         heading: '可以提交的插件',
         paragraphs: [
+          { important: true },
           '本平台收录由 GitHub 仓库管理员即作者本人提交的开源音频插件。',
           { formats: '支持的格式' },
           '提交前，请确认仓库及其最新发布满足收录条件：{{ORIGIN}}/policy',

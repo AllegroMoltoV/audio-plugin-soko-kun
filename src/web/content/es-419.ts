@@ -41,6 +41,7 @@ export const es419: Record<PageKey, PageContent> = {
       {
         heading: 'Condiciones para estar en la lista',
         paragraphs: [
+          { important: true },
           'Esta plataforma incluye plugins de audio de código abierto enviados por el autor que administra el repositorio de GitHub y que cumplen todas estas condiciones.',
           { formats: 'Formatos compatibles' },
           {
@@ -96,6 +97,7 @@ export const es419: Record<PageKey, PageContent> = {
       {
         heading: 'Plugins que puedes enviar',
         paragraphs: [
+          { important: true },
           'Esta plataforma incluye plugins de audio de código abierto enviados por el autor que administra el repositorio de GitHub.',
           { formats: 'Formatos compatibles' },
           'Antes de enviar, revisa que el repositorio y su versión más reciente cumplan las condiciones de la lista: {{ORIGIN}}/policy',

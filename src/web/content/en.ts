@@ -41,6 +41,7 @@ export const en: Record<PageKey, PageContent> = {
       {
         heading: 'Listing conditions',
         paragraphs: [
+          { important: true },
           'This platform lists open-source audio plugins that the author, who administers the GitHub repository, submits and that meet all of the following conditions.',
           { formats: 'Supported formats' },
           {
@@ -96,6 +97,7 @@ export const en: Record<PageKey, PageContent> = {
       {
         heading: 'Plugins you can submit',
         paragraphs: [
+          { important: true },
           'This platform lists open-source audio plugins whose author administers the GitHub repository and submits it.',
           { formats: 'Supported formats' },
           'Before submitting, check that the repository and its latest release meet the listing conditions: {{ORIGIN}}/policy',

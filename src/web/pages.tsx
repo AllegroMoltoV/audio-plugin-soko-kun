@@ -107,19 +107,23 @@ export const Linkified: FC<{ text: string }> = ({ text }) => {
   );
 };
 
-// 一覧の申告のタグ。有料の機能・有料サービス・素材の制限があると申告したものだけに付け、申告なし (null) には付けない。
+// 一覧のカードと詳細の見出しの下のタグ (本家と共通)。掲載中のものはすべて無料で入手できる。
+// 素材の制限を申告したものには制限のタグ、それ以外 (制限なしの申告と申告なし) には、ライセンスの判定を通った
+// 掲載中のものに商用利用可のタグを付け、2 つは同時に出さない。有料の機能・サービスは申告が真のときだけ付ける。
+// 見た目はほかのタグと同じ素の .pill にする。
 const PricingTags: FC<{ view: PluginView; t: Dict }> = ({ view, t }) => {
+  if (view.status !== 'listed') return null;
   const { paidFeatures, paidServices, restrictedAssets } = view.pricing;
   const tags = [
-    paidFeatures === true ? t.pricing.tagPaidFeatures : null,
-    paidServices && paidServices.length > 0 ? t.pricing.tagPaidServices : null,
-    restrictedAssets === true ? t.pricing.tagRestrictedAssets : null,
+    t.pricing.tagFree,
+    restrictedAssets === true ? t.pricing.tagRestrictedAssets : t.pricing.tagCommercialOk,
+    paidFeatures === true || (paidServices?.length ?? 0) > 0 ? t.pricing.tagPaid : null,
   ].filter((tag): tag is string => tag !== null);
   return (
     <>
       {tags.map((tag) => (
         <li>
-          <span class="pill declared">{tag}</span>
+          <span class="pill">{tag}</span>
         </li>
       ))}
     </>
@@ -134,16 +138,42 @@ const declaredFlag = (t: Dict, value: boolean | null) =>
 // 申告の文字列と URL は作者の書いた外部データなので、JSX のエスケープに任せ、属性以外に生の HTML を出さない。
 const PricingSection: FC<{ view: PluginView; t: Dict }> = ({ view, t }) => {
   const { paidFeatures, paidServices, restrictedAssets, supportUrl } = view.pricing;
+  // 商用利用の 1 行。コードは掲載の条件 (OSI か FSF) で確かめた事実、素材は作者の申告として書き分ける。
+  const commercial =
+    restrictedAssets === false
+      ? t.pricing.commercialAssetsNone
+      : restrictedAssets === true
+        ? t.pricing.commercialAssetsRestricted
+        : t.pricing.commercialAssetsUndeclared;
   return (
     <>
       <h2 class="bar">{t.pricing.heading}</h2>
+      <table class="info">
+        <tbody>
+          <tr>
+            <th scope="row">{t.pricing.commercialUse}</th>
+            <td>
+              {t.pricing.commercialCode} {commercial}
+              {(paidServices?.length ?? 0) > 0 ? ` ${t.pricing.commercialServices}` : null}
+            </td>
+          </tr>
+        </tbody>
+      </table>
       <h3 class="sub">{t.pricing.checkedTitle}</h3>
       <table class="info">
         <tbody>
           <tr>
             <th scope="row">{t.license}</th>
             <td>
-              <span translate="no">{view.license}</span> <span class="note">{t.pricing.licenseChecked}</span>
+              {/* 単一の SPDX 識別子は、再配布の条件を本文で確かめられるよう SPDX のライセンスの一覧へリンクする。 */}
+              {/^[A-Za-z0-9.+-]+$/.test(view.license) ? (
+                <a href={`https://spdx.org/licenses/${view.license}.html`} rel="noopener noreferrer">
+                  <span translate="no">{view.license}</span>
+                </a>
+              ) : (
+                <span translate="no">{view.license}</span>
+              )}{' '}
+              <span class="note">{t.pricing.licenseChecked}</span>
             </td>
           </tr>
         </tbody>
@@ -604,6 +634,7 @@ export const PluginDetail: FC<{ view: PluginView; t: Dict; lang: Lang; showOrigi
               </li>
             ))
           : null}
+        <PricingTags view={view} t={t} />
         {/* VST Compatible ロゴはタグの間に挟まず、同じ行の最後に置く。タグの高さをそろえて並べるため。 */}
         {view.status === 'listed' && view.formats.includes('vst3') ? (
           <li class="vst-logo-item">
@@ -788,6 +819,14 @@ const BlockView: FC<{ block: Block; origin: string; t: Dict; lang: Lang }> = ({ 
     );
   }
   if ('contact' in block) return <ContactButton t={t} lang={lang} />;
+  if ('important' in block) {
+    return (
+      <p class="callout important">
+        <span class="label">{t.pricing.authorImportantLabel}</span>
+        {t.pricing.authorImportant}
+      </p>
+    );
+  }
   // 対象の規格の行。ページの中の VST の語の初出に ® を付け、隣に VST Compatible ロゴを置く。
   if ('formats' in block) {
     return (

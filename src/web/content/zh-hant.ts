@@ -41,6 +41,7 @@ export const zhHant: Record<PageKey, PageContent> = {
       {
         heading: '收錄條件',
         paragraphs: [
+          { important: true },
           '本平台收錄由 GitHub 儲存庫管理員即作者本人提交、並滿足以下全部條件的開源音訊外掛。',
           { formats: '支援的格式' },
           {
@@ -96,6 +97,7 @@ export const zhHant: Record<PageKey, PageContent> = {
       {
         heading: '可以提交的外掛',
         paragraphs: [
+          { important: true },
           '本平台收錄由 GitHub 儲存庫管理員即作者本人提交的開源音訊外掛。',
           { formats: '支援的格式' },
           '提交前，請確認儲存庫及其最新發行滿足收錄條件：{{ORIGIN}}/policy',

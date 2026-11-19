@@ -41,6 +41,7 @@ export const ja: Record<PageKey, PageContent> = {
       {
         heading: '掲載の条件',
         paragraphs: [
+          { important: true },
           'このプラットフォームは、GitHub リポジトリの管理者である作者が登録し、次の条件をすべて満たしたオープンソースのオーディオプラグインを掲載します。',
           { formats: '対象の規格' },
           {
@@ -96,6 +97,7 @@ export const ja: Record<PageKey, PageContent> = {
       {
         heading: '登録できるプラグイン',
         paragraphs: [
+          { important: true },
           'このプラットフォームは、GitHub リポジトリの管理者である作者が登録した、オープンソースのオーディオプラグインを掲載します。',
           { formats: '対象の規格' },
           '登録する前に、リポジトリと最新のリリースが掲載の条件を満たすことを確認してください: {{ORIGIN}}/policy',

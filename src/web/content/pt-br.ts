@@ -41,6 +41,7 @@ export const ptBR: Record<PageKey, PageContent> = {
       {
         heading: 'Condições de listagem',
         paragraphs: [
+          { important: true },
           'Esta plataforma lista plugins de áudio de código aberto enviados pelo autor que administra o repositório no GitHub e que cumprem todas as condições abaixo.',
           { formats: 'Formatos suportados' },
           {
@@ -96,6 +97,7 @@ export const ptBR: Record<PageKey, PageContent> = {
       {
         heading: 'Plugins que você pode enviar',
         paragraphs: [
+          { important: true },
           'Esta plataforma lista plugins de áudio de código aberto enviados pelo autor que administra o repositório no GitHub.',
           { formats: 'Formatos suportados' },
           'Antes de enviar, confira se o repositório e a versão mais recente cumprem as condições de listagem: {{ORIGIN}}/policy',

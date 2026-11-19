@@ -187,15 +187,13 @@ form.search select { font-size: 12px; max-width: 100%; background: var(--paper);
 /* ロゴと文を横に並べ、縦の中央をそろえる。狭い画面では文が折り返す。 */
 .vst-note, .trademark { display: flex; align-items: center; gap: 8px; }
 .vst-note { margin: 4px 0 8px; font-size: 12px; color: var(--ink); }
-.pill.format { font-weight: bold; }
 /* 作者の申告のタグ。このプラットフォームが確かめた規格や OS のタグと見分けられるよう、副の色の淡い背景にする。 */
-.pill.declared { color: var(--caution-text); background: var(--sub-pale); border-color: var(--sub-dark); }
 /* 作者の申告の表。確かめた項目の表と見分けられるよう、副の色の線で囲む。 */
 table.info.declared th, table.info.declared td { border-color: var(--sub-dark); }
 p.formats-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
 
 ol.cards { list-style: none; margin: 0; padding: 0; }
-ol.cards li { border-bottom: 1px dotted var(--line); padding: 8px 2px; }
+ol.cards > li { border-bottom: 1px dotted var(--line); padding: 8px 2px; }
 .card-head { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; }
 .card-head a { font-size: 14px; font-weight: bold; min-width: 0; }
 .card-head .ver { margin-left: auto; color: var(--muted); font-size: 12px; white-space: nowrap; }
