@@ -23,6 +23,8 @@ For anything beyond simple processing (pitch shifting, spatial audio, convolutio
 - The license allows bundling in your plugin's license. GPL code makes the whole plugin GPL. For an MIT plugin, use MIT, BSD, Apache-2.0, zlib, ISC, or MPL-2.0 (unmodified) code. JUCE is AGPL or commercial.
 - The library is pinned by commit or release hash in the build (`dependency-pinning`), and its license text goes into the release archive (`license-notices`).
 - Every file the library embeds into your binary has a compatible license too. A GUI library may embed fonts and icons with their own licenses (see [gui.md](gui.md)).
+- Bundled assets (impulse responses, HRTF data, models, samples, fonts, images) have their own licenses. Record the origin and license of each one in the requirements file. If any license restricts use, such as commercial use, the plugin declares `"restrictedAssets": true`, and the README or a NOTICE file describes the restriction (see [audio-soko-kun.md](audio-soko-kun.md)).
+- Decide with the author how the plugin is distributed. The files are always free on GitHub. Selling the same files elsewhere or taking donations is fine; features unlocked by payment must be declared as `paidFeatures`; a paid plugin without public source cannot be listed.
 
 ## Choose the name and the ID
 

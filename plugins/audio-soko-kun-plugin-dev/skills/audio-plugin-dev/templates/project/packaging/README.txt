@@ -24,5 +24,7 @@ Licenses
 
 My Gain is released under the MIT License (LICENSE.txt).
 Third-party licenses are in THIRD_PARTY_LICENSES: CLAP, clap-wrapper, {fmt} and the VST 3 SDK.
+My Gain bundles no samples, impulse responses, models, fonts or images. If a plug-in bundles assets
+whose license restricts use, such as commercial use, say so here.
 
 VST is a registered trademark of Steinberg Media Technologies GmbH.

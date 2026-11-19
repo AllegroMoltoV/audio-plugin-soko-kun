@@ -48,7 +48,7 @@ After the rulesets exist, change `main` through pull requests. A single author m
 
 ## The README
 
-The template README has the sections the review looks for: what the plugin does, requirements, installation, how to verify the download (`user-verification-guide`), the build, the license with a table of third-party components (`license-notices`), the trademark notice, whether the plugin uses the network (`user-data-handling`), and an AI disclosure. Keep these when you rewrite it.
+The template README has the sections the review looks for: what the plugin does, requirements, installation, how to verify the download (`user-verification-guide`), the build, the license with a table of third-party components and bundled assets (`license-notices`), the trademark notice, whether the plugin uses the network (`user-data-handling`), the price and paid services (`pricing-declaration`), and an AI disclosure. Keep these when you rewrite it, and keep the declarations in `.audio-soko-kun/config.json` consistent with them.
 
 - Link only to this repository, Audio Plugin Soko-kun, and the SDK documentation hosts that the criteria allow (`steinbergmedia.github.io`, `cleveraudio.org`, `lv2plug.in`, `developer.apple.com`). A new link to another host in a later version holds that version for an administrator (`diff-external-link`). Name other projects without linking them.
 - The VST Compatible logo may be used only under Steinberg's logo usage terms (https://steinbergmedia.github.io/vst3_dev_portal/pages/VST+3+Licensing/Usage+guidelines.html). Read them with the author before adding the logo files. The logo files are not covered by your plugin's license; say so in the README.

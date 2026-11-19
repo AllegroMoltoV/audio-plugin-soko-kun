@@ -71,6 +71,7 @@ Done when:
 - The requirements file lists the purpose, the parameters with ranges and defaults, the platforms, decisions (final, provisional, undecided), checked facts with sources, open questions with a recommended answer for each, and completion criteria that include the listing
 - The author has answered the open questions
 - The name is checked against GitHub, Audio Plugin Soko-kun (`search_plugins`), and well-known commercial products, and the plugin ID (`com.example.my-gain`) is final
+- The author has decided the distribution type (A or B; C cannot be listed), the paid features and paid services, and the license of every bundled asset, so that the declarations in `.audio-soko-kun/config.json` can be written
 
 ### 2. Set up
 
@@ -129,7 +130,8 @@ Run `submit_plugin` in `check` mode, fix what it reports, register the plugin wi
 Done when:
 
 - `get_plugin` returns the plugin with `listed` status
-- `list_my_plugins` shows no blocker that waits for the author (`waitsFor: "author"`), and the author has seen the review findings
+- `list_my_plugins` shows no blocker that waits for the author (`waitsFor: "author"`), and the author has seen the review findings and the notices
+- The listed version declares `paidFeatures`, `paidServices`, and `restrictedAssets` in `.audio-soko-kun/config.json`, matching the README
 
 ## Templates
 

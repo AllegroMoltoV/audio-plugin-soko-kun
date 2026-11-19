@@ -1,4 +1,7 @@
 {
   "name": "My Gain",
-  "category": "effect"
+  "category": "effect",
+  "paidFeatures": false,
+  "paidServices": [],
+  "restrictedAssets": false
 }

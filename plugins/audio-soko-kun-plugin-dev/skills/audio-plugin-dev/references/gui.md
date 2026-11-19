@@ -18,7 +18,7 @@ One published plugin used Visage (MIT, https://github.com/VitalAudio/visage), a 
 - C++20.
 - `VISAGE_WAYLAND` set to `OFF`.
 - On Linux, the Vulkan headers pinned by URL and hash and passed as `VISAGE_VULKAN_INCLUDE_DIR`. Otherwise Visage uses the system's headers when they exist, so the build and the license files depend on the machine.
-- Visage embeds fonts into the binary: Lato (SIL OFL 1.1), Droid Sans Mono (Apache-2.0), and on Linux Twemoji Mozilla (Apache-2.0 code, CC-BY-4.0 art). Their license texts must be in the release archive, as must FreeType's FTL and the licenses of other embedded parts.
+- Visage embeds fonts into the binary: Lato (SIL OFL 1.1), Droid Sans Mono (Apache-2.0), and on Linux Twemoji Mozilla (Apache-2.0 code, CC-BY-4.0 art). Their license texts must be in the release archive, as must FreeType's FTL and the licenses of other embedded parts. These licenses do not restrict commercial use, so they do not by themselves make `restrictedAssets` true.
 - Development packages on Linux: `libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxcomposite-dev libxcb1-dev libxcb-present-dev libfontconfig1-dev`.
 
 VSTGUI (BSD-3) draws with cairo on the CPU on Linux, which avoids GPU questions in CI, but needs many system packages and runs at the 30 ms timer period on Linux.
