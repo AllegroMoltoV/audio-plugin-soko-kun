@@ -230,7 +230,7 @@ export const ko: Record<PageKey, PageContent> = {
               'paidFeatures: 작성자에게 결제하면 잠금 해제되는 기능이 있으면 true, 없으면 false입니다.',
               'paidServices: 이용자가 별도로 계약하는 유료 서비스 이름의 배열입니다. 이름은 5개까지, 각각 60자 이내로 적어 주세요. []는 유료 서비스가 없다는 신고입니다.',
               'restrictedAssets: 동봉 소재에 상업적 이용 금지 같은 제한이 있으면 true, 없으면 false입니다.',
-              'supportUrl: 후원·구매 페이지입니다. 500자 이내의 https URL로, booth.pm, gumroad.com, itch.io, patreon.com, ko-fi.com과 그 하위 도메인의 URL, 또는 https://github.com/sponsors/<name>만 받습니다.',
+              'supportUrl: 후원·구매 페이지입니다. 300자 이내의 https URL로, booth.pm, gumroad.com, itch.io, patreon.com, ko-fi.com과 그 하위 도메인의 URL, 또는 https://github.com/sponsors/<name>만 받습니다.',
             ],
           },
           '이 플랫폼은 이 항목들을 작성자의 신고로 플러그인 페이지에 표시하며, 내용을 확인하지 않습니다. 적지 않은 항목은 작성자의 신고 없음으로 표시합니다. 값의 형식이 잘못되어도 그 항목을 신고 없음으로 다룰 뿐, 게재는 멈추지 않습니다. 신고 없음으로 다룬 항목은 list_my_plugins로 확인할 수 있습니다.',

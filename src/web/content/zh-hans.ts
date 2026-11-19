@@ -230,7 +230,7 @@ export const zhHans: Record<PageKey, PageContent> = {
               'paidFeatures：如果有通过向作者付费解锁的功能则为 true，否则为 false。',
               'paidServices：用户需另行订阅的付费服务名称的数组，最多 5 个，每个最多 60 个字符。[] 表示声明没有此类服务。',
               'restrictedAssets：如果随附素材有禁止商业使用等使用限制则为 true，否则为 false。',
-              'supportUrl：支持或购买页面，最多 500 个字符。只接受 booth.pm、gumroad.com、itch.io、patreon.com、ko-fi.com 及其子域名上的 https URL，以及 https://github.com/sponsors/<name>。',
+              'supportUrl：支持或购买页面，最多 300 个字符。只接受 booth.pm、gumroad.com、itch.io、patreon.com、ko-fi.com 及其子域名上的 https URL，以及 https://github.com/sponsors/<name>。',
             ],
           },
           '本平台将这些项目作为作者声明显示在插件页面上，不核实其内容。未填写的项目显示为作者未声明。值的格式有误时，只会把该项目视为未声明，不会停止收录。可以用 list_my_plugins 查看哪些项目被视为未声明。',

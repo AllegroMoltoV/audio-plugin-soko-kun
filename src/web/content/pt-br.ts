@@ -230,7 +230,7 @@ export const ptBR: Record<PageKey, PageContent> = {
               'paidFeatures: true se alguns recursos forem liberados mediante pagamento ao autor; caso contrário, false.',
               'paidServices: Um array com até 5 nomes, cada um com até 60 caracteres, de serviços pagos que os usuários contratam à parte. [] declara que não há nenhum.',
               'restrictedAssets: true se um material incluído tiver restrições de uso, como a proibição de uso comercial; caso contrário, false.',
-              'supportUrl: Uma página de apoio ou compra, com até 500 caracteres. Só são aceitas URLs https em booth.pm, gumroad.com, itch.io, patreon.com, ko-fi.com ou seus subdomínios, e https://github.com/sponsors/<name>.',
+              'supportUrl: Uma página de apoio ou compra, com até 300 caracteres. Só são aceitas URLs https em booth.pm, gumroad.com, itch.io, patreon.com, ko-fi.com ou seus subdomínios, e https://github.com/sponsors/<name>.',
             ],
           },
           'Esta plataforma mostra esses itens na página do plugin como declarações do autor e não os verifica. Um item que não for escrito aparece como não declarado pelo autor. Um valor inválido apenas faz esse item ser tratado como não declarado e não impede a listagem. O list_my_plugins mostra quais itens foram tratados como não declarados.',

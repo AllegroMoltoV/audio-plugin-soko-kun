@@ -230,7 +230,7 @@ export const zhHant: Record<PageKey, PageContent> = {
               'paidFeatures：如果有透過向作者付費解鎖的功能則為 true，否則為 false。',
               'paidServices：使用者需另行訂閱的付費服務名稱的陣列，最多 5 個，每個最多 60 個字元。[] 表示聲明沒有此類服務。',
               'restrictedAssets：如果隨附素材有禁止商業使用等使用限制則為 true，否則為 false。',
-              'supportUrl：支持或購買頁面，最多 500 個字元。只接受 booth.pm、gumroad.com、itch.io、patreon.com、ko-fi.com 及其子網域上的 https URL，以及 https://github.com/sponsors/<name>。',
+              'supportUrl：支持或購買頁面，最多 300 個字元。只接受 booth.pm、gumroad.com、itch.io、patreon.com、ko-fi.com 及其子網域上的 https URL，以及 https://github.com/sponsors/<name>。',
             ],
           },
           '本平台將這些項目作為作者聲明顯示在外掛頁面上，不查核其內容。未填寫的項目顯示為作者未聲明。值的格式有誤時，只會把該項目視為未聲明，不會停止收錄。可以用 list_my_plugins 查看哪些項目被視為未聲明。',

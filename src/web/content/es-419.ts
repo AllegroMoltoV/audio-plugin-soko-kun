@@ -230,7 +230,7 @@ export const es419: Record<PageKey, PageContent> = {
               'paidFeatures: true si algunas funciones se desbloquean pagando al autor; si no, false.',
               'paidServices: Un arreglo de hasta 5 nombres, de hasta 60 caracteres cada uno, de servicios de pago que los usuarios contratan aparte. [] declara que no hay ninguno.',
               'restrictedAssets: true si un material incluido tiene restricciones de uso, como la prohibición del uso comercial; si no, false.',
-              'supportUrl: Una página de apoyo o compra, de hasta 500 caracteres. Solo se aceptan URL https en booth.pm, gumroad.com, itch.io, patreon.com, ko-fi.com o sus subdominios, y https://github.com/sponsors/<name>.',
+              'supportUrl: Una página de apoyo o compra, de hasta 300 caracteres. Solo se aceptan URL https en booth.pm, gumroad.com, itch.io, patreon.com, ko-fi.com o sus subdominios, y https://github.com/sponsors/<name>.',
             ],
           },
           'Esta plataforma muestra estos datos en la página del plugin como declaraciones del autor y no los verifica. Un dato que no se escribe aparece como no declarado por el autor. Un valor no válido solo hace que ese dato se trate como no declarado, y no detiene la publicación en la lista. list_my_plugins muestra qué datos se trataron como no declarados.',

@@ -230,7 +230,7 @@ export const ja: Record<PageKey, PageContent> = {
               'paidFeatures: 作者への支払いで解放する機能があれば true、無ければ false です。',
               'paidServices: 利用者が別に契約する有料サービスの名前の配列です。名前は 5 件まで、それぞれ 60 文字以内で書いてください。[] は、有料サービスが無いという申告です。',
               'restrictedAssets: 同梱の素材に、商用の利用の禁止などの制限があれば true、無ければ false です。',
-              'supportUrl: 支援・購入のページです。500 文字以内の https の URL で、booth.pm・gumroad.com・itch.io・patreon.com・ko-fi.com とそのサブドメインのもの、または https://github.com/sponsors/<name> だけを受け付けます。',
+              'supportUrl: 支援・購入のページです。300 文字以内の https の URL で、booth.pm・gumroad.com・itch.io・patreon.com・ko-fi.com とそのサブドメインのもの、または https://github.com/sponsors/<name> だけを受け付けます。',
             ],
           },
           'このプラットフォームは、これらの項目を作者の申告としてプラグインのページに表示し、内容を確かめません。書かなかった項目は「作者の申告なし」と表示します。値の形が誤っていても、その項目を申告なしとして扱うだけで、掲載は止めません。申告なしとして扱った項目は list_my_plugins で確かめられます。',

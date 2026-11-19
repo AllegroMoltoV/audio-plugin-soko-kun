@@ -230,7 +230,7 @@ export const en: Record<PageKey, PageContent> = {
               'paidFeatures: true if some features are unlocked by paying the author, and otherwise false.',
               'paidServices: An array of up to 5 names, each up to 60 characters, of paid services that users contract separately. [] declares that there are none.',
               'restrictedAssets: true if a bundled asset has usage restrictions, such as no commercial use, and otherwise false.',
-              'supportUrl: A support or purchase page, up to 500 characters. Only https URLs on booth.pm, gumroad.com, itch.io, patreon.com, ko-fi.com, or their subdomains, and https://github.com/sponsors/<name> are accepted.',
+              'supportUrl: A support or purchase page, up to 300 characters. Only https URLs on booth.pm, gumroad.com, itch.io, patreon.com, ko-fi.com, or their subdomains, and https://github.com/sponsors/<name> are accepted.',
             ],
           },
           'This platform shows these items on the plugin page as declarations by the author, and does not verify them. An item that is not written is shown as not declared by the author. A wrong value only makes that item not declared, and does not stop the listing. list_my_plugins shows which items were treated as not declared.',
