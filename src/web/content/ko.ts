@@ -12,6 +12,7 @@ export const ko: Record<PageKey, PageContent> = {
           { formats: '지원 규격' },
           '이 레지스트리는 배포 파일을 보관하지 않습니다. 공개된 GitHub 저장소의 정보를 기록하고, 작성자가 GitHub Releases에 공개한 zip 압축 파일로 안내합니다.',
           '이 플랫폼은 배포 파일을 보관하지 않으므로, 배포 파일은 GitHub에서 직접 다운로드해 주세요.',
+          '여기에 게재한 배포 파일은 GitHub의 공개 릴리스에서 언제나 무료로 다운로드할 수 있습니다. 작성자에 따라서는 다른 곳에서 플러그인을 판매하거나 후원을 받기도 합니다. 플러그인 페이지에 표시하는 유료 기능, 유료 서비스, 동봉 소재의 이용 제한, 후원 페이지는 작성자의 신고이며, 이 플랫폼은 확인하지 않습니다. 게재할 수 있는 배포 방식은 게재 정책에서 설명합니다: {{ORIGIN}}/policy',
         ],
       },
       {
@@ -55,6 +56,14 @@ export const ko: Record<PageKey, PageContent> = {
             ],
           },
           '라이선스 판정은 GitHub가 저장소에 대해 감지한 라이선스를 바탕으로 합니다. 이 플랫폼은 샘플, 프리셋, 폰트 같은 동봉 소재의 라이선스를 보장하지 않습니다.',
+          '플러그인을 판매하거나 결제를 받는 작성자도 있습니다. 게재할 수 있는지는 배포 파일의 배포 방식에 따라 다음과 같이 정해집니다.',
+          {
+            list: [
+              'A. 같은 배포 파일을 GitHub에서 무료로 배포하고, 다른 곳에서도 판매하거나 후원을 받는 경우: 게재할 수 있습니다.',
+              'B. 일부 기능을 결제로 잠금 해제하는 경우: 작성자가 .audio-soko-kun/config.json에서 paidFeatures를 신고하면 게재할 수 있습니다.',
+              'C. 소스 코드를 공개하지 않고 유료 배포 파일만 배포하는 경우: 구매 전에 내용을 확인할 수 없으므로 게재하지 않습니다.',
+            ],
+          },
         ],
       },
       {
@@ -62,6 +71,21 @@ export const ko: Record<PageKey, PageContent> = {
         paragraphs: [
           '개발에 AI를 사용했는지 여부는 게재에 영향을 주지 않습니다. 모든 플러그인에 같은 조건을 적용하며, AI 사용의 신고도 요구하지 않습니다.',
           '이 플랫폼은 게재를 통해 안전성이나 품질을 인증하지 않으므로, 직접 확인한 뒤에 이용해 주세요.',
+          '게재한 배포 파일은 GitHub의 공개 릴리스에서 언제나 무료로 다운로드할 수 있습니다. 플러그인 페이지에 표시하는 유료 기능, 유료 서비스, 동봉 소재의 이용 제한, 후원 페이지는 작성자가 .audio-soko-kun/config.json에서 신고한 것입니다. 이 플랫폼은 이러한 신고를 확인하지 않습니다.',
+        ],
+      },
+      {
+        heading: '오디오 플러그인의 라이선스',
+        paragraphs: [
+          '작성자가 라이선스를 고를 때 참고할 짧은 안내입니다. 법률 자문이 아니며, 이 플랫폼은 법적인 보증을 하지 않습니다.',
+          {
+            list: [
+              'VST 3 SDK와 CLAP SDK는 MIT 라이선스로 제공되므로, 플러그인의 라이선스는 작성자가 자유롭게 고를 수 있습니다.',
+              'JUCE는 AGPLv3 또는 상용 라이선스로 제공됩니다. 상용 라이선스 없이 JUCE로 만든 플러그인은 AGPLv3로 공개해야 합니다.',
+              '임펄스 응답, HRTF 데이터, 모델, 샘플, 폰트, 이미지 같은 동봉 소재는 소재마다 출처와 라이선스를 README나 NOTICE에 적어 주세요.',
+              '상업적 이용을 금지하는 등 이용 제한이 있는 소재를 동봉할 때는 .audio-soko-kun/config.json에서 restrictedAssets를 true로 신고해 주세요.',
+            ],
+          },
         ],
       },
     ],
@@ -197,6 +221,21 @@ export const ko: Record<PageKey, PageContent> = {
           { code: '{\n  "name": "Simple Pitch Shift"\n}' },
           '카테고리는 다음 순서로 정합니다. 먼저 검사한 번들에서 카테고리를 추정합니다. 단서는 Audio Unit 컴포넌트의 type(aumu, aufx, aumf, aumi)과 VST 3 번들의 moduleinfo.json에 있는 Sub Categories입니다. 단서가 여러 카테고리를 가리키면 instrument, midi, analyzer, effect 순으로 앞의 것을 씁니다. 추정할 수 없으면 이 파일의 category를 쓰고, 그것도 없으면 utility로 합니다. 추정한 카테고리가 선언한 카테고리보다 우선합니다.',
           '이 플랫폼은 플러그인 바이너리를 실행하지 않으므로 CLAP의 features를 카테고리에 쓰지 않습니다. clap-wrapper로 만든 VST 3처럼 moduleinfo.json이 없는 번들도 단서가 되지 않습니다. CLAP만으로 배포하는 플러그인은 이 파일에서 category를 선언해 주세요.',
+          '작성자는 결제와 동봉 소재에 관한 선택 항목 4개도 신고할 수 있습니다.',
+          {
+            code: '{\n  "name": "Simple Pitch Shift",\n  "paidFeatures": false,\n  "paidServices": ["Example Cloud"],\n  "restrictedAssets": true,\n  "supportUrl": "https://example.booth.pm/items/1"\n}',
+          },
+          {
+            list: [
+              'paidFeatures: 작성자에게 결제하면 잠금 해제되는 기능이 있으면 true, 없으면 false입니다.',
+              'paidServices: 이용자가 별도로 계약하는 유료 서비스 이름의 배열입니다. 이름은 5개까지, 각각 60자 이내로 적어 주세요. []는 유료 서비스가 없다는 신고입니다.',
+              'restrictedAssets: 동봉 소재에 상업적 이용 금지 같은 제한이 있으면 true, 없으면 false입니다.',
+              'supportUrl: 후원·구매 페이지입니다. 500자 이내의 https URL로, booth.pm, gumroad.com, itch.io, patreon.com, ko-fi.com과 그 하위 도메인의 URL, 또는 https://github.com/sponsors/<name>만 받습니다.',
+            ],
+          },
+          '이 플랫폼은 이 항목들을 작성자의 신고로 플러그인 페이지에 표시하며, 내용을 확인하지 않습니다. 적지 않은 항목은 작성자의 신고 없음으로 표시합니다. 값의 형식이 잘못되어도 그 항목을 신고 없음으로 다룰 뿐, 게재는 멈추지 않습니다. 신고 없음으로 다룬 항목은 list_my_plugins로 확인할 수 있습니다.',
+          'supportUrl과 판매 페이지, 후원 페이지, 소재의 라이선스 페이지 같은 외부 링크는 첫 릴리스부터 적어 주세요. 처음 게재된 버전 이후에 supportUrl이나 다른 외부 링크를 추가하면, 그 버전은 관리자의 확인을 기다립니다 (diff-external-link). 판매 페이지의 링크는 supportUrl에 적어 주세요.',
+          '이용약관의 작성자 의무인 "허위 정보를 게재하지 않을 것"은 이러한 신고에도 적용됩니다: {{ORIGIN}}/terms',
         ],
       },
       {
@@ -275,6 +314,7 @@ export const ko: Record<PageKey, PageContent> = {
         heading: '공개 신고',
         paragraphs: [
           '잘못된 정보나 게재 정책에 관한 문제는 GitHub 저장소의 Issues로 신고해 주세요: https://github.com/AllegroMoltoV/audio-plugin-soko-kun/issues',
+          '유료 기능, 유료 서비스, 소재 제한, 후원 페이지에 관한 작성자의 잘못된 신고도 같은 방법으로 신고해 주세요.',
         ],
       },
       {

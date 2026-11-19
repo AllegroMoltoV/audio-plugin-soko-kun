@@ -107,6 +107,91 @@ export const Linkified: FC<{ text: string }> = ({ text }) => {
   );
 };
 
+// 一覧の申告のタグ。有料の機能・有料サービス・素材の制限があると申告したものだけに付け、申告なし (null) には付けない。
+const PricingTags: FC<{ view: PluginView; t: Dict }> = ({ view, t }) => {
+  const { paidFeatures, paidServices, restrictedAssets } = view.pricing;
+  const tags = [
+    paidFeatures === true ? t.pricing.tagPaidFeatures : null,
+    paidServices && paidServices.length > 0 ? t.pricing.tagPaidServices : null,
+    restrictedAssets === true ? t.pricing.tagRestrictedAssets : null,
+  ].filter((tag): tag is string => tag !== null);
+  return (
+    <>
+      {tags.map((tag) => (
+        <li>
+          <span class="pill declared">{tag}</span>
+        </li>
+      ))}
+    </>
+  );
+};
+
+// 作者の申告の値。null は申告なしで、「なし」と区別して表示する。
+const declaredFlag = (t: Dict, value: boolean | null) =>
+  value === null ? t.pricing.notDeclared : value ? t.pricing.yes : t.pricing.no;
+
+// ライセンスと作者の申告の区画。このプラットフォームが確かめたライセンスと、確かめていない作者の申告を分けて示す。
+// 申告の文字列と URL は作者の書いた外部データなので、JSX のエスケープに任せ、属性以外に生の HTML を出さない。
+const PricingSection: FC<{ view: PluginView; t: Dict }> = ({ view, t }) => {
+  const { paidFeatures, paidServices, restrictedAssets, supportUrl } = view.pricing;
+  return (
+    <>
+      <h2 class="bar">{t.pricing.heading}</h2>
+      <h3 class="sub">{t.pricing.checkedTitle}</h3>
+      <table class="info">
+        <tbody>
+          <tr>
+            <th scope="row">{t.license}</th>
+            <td>
+              <span translate="no">{view.license}</span> <span class="note">{t.pricing.licenseChecked}</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <h3 class="sub">{t.pricing.declaredTitle}</h3>
+      <p class="untrusted-note">{t.pricing.declaredNote}</p>
+      <table class="info declared">
+        <tbody>
+          <tr>
+            <th scope="row">{t.pricing.paidFeatures}</th>
+            <td>{declaredFlag(t, paidFeatures)}</td>
+          </tr>
+          <tr>
+            <th scope="row">{t.pricing.paidServices}</th>
+            <td>
+              {paidServices === null ? (
+                t.pricing.notDeclared
+              ) : paidServices.length === 0 ? (
+                t.pricing.none
+              ) : (
+                <span lang="und" translate="no">
+                  {paidServices.join(', ')}
+                </span>
+              )}
+            </td>
+          </tr>
+          <tr>
+            <th scope="row">{t.pricing.restrictedAssets}</th>
+            <td>{declaredFlag(t, restrictedAssets)}</td>
+          </tr>
+          <tr>
+            <th scope="row">{t.pricing.supportUrl}</th>
+            <td>
+              {supportUrl === null ? (
+                t.pricing.notDeclared
+              ) : (
+                <a href={supportUrl} rel="noopener noreferrer nofollow" target="_blank" translate="no">
+                  {supportUrl}
+                </a>
+              )}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </>
+  );
+};
+
 export const PluginCards: FC<{ items: PluginView[]; t: Dict; lang: Lang }> = ({ items, t, lang }) =>
   items.length === 0 ? (
     <p>{t.noResults}</p>
@@ -151,6 +236,7 @@ export const PluginCards: FC<{ items: PluginView[]; t: Dict; lang: Lang }> = ({ 
                 </span>
               </li>
             ))}
+            <PricingTags view={view} t={t} />
           </ul>
           <Summary view={view} t={t} lang={lang} showOriginal={false} />
           <p class="meta">
@@ -607,10 +693,6 @@ export const PluginDetail: FC<{ view: PluginView; t: Dict; lang: Lang; showOrigi
             <td translate="no">{view.arches.length > 0 ? archList(view.arches) : t.unknown}</td>
           </tr>
           <tr>
-            <th scope="row">{t.license}</th>
-            <td translate="no">{view.license}</td>
-          </tr>
-          <tr>
             <th scope="row">{t.version}</th>
             <td>
               {release.tag} ({formatDate(release.publishedAt, lang)})
@@ -649,6 +731,7 @@ export const PluginDetail: FC<{ view: PluginView; t: Dict; lang: Lang; showOrigi
           ) : null}
         </tbody>
       </table>
+      <PricingSection view={view} t={t} />
 
       <h2 class="bar">{t.filesAndChecks}</h2>
       <ul class="files">
