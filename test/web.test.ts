@@ -367,6 +367,96 @@ describe('Web', () => {
     expect(search).toContain('<meta name="robots" content="noindex"/>');
   });
 
+  // 有料・素材の申告の表示 (docs/design/scanning.md の「有料・素材の申告」)。申告は作者の主張で、外部データとして扱う。
+  const declare = (config: Record<string, unknown>) =>
+    env.DB.prepare("UPDATE release_checks SET config_state = 'ok', config_json = ?").bind(JSON.stringify(config)).run();
+  const detailPage = async () => (await SELF.fetch(`${ORIGIN}/plugins/${OWNER}/${REPO}?lang=en`)).text();
+  // 一覧の本文。右の列にはタグが無いため、本文だけを見る。
+  const listMain = async () =>
+    (await (await SELF.fetch(`${ORIGIN}/?lang=en`)).text()).split('<main')[1]?.split('</main>')[0] ?? '';
+  const row = (html: string, label: string) =>
+    html.match(new RegExp(`<th scope="row">${label}</th><td>(.*?)</td>`, 's'))?.[1] ?? '';
+
+  it('申告の無い項目は「作者の申告なし」と表示し、「なし」と表示しない。一覧にも申告のタグを付けない', async () => {
+    await register();
+    await markListable(env.DB);
+    await declare({ name: 'Pitch', paidServices: [] });
+    const detail = await detailPage();
+    expect(row(detail, 'Features unlocked by payment')).toBe('Not declared by the author');
+    expect(row(detail, 'Bundled assets with usage restrictions')).toBe('Not declared by the author');
+    expect(row(detail, 'Support or purchase page')).toBe('Not declared by the author');
+    // [] は無いと申告したことで、申告なしと区別する。
+    expect(row(detail, 'Paid services used separately')).toBe('None (declared)');
+    expect(detail).toContain('This platform does not verify them.');
+    expect(await listMain()).not.toContain('pill declared');
+  });
+
+  it('申告した値を作者の申告の区画に表示し、作者の文字列はエスケープし、支援のページには nofollow を付ける', async () => {
+    await register();
+    await markListable(env.DB);
+    await declare({
+      paidFeatures: true,
+      paidServices: ['Cloud<script>alert(5)</script>', 'Sync'],
+      restrictedAssets: false,
+      supportUrl: 'https://example.booth.pm/items/1',
+    });
+    const detail = await detailPage();
+    expect(row(detail, 'Features unlocked by payment')).toBe('Yes');
+    expect(row(detail, 'Bundled assets with usage restrictions')).toBe('No');
+    expect(row(detail, 'Paid services used separately')).toContain('Cloud&lt;script&gt;alert(5)&lt;/script&gt;, Sync');
+    expect(detail).not.toContain('<script>alert(5)</script>');
+    expect(row(detail, 'Support or purchase page')).toMatch(
+      /^<a href="https:\/\/example\.booth\.pm\/items\/1" rel="noopener noreferrer nofollow" target="_blank"/,
+    );
+    // ライセンスは、このプラットフォームが確かめた項目の区画に置く。作者の申告の区画より前にある。
+    expect(detail.indexOf('Checked by this platform')).toBeLessThan(detail.indexOf('Approved by the OSI'));
+    expect(detail.indexOf('Approved by the OSI')).toBeLessThan(detail.indexOf('Declared by the author'));
+
+    const list = await listMain();
+    expect(list).toContain('<span class="pill declared">Paid features</span>');
+    expect(list).toContain('<span class="pill declared">Paid services</span>');
+    // false と申告した素材の制限には、タグを付けない。
+    expect(list).not.toContain('Restricted assets');
+  });
+
+  it('掲載していない新しい版の申告は、詳細ページにも一覧にも出さない', async () => {
+    await register();
+    await markListable(env.DB);
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO releases (github_release_id, plugin_id, tag, name, commit_sha, published_at, html_url)
+         SELECT 7003, plugin_id, 'v9.9.9-new', NULL, 'y', '2026-11-15T00:00:00Z', 'https://example.invalid' FROM releases`,
+      ),
+      env.DB.prepare(
+        `INSERT INTO release_checks (github_release_id, immutable, license_state, diff_state, config_state, config_json, review_state)
+         VALUES (7003, 1, 'passed', 'held', 'ok', ?, 'done')`,
+      ).bind(
+        JSON.stringify({
+          paidFeatures: true,
+          paidServices: ['NEW-SERVICE-MARKER'],
+          restrictedAssets: true,
+          supportUrl: 'https://ko-fi.com/newmarker',
+        }),
+      ),
+    ]);
+    const detail = await detailPage();
+    expect(detail).toContain('v1.1.0');
+    expect(detail).not.toContain('NEW-SERVICE-MARKER');
+    expect(detail).not.toContain('ko-fi.com/newmarker');
+    expect(row(detail, 'Features unlocked by payment')).toBe('Not declared by the author');
+    expect(await listMain()).not.toContain('pill declared');
+  });
+
+  it('素材の制限を true と申告したプラグインにだけ、一覧で素材の制限のタグを付ける', async () => {
+    await register();
+    await markListable(env.DB);
+    await declare({ paidFeatures: false, paidServices: [], restrictedAssets: true });
+    const list = await listMain();
+    expect(list).toContain('<span class="pill declared">Restricted assets</span>');
+    expect(list).not.toContain('Paid features');
+    expect(list).not.toContain('Paid services');
+  });
+
   // VST の語の表示 (ADR 0004、docs/design/testing.md の V10〜V13)。
   const LOGO = '<img src="/images/vst-compatible.png"';
   const NOTICE = 'VST is a registered trademark of Steinberg Media Technologies GmbH.';
