@@ -1,9 +1,13 @@
 // list_my_plugins の危険側の境界: 管理者でない人に、確認待ちの版や理由やレビューの指摘を返さない。
 import { env } from 'cloudflare:test';
+import { HttpResponse, http } from 'msw';
 import { describe, expect, it } from 'vitest';
-import { listMyPlugins, nextCheck, resumeOf, versionState } from '../../src/domain/author';
+import { Budget } from '../../src/budget';
+import { listMyPlugins, NOTICE_TEXT, nextCheck, resumeOf, versionState } from '../../src/domain/author';
+import { runReleaseChecks } from '../../src/domain/release-checks';
 import { submitPlugin } from '../../src/domain/submit';
-import { githubHandlers, OWNER, REPO, USER_TOKEN } from '../fixtures/github';
+import { markListable } from '../fixtures/checks';
+import { githubHandlers, OWNER, REPO, releaseCheckHandlers, USER_TOKEN } from '../fixtures/github';
 import { network } from '../setup';
 
 const url = `https://github.com/${OWNER}/${REPO}`;
@@ -117,6 +121,80 @@ describe('listMyPlugins', () => {
     for (const marker of ['DISPLAY-NAME-MARKER', 'ASSET-NAME-MARKER.zip', 'VST2-FILE-MARKER.dll']) {
       expect(text, marker).toContain(marker);
     }
+  });
+});
+
+// R11: 申告の注意 (notices) は blockers と分け、掲載を止めない。文は固定のコードと固定の文言だけにする。
+describe('R11 list_my_plugins の申告の notices', () => {
+  const owner = { githubUserId: 4242, githubLogin: OWNER, githubToken: USER_TOKEN };
+  interface PluginReport {
+    notices: Array<{ code: string }>;
+    versions: Array<{ tag: string; state: string; blockers: unknown[]; notices: unknown[] }>;
+  }
+  const report = async (): Promise<PluginReport> => {
+    network.use(...githubHandlers());
+    const result = await listMyPlugins(env, owner, {});
+    const plugin = (result as { plugins: PluginReport[] }).plugins[0];
+    if (!plugin) throw new Error('no plugin');
+    return plugin;
+  };
+  const notice = (code: keyof typeof NOTICE_TEXT) => ({ code, ...NOTICE_TEXT[code], waitsFor: 'author' });
+
+  it('掲載中の版に申告が 1 つも無ければ declarations_missing を返し、申告すれば消える', async () => {
+    await register();
+    await markListable(env.DB);
+    const missing = await report();
+    expect(missing.versions[0]?.state).toBe('listed');
+    expect(missing.notices).toEqual([notice('declarations_missing')]);
+    // false の申告も申告に数える。
+    await env.DB.prepare("UPDATE release_checks SET config_state = 'ok', config_json = ?")
+      .bind(JSON.stringify({ paidFeatures: false }))
+      .run();
+    expect((await report()).notices).toEqual([]);
+  });
+
+  // 宣言ファイルの取得 (runReleaseChecks) から照合 (settleDeclarations) と list_my_plugins までをつなぐ。
+  it('supportUrl の形の誤りは版の notices に support_url_invalid を出し、掲載を止めない', async () => {
+    await register();
+    await markListable(env.DB);
+    await env.DB.prepare("UPDATE release_checks SET config_state = 'pending', config_fetched_at = NULL").run();
+    network.use(
+      http.get('https://api.github.com/repos/:owner/:repo/contents/.audio-soko-kun/config.json', () =>
+        HttpResponse.text(JSON.stringify({ name: 'Fixture', supportUrl: 'https://evil.example/AUTHOR-URL-MARKER' })),
+      ),
+      ...releaseCheckHandlers(),
+    );
+    await runReleaseChecks(env, new Budget());
+    network.resetHandlers();
+    const plugin = await report();
+    expect(plugin.versions[0]).toMatchObject({
+      tag: 'v1.1.0',
+      state: 'listed',
+      blockers: [],
+      notices: [notice('support_url_invalid')],
+    });
+    // 申告の項目は形の誤りで null になったため、掲載中の版は申告なしのまま。
+    expect(plugin.notices).toEqual([notice('declarations_missing')]);
+    expect(JSON.stringify(plugin)).not.toContain('AUTHOR-URL-MARKER');
+  });
+
+  it('保存した notices は固定の文言で返し、作者の申告の文字列を含めない', async () => {
+    await register();
+    await markListable(env.DB);
+    await env.DB.prepare("UPDATE release_checks SET config_state = 'ok', config_json = ?")
+      .bind(
+        JSON.stringify({
+          paidServices: ['SERVICE-MARKER'],
+          supportUrl: 'https://marker.booth.pm/AUTHOR-URL-MARKER',
+          notices: ['support_url_invalid', 'NOT-A-CODE-MARKER'],
+        }),
+      )
+      .run();
+    const plugin = await report();
+    expect(plugin.versions[0]?.state).toBe('listed');
+    expect(plugin.versions[0]?.notices).toEqual([notice('support_url_invalid')]);
+    expect(plugin.notices).toEqual([]);
+    expect(JSON.stringify(plugin)).not.toMatch(/MARKER/);
   });
 });
 
