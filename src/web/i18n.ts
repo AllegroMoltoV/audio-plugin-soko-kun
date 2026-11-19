@@ -188,8 +188,10 @@ export interface Dict {
     // paidServices が [] のとき。申告なしと区別するため、申告した旨を添える。
     none: string;
     notDeclared: string;
-    // 有料の機能か有料サービスを申告したものに付けるタグ (本家と共通の 1 つのタグ)。
-    tagPaid: string;
+    // 有料の機能を申告したものと、外部の有料サービスを申告したものに付けるタグ。両方なら両方を付ける。
+    // 作者に払う機能と、利用者が別に払う外部の料金を取り違えないよう、2 つに分ける (本家と共通)。
+    tagPaidFeatures: string;
+    tagPaidServices: string;
     tagRestrictedAssets: string;
     // 商用利用の 1 行。コードの文 (掲載の条件で確かめた事実) に、同梱素材の作者の申告の文をつなげる。
     // 作者に新しい項目は申告させない。外部の有料サービスがあれば規約の注意を添える。
@@ -367,7 +369,8 @@ const en: Dict = {
     no: 'No',
     none: 'None (declared)',
     notDeclared: 'Not declared by the author',
-    tagPaid: 'Paid features or services',
+    tagPaidFeatures: 'Paid features',
+    tagPaidServices: 'Needs paid external services',
     tagRestrictedAssets: 'Assets restrict commercial use',
     commercialUse: 'Commercial use',
     commercialCode: 'The code can be used commercially under the conditions of its license (checked by this platform).',
@@ -376,7 +379,7 @@ const en: Dict = {
       'Bundled assets: the author declared restrictions such as no commercial use. See the README.',
     commercialAssetsUndeclared: 'Bundled assets: not declared by the author.',
     commercialServices: 'Also check the terms of the paid services.',
-    tagFree: 'Free',
+    tagFree: 'Free to download',
     tagCommercialOk: 'Commercial use OK',
     authorImportantLabel: 'Before you submit',
     authorImportant:
@@ -543,7 +546,8 @@ const ja: Dict = {
     no: 'なし',
     none: 'なし (申告済み)',
     notDeclared: '作者の申告なし',
-    tagPaid: '有料の機能・サービスあり',
+    tagPaidFeatures: '有料の機能あり',
+    tagPaidServices: '外部の有料サービスが必要',
     tagRestrictedAssets: '素材に商用利用の制限あり',
     commercialUse: '商用利用',
     commercialCode: 'コードは、ライセンスの条件にしたがって商用利用できます (倉庫くんが確認)。',
@@ -552,7 +556,7 @@ const ja: Dict = {
       '同梱素材: 作者が商用利用などの制限があると申告しています。詳細は README を確認してください。',
     commercialAssetsUndeclared: '同梱素材: 作者の申告なし。',
     commercialServices: '外部の有料サービスの規約も確認してください。',
-    tagFree: '無料',
+    tagFree: '入手は無料',
     tagCommercialOk: '商用利用可',
     authorImportantLabel: '登録する前に',
     authorImportant:
@@ -717,7 +721,8 @@ const zhHans: Dict = {
     no: '无',
     none: '无（已声明）',
     notDeclared: '作者未声明',
-    tagPaid: '有付费功能或服务',
+    tagPaidFeatures: '有付费功能',
+    tagPaidServices: '需要外部付费服务',
     tagRestrictedAssets: '素材限制商业用途',
     commercialUse: '商业用途',
     commercialCode: '代码可按照许可证的条件用于商业用途（本平台已确认）。',
@@ -725,7 +730,7 @@ const zhHans: Dict = {
     commercialAssetsRestricted: '捆绑素材：作者声明有禁止商业用途等限制。详情请查看 README。',
     commercialAssetsUndeclared: '捆绑素材：作者未声明。',
     commercialServices: '另请确认付费服务的条款。',
-    tagFree: '免费',
+    tagFree: '免费获取',
     tagCommercialOk: '可商用',
     authorImportantLabel: '登记之前',
     authorImportant:
@@ -884,7 +889,8 @@ const zhHant: Dict = {
     no: '無',
     none: '無（已聲明）',
     notDeclared: '作者未聲明',
-    tagPaid: '有付費功能或服務',
+    tagPaidFeatures: '有付費功能',
+    tagPaidServices: '需要外部付費服務',
     tagRestrictedAssets: '素材限制商業用途',
     commercialUse: '商業用途',
     commercialCode: '程式碼可依照授權的條件用於商業用途（本平台已確認）。',
@@ -892,7 +898,7 @@ const zhHant: Dict = {
     commercialAssetsRestricted: '隨附素材：作者聲明有禁止商業用途等限制。詳情請查看 README。',
     commercialAssetsUndeclared: '隨附素材：作者未聲明。',
     commercialServices: '另請確認付費服務的條款。',
-    tagFree: '免費',
+    tagFree: '免費取得',
     tagCommercialOk: '可商用',
     authorImportantLabel: '登記之前',
     authorImportant:
@@ -1058,7 +1064,8 @@ const ko: Dict = {
     no: '없음',
     none: '없음 (신고함)',
     notDeclared: '작성자의 신고 없음',
-    tagPaid: '유료 기능·서비스 있음',
+    tagPaidFeatures: '유료 기능 있음',
+    tagPaidServices: '외부 유료 서비스 필요',
     tagRestrictedAssets: '소재에 상업적 이용 제한 있음',
     commercialUse: '상업적 이용',
     commercialCode: '코드는 라이선스 조건에 따라 상업적으로 이용할 수 있습니다 (이 플랫폼이 확인).',
@@ -1067,7 +1074,7 @@ const ko: Dict = {
       '포함된 소재: 작성자가 상업적 이용 금지 등의 제한이 있다고 신고했습니다. 자세한 내용은 README를 확인해 주세요.',
     commercialAssetsUndeclared: '포함된 소재: 작성자의 신고 없음.',
     commercialServices: '유료 서비스의 약관도 확인해 주세요.',
-    tagFree: '무료',
+    tagFree: '무료로 받기',
     tagCommercialOk: '상업적 이용 가능',
     authorImportantLabel: '등록하기 전에',
     authorImportant:
@@ -1235,7 +1242,8 @@ const ptBR: Dict = {
     no: 'Não',
     none: 'Nenhum (declarado)',
     notDeclared: 'Não declarado pelo autor',
-    tagPaid: 'Recursos ou serviços pagos',
+    tagPaidFeatures: 'Recursos pagos',
+    tagPaidServices: 'Requer serviços externos pagos',
     tagRestrictedAssets: 'Recursos restringem uso comercial',
     commercialUse: 'Uso comercial',
     commercialCode:
@@ -1245,7 +1253,7 @@ const ptBR: Dict = {
       'Recursos incluídos: o autor declarou restrições, como a proibição de uso comercial. Veja o README.',
     commercialAssetsUndeclared: 'Recursos incluídos: não declarado pelo autor.',
     commercialServices: 'Confira também os termos dos serviços pagos.',
-    tagFree: 'Grátis',
+    tagFree: 'Download gratuito',
     tagCommercialOk: 'Uso comercial permitido',
     authorImportantLabel: 'Antes de enviar',
     authorImportant:
@@ -1415,7 +1423,8 @@ const es419: Dict = {
     no: 'No',
     none: 'Ninguno (declarado)',
     notDeclared: 'No declarado por el autor',
-    tagPaid: 'Funciones o servicios de pago',
+    tagPaidFeatures: 'Funciones de pago',
+    tagPaidServices: 'Requiere servicios externos de pago',
     tagRestrictedAssets: 'Recursos restringen el uso comercial',
     commercialUse: 'Uso comercial',
     commercialCode:
@@ -1425,7 +1434,7 @@ const es419: Dict = {
       'Recursos incluidos: el autor declaró restricciones, como la prohibición del uso comercial. Consulta el README.',
     commercialAssetsUndeclared: 'Recursos incluidos: no declarado por el autor.',
     commercialServices: 'Revisa también los términos de los servicios de pago.',
-    tagFree: 'Gratis',
+    tagFree: 'Descarga gratuita',
     tagCommercialOk: 'Uso comercial permitido',
     authorImportantLabel: 'Antes de enviar',
     authorImportant:
