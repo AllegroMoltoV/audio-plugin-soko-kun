@@ -33,7 +33,7 @@ async function toolResult(response: Response): Promise<{ isError?: boolean; payl
 
 // 作者向けの最重要の文を、instructions の作者向けの部分と submit_plugin の説明の最初に置く (本家と共通)。
 describe('作者向けの最重要の文', () => {
-  const KEY = 'anyone can use and redistribute its code commercially under its license';
+  const KEY = 'anyone can use and redistribute its code commercially under the conditions of its license';
   it('instructions の作者向けの部分の最初と、submit_plugin の説明の最初に置く', async () => {
     const init = await SELF.fetch(
       new Request(`${ORIGIN}/mcp`, {
@@ -51,7 +51,7 @@ describe('作者向けの最重要の文', () => {
     const line = text.split('\n').find((l) => l.startsWith('data:')) ?? text;
     const instructions = (JSON.parse(line.replace(/^data:\s*/, '')) as { result: { instructions: string } }).result
       .instructions;
-    expect(instructions).toContain(`For plugin authors: If you list a plugin on Audio Plugin Soko-kun, anyone`);
+    expect(instructions).toContain(`For plugin authors: When your plugin is listed on this platform, anyone`);
     expect(instructions).toContain(KEY);
     const { AUTHOR_KEY_POINT } = await import('../src/domain/submit');
     expect(AUTHOR_KEY_POINT).toContain(KEY);

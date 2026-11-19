@@ -15,14 +15,15 @@ export type PageKey = (typeof PAGE_KEYS)[number];
 // 本文の要素。文字列は段落、code はコードブロック、list は箇条書き。
 // contact は「連絡先を表示」ボタン。アドレスは本文に書かない。
 // formats は対象の規格の行で、値は行の見出し。VST の語を書くページでは、VST の語より前に置く (ADR 0004)。
-// important は枠で囲んで強調する文。作者向けの最重要の文 (掲載すると誰でも無料で入手でき、商用利用できる) に使う。
+// important は、作者向けの最重要の文 (掲載すると誰でも無料で入手でき、商用利用できる) を枠で囲んで置く位置。
+// 文と枠の見出しは UI の辞書 (i18n.ts の pricing.authorImportant) から取り、本家と同じ文にそろえる。
 export type Block =
   | string
   | { code: string }
   | { list: string[] }
   | { contact: true }
   | { formats: string }
-  | { important: string };
+  | { important: true };
 
 export interface PageContent {
   title: string;

@@ -188,23 +188,28 @@ export interface Dict {
     // paidServices が [] のとき。申告なしと区別するため、申告した旨を添える。
     none: string;
     notDeclared: string;
-    tagPaidFeatures: string;
-    tagPaidServices: string;
+    // 有料の機能か有料サービスを申告したものに付けるタグ (本家と共通の 1 つのタグ)。
+    tagPaid: string;
     tagRestrictedAssets: string;
-    // 商用利用の 1 行。ライセンスの判定と restrictedAssets から組み立て、作者に新しい項目は申告させない。
+    // 商用利用の 1 行。コードの文 (掲載の条件で確かめた事実) に、同梱素材の作者の申告の文をつなげる。
+    // 作者に新しい項目は申告させない。外部の有料サービスがあれば規約の注意を添える。
     commercialUse: string;
-    commercialAllowed: string;
-    commercialRestrictedAssets: string;
-    commercialUndeclared: string;
+    commercialCode: string;
+    commercialAssetsNone: string;
+    commercialAssetsRestricted: string;
+    commercialAssetsUndeclared: string;
     commercialServices: string;
     // すべての掲載に付けるタグ。入手が無料であることと、商用利用できること (素材の制限の申告が無いとき)。
     tagFree: string;
     tagCommercialOk: string;
+    // 作者向けの最重要の文と、その枠の見出し (本家と共通)。/policy と /submit の先頭に置く。
+    authorImportantLabel: string;
+    authorImportant: string;
   };
 }
 
 const en: Dict = {
-  tagline: 'A warehouse of open-source audio plugins, free to download',
+  tagline: 'A warehouse of free-to-download open-source audio plugins',
   siteDescription:
     'A registry of open-source audio plugins that you can search from the web or from AI agents such as Claude Code and Codex. Every listed file has a verified build provenance attestation and is checked against a database of known malware samples.',
   notice:
@@ -356,25 +361,26 @@ const en: Dict = {
       'The author declared these items in .audio-soko-kun/config.json. This platform does not verify them. The files are always free to download from the public GitHub releases.',
     paidFeatures: 'Features unlocked by payment',
     paidServices: 'Paid services used separately',
-    restrictedAssets: 'Bundled assets with usage restrictions',
+    restrictedAssets: 'Restrictions on bundled assets, such as no commercial use',
     supportUrl: 'Support or purchase page',
     yes: 'Yes',
     no: 'No',
     none: 'None (declared)',
     notDeclared: 'Not declared by the author',
-    tagPaidFeatures: 'Paid features',
-    tagPaidServices: 'Paid services',
-    tagRestrictedAssets: 'Commercial-use restrictions on assets',
+    tagPaid: 'Paid features or services',
+    tagRestrictedAssets: 'Assets restrict commercial use',
     commercialUse: 'Commercial use',
-    commercialAllowed:
-      'Allowed under the license terms. This platform checked the code license, and the author declares that the bundled assets have no usage restrictions.',
-    commercialRestrictedAssets:
-      'The code can be used commercially under the license terms (checked by this platform). The author declares that the bundled assets restrict use, such as commercial use. See the README for details.',
-    commercialUndeclared:
-      'The code can be used commercially under the license terms (checked by this platform). The author has not declared whether the bundled assets restrict use.',
-    commercialServices: 'Also check the terms of the external services it uses.',
+    commercialCode: 'The code can be used commercially under the conditions of its license (checked by this platform).',
+    commercialAssetsNone: 'Bundled assets: the author declared no restrictions.',
+    commercialAssetsRestricted:
+      'Bundled assets: the author declared restrictions such as no commercial use. See the README.',
+    commercialAssetsUndeclared: 'Bundled assets: not declared by the author.',
+    commercialServices: 'Also check the terms of the paid services.',
     tagFree: 'Free',
     tagCommercialOk: 'Commercial use OK',
+    authorImportantLabel: 'Before you submit',
+    authorImportant:
+      'When your plugin is listed on this platform, anyone can download its files from GitHub for free, and anyone can use and redistribute its code commercially under the conditions of its license. Income from sales is limited to selling or support outside this platform on that basis. If you want to earn only by selling the files, or to restrict commercial use, your plugin is not eligible for listing. If bundled assets restrict commercial use, declare restrictedAssets in .audio-soko-kun/config.json. Without the declaration, the plugin is shown as OK for commercial use.',
   },
 };
 
@@ -531,25 +537,26 @@ const ja: Dict = {
       '以下は作者が .audio-soko-kun/config.json で申告した内容で、このプラットフォームは確かめていません。配布物は、GitHub の公開リリースからいつでも無料でダウンロードできます。',
     paidFeatures: '支払いで解放する機能',
     paidServices: '別に契約する有料サービス',
-    restrictedAssets: '利用の制限がある同梱の素材',
+    restrictedAssets: '同梱素材の商用利用などの制限',
     supportUrl: '支援・購入のページ',
     yes: 'あり',
     no: 'なし',
     none: 'なし (申告済み)',
     notDeclared: '作者の申告なし',
-    tagPaidFeatures: '有料の機能あり',
-    tagPaidServices: '有料サービスあり',
+    tagPaid: '有料の機能・サービスあり',
     tagRestrictedAssets: '素材に商用利用の制限あり',
     commercialUse: '商用利用',
-    commercialAllowed:
-      'ライセンスの条件にしたがって商用利用できます。コードのライセンスはこのプラットフォームが確かめました。同梱の素材に利用の制限が無いことは、作者が申告しています。',
-    commercialRestrictedAssets:
-      'コードはライセンスの条件にしたがって商用利用できます (このプラットフォームが確認)。同梱の素材には商用利用などの制限があると、作者が申告しています。詳しくは README を確かめてください。',
-    commercialUndeclared:
-      'コードはライセンスの条件にしたがって商用利用できます (このプラットフォームが確認)。同梱の素材の制限は、作者の申告がありません。',
-    commercialServices: '利用する外部サービスの規約も確かめてください。',
+    commercialCode: 'コードは、ライセンスの条件にしたがって商用利用できます (倉庫くんが確認)。',
+    commercialAssetsNone: '同梱素材: 作者は制限が無いと申告しています。',
+    commercialAssetsRestricted:
+      '同梱素材: 作者が商用利用などの制限があると申告しています。詳細は README を確認してください。',
+    commercialAssetsUndeclared: '同梱素材: 作者の申告なし。',
+    commercialServices: '外部の有料サービスの規約も確認してください。',
     tagFree: '無料',
     tagCommercialOk: '商用利用可',
+    authorImportantLabel: '登録する前に',
+    authorImportant:
+      '倉庫くんに掲載すると、プラグインのファイルは誰でも GitHub から無料で入手でき、コードはライセンスの条件にしたがって誰でも商用利用・再配布できます。販売の収益は、この前提のうえでの外部での販売や支援に限られます。ファイルの販売だけで収益を得たい場合や、商用利用を制限したい場合は、倉庫くんの掲載の対象になりません。商用利用を制限する同梱素材があるときは、.audio-soko-kun/config.json の restrictedAssets で申告してください。申告が無いと、商用利用可と表示されます。',
   },
 };
 
@@ -704,23 +711,25 @@ const zhHans: Dict = {
       '以下内容由作者在 .audio-soko-kun/config.json 中声明，本平台未加核实。文件始终可以从 GitHub 的公开发布免费下载。',
     paidFeatures: '付费解锁的功能',
     paidServices: '需另行订阅的付费服务',
-    restrictedAssets: '有使用限制的附带素材',
+    restrictedAssets: '捆绑素材的商业用途等限制',
     supportUrl: '支持或购买页面',
     yes: '有',
     no: '无',
     none: '无（已声明）',
     notDeclared: '作者未声明',
-    tagPaidFeatures: '付费功能',
-    tagPaidServices: '付费服务',
-    tagRestrictedAssets: '素材有商业使用限制',
-    commercialUse: '商业使用',
-    commercialAllowed: '可按照许可证条款进行商业使用。代码的许可证已由本平台确认，捆绑素材没有使用限制由作者申报。',
-    commercialRestrictedAssets:
-      '代码可按照许可证条款进行商业使用（本平台已确认）。作者申报捆绑素材有商业使用等限制，详情请查看 README。',
-    commercialUndeclared: '代码可按照许可证条款进行商业使用（本平台已确认）。捆绑素材是否有限制，作者没有申报。',
-    commercialServices: '也请确认所使用的外部服务的条款。',
+    tagPaid: '有付费功能或服务',
+    tagRestrictedAssets: '素材限制商业用途',
+    commercialUse: '商业用途',
+    commercialCode: '代码可按照许可证的条件用于商业用途（本平台已确认）。',
+    commercialAssetsNone: '捆绑素材：作者声明没有限制。',
+    commercialAssetsRestricted: '捆绑素材：作者声明有禁止商业用途等限制。详情请查看 README。',
+    commercialAssetsUndeclared: '捆绑素材：作者未声明。',
+    commercialServices: '另请确认付费服务的条款。',
     tagFree: '免费',
     tagCommercialOk: '可商用',
+    authorImportantLabel: '登记之前',
+    authorImportant:
+      '插件在本平台上架后，任何人都可以从 GitHub 免费获取其文件，并可按照许可证的条件将代码用于商业用途和再分发。销售收入仅限于在此前提下于本平台以外进行的销售或赞助。如果您只想通过出售文件获得收入，或想限制商业用途，您的插件不属于上架对象。如果捆绑素材限制商业用途，请在 .audio-soko-kun/config.json 的 restrictedAssets 中声明。如未声明，插件将显示为可商用。',
   },
 };
 
@@ -869,23 +878,25 @@ const zhHant: Dict = {
       '以下內容由作者在 .audio-soko-kun/config.json 中聲明，本平台未加查核。檔案隨時可以從 GitHub 的公開發行免費下載。',
     paidFeatures: '付費解鎖的功能',
     paidServices: '需另行訂閱的付費服務',
-    restrictedAssets: '有使用限制的隨附素材',
+    restrictedAssets: '隨附素材的商業用途等限制',
     supportUrl: '支持或購買頁面',
     yes: '有',
     no: '無',
     none: '無（已聲明）',
     notDeclared: '作者未聲明',
-    tagPaidFeatures: '付費功能',
-    tagPaidServices: '付費服務',
-    tagRestrictedAssets: '素材有商業使用限制',
-    commercialUse: '商業使用',
-    commercialAllowed: '可依照授權條款進行商業使用。程式碼的授權已由本平台確認，隨附素材沒有使用限制由作者申報。',
-    commercialRestrictedAssets:
-      '程式碼可依照授權條款進行商業使用（本平台已確認）。作者申報隨附素材有商業使用等限制，詳情請查看 README。',
-    commercialUndeclared: '程式碼可依照授權條款進行商業使用（本平台已確認）。隨附素材是否有限制，作者沒有申報。',
-    commercialServices: '也請確認所使用的外部服務的條款。',
+    tagPaid: '有付費功能或服務',
+    tagRestrictedAssets: '素材限制商業用途',
+    commercialUse: '商業用途',
+    commercialCode: '程式碼可依照授權的條件用於商業用途（本平台已確認）。',
+    commercialAssetsNone: '隨附素材：作者聲明沒有限制。',
+    commercialAssetsRestricted: '隨附素材：作者聲明有禁止商業用途等限制。詳情請查看 README。',
+    commercialAssetsUndeclared: '隨附素材：作者未聲明。',
+    commercialServices: '另請確認付費服務的條款。',
     tagFree: '免費',
     tagCommercialOk: '可商用',
+    authorImportantLabel: '登記之前',
+    authorImportant:
+      '外掛在本平台上架後，任何人都可以從 GitHub 免費取得其檔案，並可依照授權的條件將程式碼用於商業用途和再散布。銷售收入僅限於在此前提下於本平台以外進行的銷售或贊助。如果您只想透過販售檔案獲得收入，或想限制商業用途，您的外掛不屬於上架對象。如果隨附素材限制商業用途，請在 .audio-soko-kun/config.json 的 restrictedAssets 中聲明。如未聲明，外掛將顯示為可商用。',
   },
 };
 
@@ -1041,30 +1052,31 @@ const ko: Dict = {
       '아래 항목은 작성자가 .audio-soko-kun/config.json에서 신고한 내용이며, 이 플랫폼은 확인하지 않습니다. 배포 파일은 GitHub의 공개 릴리스에서 언제나 무료로 다운로드할 수 있습니다.',
     paidFeatures: '결제로 잠금 해제되는 기능',
     paidServices: '별도로 계약하는 유료 서비스',
-    restrictedAssets: '이용 제한이 있는 동봉 소재',
+    restrictedAssets: '포함된 소재의 상업적 이용 등의 제한',
     supportUrl: '후원·구매 페이지',
     yes: '있음',
     no: '없음',
     none: '없음 (신고함)',
     notDeclared: '작성자의 신고 없음',
-    tagPaidFeatures: '유료 기능',
-    tagPaidServices: '유료 서비스',
+    tagPaid: '유료 기능·서비스 있음',
     tagRestrictedAssets: '소재에 상업적 이용 제한 있음',
     commercialUse: '상업적 이용',
-    commercialAllowed:
-      '라이선스 조건에 따라 상업적으로 이용할 수 있습니다. 코드의 라이선스는 이 플랫폼이 확인했으며, 동봉된 소재에 이용 제한이 없다는 것은 작성자가 신고했습니다.',
-    commercialRestrictedAssets:
-      '코드는 라이선스 조건에 따라 상업적으로 이용할 수 있습니다(이 플랫폼이 확인). 동봉된 소재에는 상업적 이용 등의 제한이 있다고 작성자가 신고했습니다. 자세한 내용은 README를 확인해 주세요.',
-    commercialUndeclared:
-      '코드는 라이선스 조건에 따라 상업적으로 이용할 수 있습니다(이 플랫폼이 확인). 동봉된 소재의 제한 여부는 작성자가 신고하지 않았습니다.',
-    commercialServices: '이용하는 외부 서비스의 약관도 확인해 주세요.',
+    commercialCode: '코드는 라이선스 조건에 따라 상업적으로 이용할 수 있습니다 (이 플랫폼이 확인).',
+    commercialAssetsNone: '포함된 소재: 작성자가 제한이 없다고 신고했습니다.',
+    commercialAssetsRestricted:
+      '포함된 소재: 작성자가 상업적 이용 금지 등의 제한이 있다고 신고했습니다. 자세한 내용은 README를 확인해 주세요.',
+    commercialAssetsUndeclared: '포함된 소재: 작성자의 신고 없음.',
+    commercialServices: '유료 서비스의 약관도 확인해 주세요.',
     tagFree: '무료',
     tagCommercialOk: '상업적 이용 가능',
+    authorImportantLabel: '등록하기 전에',
+    authorImportant:
+      '이 플랫폼에 게재하면 누구나 GitHub에서 플러그인 파일을 무료로 받을 수 있고, 코드는 라이선스 조건에 따라 누구나 상업적으로 이용하고 재배포할 수 있습니다. 판매 수익은 이 전제 위에서 이 플랫폼 밖에서 하는 판매나 후원에 한정됩니다. 파일 판매만으로 수익을 얻고 싶거나 상업적 이용을 제한하고 싶다면 게재 대상이 아닙니다. 상업적 이용을 제한하는 소재를 포함한다면 .audio-soko-kun/config.json의 restrictedAssets로 신고해 주세요. 신고가 없으면 상업적 이용 가능으로 표시됩니다.',
   },
 };
 
 const ptBR: Dict = {
-  tagline: 'Um depósito de plugins de áudio de código aberto, com download gratuito',
+  tagline: 'Um depósito de plugins de áudio de código aberto com download gratuito',
   siteDescription:
     'Um registro de plugins de áudio de código aberto que você pode pesquisar pela web ou por agentes de IA como Claude Code e Codex. Cada arquivo listado tem a atestação de procedência da build verificada e é comparado com um banco de dados de malware conhecido.',
   notice:
@@ -1217,30 +1229,32 @@ const ptBR: Dict = {
       'O autor declarou estes itens em .audio-soko-kun/config.json. Esta plataforma não os verifica. Os arquivos podem sempre ser baixados gratuitamente das versões públicas no GitHub.',
     paidFeatures: 'Recursos liberados por pagamento',
     paidServices: 'Serviços pagos contratados à parte',
-    restrictedAssets: 'Materiais incluídos com restrições de uso',
+    restrictedAssets: 'Restrições dos recursos incluídos, como uso comercial',
     supportUrl: 'Página de apoio ou compra',
     yes: 'Sim',
     no: 'Não',
     none: 'Nenhum (declarado)',
     notDeclared: 'Não declarado pelo autor',
-    tagPaidFeatures: 'Recursos pagos',
-    tagPaidServices: 'Serviços pagos',
-    tagRestrictedAssets: 'Restrições de uso comercial em materiais',
+    tagPaid: 'Recursos ou serviços pagos',
+    tagRestrictedAssets: 'Recursos restringem uso comercial',
     commercialUse: 'Uso comercial',
-    commercialAllowed:
-      'Permitido nos termos da licença. Esta plataforma verificou a licença do código, e o autor declara que os materiais incluídos não têm restrições de uso.',
-    commercialRestrictedAssets:
-      'O código pode ser usado comercialmente nos termos da licença (verificado por esta plataforma). O autor declara que os materiais incluídos têm restrições, como de uso comercial. Consulte o README para mais detalhes.',
-    commercialUndeclared:
-      'O código pode ser usado comercialmente nos termos da licença (verificado por esta plataforma). O autor não declarou se os materiais incluídos têm restrições.',
-    commercialServices: 'Confira também os termos dos serviços externos utilizados.',
+    commercialCode:
+      'O código pode ser usado comercialmente conforme as condições da licença (verificado por esta plataforma).',
+    commercialAssetsNone: 'Recursos incluídos: o autor declarou que não há restrições.',
+    commercialAssetsRestricted:
+      'Recursos incluídos: o autor declarou restrições, como a proibição de uso comercial. Veja o README.',
+    commercialAssetsUndeclared: 'Recursos incluídos: não declarado pelo autor.',
+    commercialServices: 'Confira também os termos dos serviços pagos.',
     tagFree: 'Grátis',
     tagCommercialOk: 'Uso comercial permitido',
+    authorImportantLabel: 'Antes de enviar',
+    authorImportant:
+      'Quando seu plugin é listado nesta plataforma, qualquer pessoa pode baixar os arquivos de graça no GitHub, e qualquer pessoa pode usar e redistribuir o código comercialmente, conforme as condições da licença. A receita de vendas fica limitada a vendas ou apoios fora desta plataforma, com base nisso. Se você quer ganhar apenas vendendo os arquivos, ou restringir o uso comercial, seu plugin não pode ser listado. Se recursos incluídos restringem o uso comercial, declare restrictedAssets em .audio-soko-kun/config.json. Sem a declaração, o plugin aparece com uso comercial permitido.',
   },
 };
 
 const es419: Dict = {
-  tagline: 'Un depósito de plugins de audio de código abierto, con descarga gratuita',
+  tagline: 'Un depósito de plugins de audio de código abierto con descarga gratuita',
   siteDescription:
     'Un registro de plugins de audio de código abierto que puedes buscar desde la web o desde agentes de IA como Claude Code y Codex. Cada archivo listado tiene verificada la atestación de procedencia de la compilación y se compara con una base de datos de malware conocido.',
   notice:
@@ -1395,25 +1409,27 @@ const es419: Dict = {
       'El autor declaró estos datos en .audio-soko-kun/config.json. Esta plataforma no los verifica. Los archivos siempre se pueden descargar gratis desde las versiones públicas en GitHub.',
     paidFeatures: 'Funciones que se desbloquean con un pago',
     paidServices: 'Servicios de pago que se contratan aparte',
-    restrictedAssets: 'Materiales incluidos con restricciones de uso',
+    restrictedAssets: 'Restricciones de los recursos incluidos, como el uso comercial',
     supportUrl: 'Página de apoyo o compra',
     yes: 'Sí',
     no: 'No',
     none: 'Ninguno (declarado)',
     notDeclared: 'No declarado por el autor',
-    tagPaidFeatures: 'Funciones de pago',
-    tagPaidServices: 'Servicios de pago',
-    tagRestrictedAssets: 'Restricciones de uso comercial en materiales',
+    tagPaid: 'Funciones o servicios de pago',
+    tagRestrictedAssets: 'Recursos restringen el uso comercial',
     commercialUse: 'Uso comercial',
-    commercialAllowed:
-      'Permitido según los términos de la licencia. Esta plataforma verificó la licencia del código, y el autor declara que los materiales incluidos no tienen restricciones de uso.',
-    commercialRestrictedAssets:
-      'El código puede usarse comercialmente según los términos de la licencia (verificado por esta plataforma). El autor declara que los materiales incluidos tienen restricciones, como de uso comercial. Consulta el README para más detalles.',
-    commercialUndeclared:
-      'El código puede usarse comercialmente según los términos de la licencia (verificado por esta plataforma). El autor no declaró si los materiales incluidos tienen restricciones.',
-    commercialServices: 'Revisa también los términos de los servicios externos que usa.',
+    commercialCode:
+      'El código se puede usar comercialmente según las condiciones de la licencia (verificado por esta plataforma).',
+    commercialAssetsNone: 'Recursos incluidos: el autor declaró que no hay restricciones.',
+    commercialAssetsRestricted:
+      'Recursos incluidos: el autor declaró restricciones, como la prohibición del uso comercial. Consulta el README.',
+    commercialAssetsUndeclared: 'Recursos incluidos: no declarado por el autor.',
+    commercialServices: 'Revisa también los términos de los servicios de pago.',
     tagFree: 'Gratis',
     tagCommercialOk: 'Uso comercial permitido',
+    authorImportantLabel: 'Antes de enviar',
+    authorImportant:
+      'Cuando tu plugin se lista en esta plataforma, cualquier persona puede descargar sus archivos gratis desde GitHub, y cualquier persona puede usar y redistribuir el código comercialmente según las condiciones de la licencia. Los ingresos por ventas se limitan a ventas o apoyos fuera de esta plataforma sobre esta base. Si quieres ganar solo vendiendo los archivos, o restringir el uso comercial, tu plugin no puede listarse. Si los recursos incluidos restringen el uso comercial, declara restrictedAssets en .audio-soko-kun/config.json. Sin la declaración, el plugin se muestra con uso comercial permitido.',
   },
 };
 

@@ -41,10 +41,7 @@ export const en: Record<PageKey, PageContent> = {
       {
         heading: 'Listing conditions',
         paragraphs: [
-          {
-            important:
-              'If you list a plugin on Audio Plugin Soko-kun, anyone can download its files for free from GitHub, and anyone can use and redistribute its code commercially under its license. Revenue can come only from selling it or receiving support elsewhere on that basis. If you want to earn only by selling the files, or want to restrict commercial use, the plugin cannot be listed on Audio Plugin Soko-kun. If bundled assets restrict commercial use, declare restrictedAssets in .audio-soko-kun/config.json. Without the declaration, the plugin is shown as OK for commercial use.',
-          },
+          { important: true },
           'This platform lists open-source audio plugins that the author, who administers the GitHub repository, submits and that meet all of the following conditions.',
           { formats: 'Supported formats' },
           {
@@ -100,10 +97,7 @@ export const en: Record<PageKey, PageContent> = {
       {
         heading: 'Plugins you can submit',
         paragraphs: [
-          {
-            important:
-              'If you list a plugin on Audio Plugin Soko-kun, anyone can download its files for free from GitHub, and anyone can use and redistribute its code commercially under its license. Revenue can come only from selling it or receiving support elsewhere on that basis. If you want to earn only by selling the files, or want to restrict commercial use, the plugin cannot be listed on Audio Plugin Soko-kun. If bundled assets restrict commercial use, declare restrictedAssets in .audio-soko-kun/config.json. Without the declaration, the plugin is shown as OK for commercial use.',
-          },
+          { important: true },
           'This platform lists open-source audio plugins whose author administers the GitHub repository and submits it.',
           { formats: 'Supported formats' },
           'Before submitting, check that the repository and its latest release meet the listing conditions: {{ORIGIN}}/policy',

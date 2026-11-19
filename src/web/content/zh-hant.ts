@@ -41,10 +41,7 @@ export const zhHant: Record<PageKey, PageContent> = {
       {
         heading: '收錄條件',
         paragraphs: [
-          {
-            important:
-              '在音訊外掛倉庫上架後，任何人都可以從 GitHub 免費取得外掛檔案，任何人都可以依照授權對程式碼進行商業使用和再散布。收入僅限於在此前提下於外部進行的銷售或獲得的贊助。如果只想透過銷售檔案獲得收入，或想限制商業使用，則不屬於本平台的上架對象。如果隨附素材限制商業使用，請在 .audio-soko-kun/config.json 的 restrictedAssets 中申報。沒有申報時，會顯示為可商用。',
-          },
+          { important: true },
           '本平台收錄由 GitHub 儲存庫管理員即作者本人提交、並滿足以下全部條件的開源音訊外掛。',
           { formats: '支援的格式' },
           {
@@ -100,10 +97,7 @@ export const zhHant: Record<PageKey, PageContent> = {
       {
         heading: '可以提交的外掛',
         paragraphs: [
-          {
-            important:
-              '在音訊外掛倉庫上架後，任何人都可以從 GitHub 免費取得外掛檔案，任何人都可以依照授權對程式碼進行商業使用和再散布。收入僅限於在此前提下於外部進行的銷售或獲得的贊助。如果只想透過銷售檔案獲得收入，或想限制商業使用，則不屬於本平台的上架對象。如果隨附素材限制商業使用，請在 .audio-soko-kun/config.json 的 restrictedAssets 中申報。沒有申報時，會顯示為可商用。',
-          },
+          { important: true },
           '本平台收錄由 GitHub 儲存庫管理員即作者本人提交的開源音訊外掛。',
           { formats: '支援的格式' },
           '提交前，請確認儲存庫及其最新發行滿足收錄條件：{{ORIGIN}}/policy',

@@ -117,8 +117,7 @@ const PricingTags: FC<{ view: PluginView; t: Dict }> = ({ view, t }) => {
   const tags = [
     t.pricing.tagFree,
     restrictedAssets === true ? t.pricing.tagRestrictedAssets : t.pricing.tagCommercialOk,
-    paidFeatures === true ? t.pricing.tagPaidFeatures : null,
-    paidServices && paidServices.length > 0 ? t.pricing.tagPaidServices : null,
+    paidFeatures === true || (paidServices?.length ?? 0) > 0 ? t.pricing.tagPaid : null,
   ].filter((tag): tag is string => tag !== null);
   return (
     <>
@@ -142,10 +141,10 @@ const PricingSection: FC<{ view: PluginView; t: Dict }> = ({ view, t }) => {
   // 商用利用の 1 行。コードは掲載の条件 (OSI か FSF) で確かめた事実、素材は作者の申告として書き分ける。
   const commercial =
     restrictedAssets === false
-      ? t.pricing.commercialAllowed
+      ? t.pricing.commercialAssetsNone
       : restrictedAssets === true
-        ? t.pricing.commercialRestrictedAssets
-        : t.pricing.commercialUndeclared;
+        ? t.pricing.commercialAssetsRestricted
+        : t.pricing.commercialAssetsUndeclared;
   return (
     <>
       <h2 class="bar">{t.pricing.heading}</h2>
@@ -154,7 +153,7 @@ const PricingSection: FC<{ view: PluginView; t: Dict }> = ({ view, t }) => {
           <tr>
             <th scope="row">{t.pricing.commercialUse}</th>
             <td>
-              {commercial}
+              {t.pricing.commercialCode} {commercial}
               {(paidServices?.length ?? 0) > 0 ? ` ${t.pricing.commercialServices}` : null}
             </td>
           </tr>
@@ -823,7 +822,8 @@ const BlockView: FC<{ block: Block; origin: string; t: Dict; lang: Lang }> = ({ 
   if ('important' in block) {
     return (
       <p class="callout important">
-        <Linkified text={fill(block.important)} />
+        <span class="label">{t.pricing.authorImportantLabel}</span>
+        {t.pricing.authorImportant}
       </p>
     );
   }

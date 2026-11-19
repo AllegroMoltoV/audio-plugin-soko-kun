@@ -452,7 +452,7 @@ export const CHECKS_PER_DAY = 5;
 // 作者向けの最重要の文 (本家と共通)。掲載するとファイルは誰でも無料で入手でき、コードはライセンスにしたがって
 // 誰でも商用利用・再配布できる。作者が意図しない形の商用利用を、掲載の後に取り消せないため、作者が読む文の先頭に置く。
 export const AUTHOR_KEY_POINT =
-  'If you list a plugin on Audio Plugin Soko-kun, anyone can download its files for free from GitHub, and anyone can use and redistribute its code commercially under its license. Revenue can come only from selling it or receiving support elsewhere on that basis. If you want to earn only by selling the files, or want to restrict commercial use, the plugin cannot be listed on Audio Plugin Soko-kun. If bundled assets restrict commercial use, declare restrictedAssets in .audio-soko-kun/config.json. Without the declaration, the plugin is shown as OK for commercial use.';
+  'When your plugin is listed on this platform, anyone can download its files from GitHub for free, and anyone can use and redistribute its code commercially under the conditions of its license. Income from sales is limited to selling or support outside this platform on that basis. If you want to earn only by selling the files, or to restrict commercial use, your plugin is not eligible for listing. If bundled assets restrict commercial use, declare restrictedAssets in .audio-soko-kun/config.json. Without the declaration, the plugin is shown as OK for commercial use.';
 
 // 確認のモードで返す .audio-soko-kun/config.json の判定。宣言は任意のため、無いこと (missing) は誤りではない。
 export interface ConfigCheck {

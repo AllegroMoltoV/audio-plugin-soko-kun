@@ -383,7 +383,7 @@ describe('Web', () => {
     await declare({ name: 'Pitch', paidServices: [] });
     const detail = await detailPage();
     expect(row(detail, 'Features unlocked by payment')).toBe('Not declared by the author');
-    expect(row(detail, 'Bundled assets with usage restrictions')).toBe('Not declared by the author');
+    expect(row(detail, 'Restrictions on bundled assets, such as no commercial use')).toBe('Not declared by the author');
     expect(row(detail, 'Support or purchase page')).toBe('Not declared by the author');
     // [] は無いと申告したことで、申告なしと区別する。
     expect(row(detail, 'Paid services used separately')).toBe('None (declared)');
@@ -392,7 +392,7 @@ describe('Web', () => {
     const list = await listMain();
     expect(list).toContain('<span class="pill">Free</span>');
     expect(list).toContain('<span class="pill">Commercial use OK</span>');
-    for (const tag of ['Paid features', 'Paid services', 'Commercial-use restrictions on assets']) {
+    for (const tag of ['Paid features or services', 'Assets restrict commercial use']) {
       expect(list, tag).not.toContain(tag);
     }
   });
@@ -418,7 +418,7 @@ describe('Web', () => {
     });
     const detail = await detailPage();
     expect(row(detail, 'Features unlocked by payment')).toBe('Yes');
-    expect(row(detail, 'Bundled assets with usage restrictions')).toBe('No');
+    expect(row(detail, 'Restrictions on bundled assets, such as no commercial use')).toBe('No');
     expect(row(detail, 'Paid services used separately')).toContain('Cloud&lt;script&gt;alert(5)&lt;/script&gt;, Sync');
     expect(detail).not.toContain('<script>alert(5)</script>');
     expect(row(detail, 'Support or purchase page')).toMatch(
@@ -429,10 +429,9 @@ describe('Web', () => {
     expect(detail.indexOf('Approved by the OSI')).toBeLessThan(detail.indexOf('Declared by the author'));
 
     const list = await listMain();
-    expect(list).toContain('<span class="pill">Paid features</span>');
-    expect(list).toContain('<span class="pill">Paid services</span>');
+    expect(list).toContain('<span class="pill">Paid features or services</span>');
     // false と申告した素材の制限には、タグを付けない。
-    expect(list).not.toContain('Commercial-use restrictions on assets');
+    expect(list).not.toContain('Assets restrict commercial use');
   });
 
   it('掲載していない新しい版の申告は、詳細ページにも一覧にも出さない', async () => {
@@ -460,7 +459,7 @@ describe('Web', () => {
     expect(detail).not.toContain('NEW-SERVICE-MARKER');
     expect(detail).not.toContain('ko-fi.com/newmarker');
     expect(row(detail, 'Features unlocked by payment')).toBe('Not declared by the author');
-    expect(await listMain()).not.toContain('Paid features');
+    expect(await listMain()).not.toContain('Paid features or services');
   });
 
   it('素材の制限を true と申告したプラグインにだけ、一覧で素材の制限のタグを付ける', async () => {
@@ -468,11 +467,10 @@ describe('Web', () => {
     await markListable(env.DB);
     await declare({ paidFeatures: false, paidServices: [], restrictedAssets: true });
     const list = await listMain();
-    expect(list).toContain('<span class="pill">Commercial-use restrictions on assets</span>');
+    expect(list).toContain('<span class="pill">Assets restrict commercial use</span>');
     // 制限のタグと商用利用可のタグは同時に出さない。
     expect(list).not.toContain('Commercial use OK');
-    expect(list).not.toContain('Paid features');
-    expect(list).not.toContain('Paid services');
+    expect(list).not.toContain('Paid features or services');
   });
 
   // 詳細の見出しの下にも、一覧と同じタグを付ける (本家と共通)。見た目はほかのタグと同じ素の .pill。
@@ -497,15 +495,16 @@ describe('Web', () => {
     await markListable(env.DB);
     const commercial = async () => row(await detailPage(), 'Commercial use');
     await declare({ restrictedAssets: false });
-    expect(await commercial()).toContain('Allowed under the license terms.');
+    expect(await commercial()).toContain('Bundled assets: the author declared no restrictions.');
     await declare({ restrictedAssets: true });
-    expect(await commercial()).toContain('the bundled assets restrict use, such as commercial use');
+    expect(await commercial()).toContain('the author declared restrictions such as no commercial use');
     await declare({ paidServices: ['Cloud'] });
     const undeclared = await commercial();
-    expect(undeclared).toContain('The author has not declared whether the bundled assets restrict use.');
-    expect(undeclared).toContain('Also check the terms of the external services it uses.');
+    expect(undeclared).toContain('Bundled assets: not declared by the author.');
+    expect(undeclared).toContain('The code can be used commercially under the conditions of its license');
+    expect(undeclared).toContain('Also check the terms of the paid services.');
     await declare({ restrictedAssets: false, paidServices: [] });
-    expect(await commercial()).not.toContain('external services');
+    expect(await commercial()).not.toContain('terms of the paid services');
   });
 
   // ヘッダーの副題は入手が無料であることを示し、注意の帯は「無料のサービス」と書かない (本家と共通)。
@@ -514,7 +513,7 @@ describe('Web', () => {
     expect(ja).toContain('無料で入手できる、オープンソースのオーディオプラグインの倉庫');
     expect(ja).not.toContain('非公式で無料のサービス');
     const en = await (await SELF.fetch(`${ORIGIN}/?lang=en`)).text();
-    expect(en).toContain('A warehouse of open-source audio plugins, free to download');
+    expect(en).toContain('A warehouse of free-to-download open-source audio plugins');
     expect(en).not.toContain('unofficial, free service');
   });
 
@@ -524,7 +523,7 @@ describe('Web', () => {
     const main = html.split('<main')[1] ?? '';
     const first = main.indexOf('<p');
     expect(main.slice(first, first + 40)).toContain('<p class="callout important">');
-    expect(main).toContain('anyone can use and redistribute its code commercially under its license');
+    expect(main).toContain('anyone can use and redistribute its code commercially under the conditions of its license');
   });
 
   // VST の語の表示 (ADR 0004、docs/design/testing.md の V10〜V13)。

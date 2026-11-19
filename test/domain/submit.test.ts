@@ -255,7 +255,9 @@ describe('checkPlugin (確認のモード)', () => {
   it('確認のモードの結果は、conditions の前に作者向けの最重要の文 important を持つ', async () => {
     network.use(...githubHandlers({ release: 'none' }), ...releaseCheckHandlers());
     const result = (await checkPlugin(env, submitter, url)) as Record<string, unknown>;
-    expect(result.important).toContain('anyone can use and redistribute its code commercially under its license');
+    expect(result.important).toContain(
+      'anyone can use and redistribute its code commercially under the conditions of its license',
+    );
     const keys = Object.keys(result);
     expect(keys.indexOf('important')).toBeLessThan(keys.indexOf('conditions'));
   });
