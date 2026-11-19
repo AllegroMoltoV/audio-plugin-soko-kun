@@ -474,13 +474,13 @@ async function checkConfig(
   owner: string,
   repo: string,
   ref: string,
-): Promise<{ check: ConfigCheck; pricing: Pricing | null }> {
+): Promise<{ check: ConfigCheck; pricing: Pricing | null; name: string | null }> {
   let parsed: Awaited<ReturnType<typeof readDeclaration>>;
   try {
     parsed = await readDeclaration(github, owner, repo, ref);
   } catch (error) {
     if (error instanceof GitHubError && error.kind !== 'rate_limited' && error.kind !== 'unavailable') {
-      return { check: { result: 'unchecked' }, pricing: null };
+      return { check: { result: 'unchecked' }, pricing: null, name: null };
     }
     throw error;
   }
@@ -492,12 +492,14 @@ async function checkConfig(
         fix: CONFIG_FIX,
       },
       pricing: null,
+      name: null,
     };
   }
   if (parsed.state === 'invalid') {
     return {
       check: { result: 'invalid', message: `${CONFIG_PATH} on the default branch is not valid.`, fix: CONFIG_FIX },
       pricing: null,
+      name: null,
     };
   }
   const notices = parsed.declaration.notices.map((code) => ({
@@ -512,6 +514,7 @@ async function checkConfig(
       ...(notices.length > 0 ? { notices } : {}),
     },
     pricing: parsed.declaration.pricing,
+    name: parsed.declaration.name,
   };
 }
 
@@ -567,8 +570,9 @@ export async function checkPlugin(env: Env, submitter: Submitter, repositoryUrl:
     // 宣言ファイルは版の検査でだけ読んでいたため、誤りが不変のリリースの公開の後に分かった。公開の前に形を確かめる。
     let config: ConfigCheck = { result: 'unchecked' };
     let pricing: Pricing | null = null;
+    let declaredName: string | null = null;
     if (admin && budget.canFetch(1 + REVIEW_FILES_COST + TARBALL_COST + 1)) {
-      ({ check: config, pricing } = await checkConfig(asApp, repo.owner.login, repo.name, ref));
+      ({ check: config, pricing, name: declaredName } = await checkConfig(asApp, repo.owner.login, repo.name, ref));
     }
     let review: { findings: Finding[]; unreadFiles: string[] } | null = null;
     let unavailable: ReviewOutcome['kind'] | null = null;
@@ -581,9 +585,11 @@ export async function checkPlugin(env: Env, submitter: Submitter, repositoryUrl:
             missing:
               'Checked by rules: the documents other than the README could not be checked in the check mode because this request ran out of its budget of GitHub API calls (the latest release has many files). The check after a release checks them.',
           };
-      // 宣言の申告をレビューの事実の行に渡す。宣言の判定とレビューは別の処理のため、ここで受け渡す。
+      // 宣言の申告をレビューの事実の行に、宣言の name を名前の照合に渡す。宣言の判定とレビューは別の処理のため、ここで受け渡す。
+      const names = [...new Set([repo.name, declaredName].filter((name): name is string => name !== null))];
       const outcome = await reviewRepository(env, budget, `${repo.owner.login}/${repo.name}`, collected, null, {
         pricing,
+        names,
       });
       if (outcome.kind === 'done') review = { findings: outcome.findings, unreadFiles: collected.unreadFiles };
       else unavailable = outcome.kind;

@@ -400,7 +400,7 @@ export async function reviewRepository(
   repository: string,
   collected: CollectedFiles,
   diff: string | null,
-  // names はリポジトリ名と表示名。diffFacts は差分が上限を超えたときの事実の行。pricing は宣言ファイルの申告
+  // names はリポジトリ名と、審査する版 (確認のモードでは既定のブランチ) の宣言の name。diffFacts は差分が上限を超えたときの事実の行。pricing は宣言ファイルの申告
   // (宣言ファイルが無い・読めない版は null)。
   context: { names?: string[]; diffFacts?: string[]; pricing?: Pricing | null } = {},
 ): Promise<ReviewOutcome> {
