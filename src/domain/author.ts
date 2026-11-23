@@ -35,6 +35,7 @@ import {
   type ReviewState,
   releaseBlockers,
   type ScanResult,
+  type ScanState,
   type WaitsFor,
 } from './status';
 
@@ -120,6 +121,10 @@ const BLOCKER_TEXT: Record<BlockerCode, { message: string; fix: string; criterio
     fix: 'Attach the plugin files to the release.',
   },
   scan_pending: { message: 'The files are waiting for the malware database lookup.', fix: 'No action is needed.' },
+  scan_retries_exhausted: {
+    message: 'The malware database lookup failed five times in a row.',
+    fix: 'No action is needed. An administrator investigates the cause.',
+  },
   release_suspended: {
     message: 'An administrator suspended this version.',
     fix: 'Contact the administrator through an issue if you think this is a mistake.',
@@ -302,7 +307,7 @@ export async function authorReport(env: Env, internalId: string, includeOlder: b
       `SELECT a.release_id, a.github_asset_id, a.name, a.digest, a.kind, t.result AS attestation,
          t.attempts AS attestation_attempts, c.result AS content, c.attempts AS content_attempts, c.bundles,
          c.vst2_files, m.result AS macos, m.attempts AS macos_attempts, m.team_id, m.reason AS macos_reason,
-         s.result AS scan
+         s.result AS scan, s.attempts AS scan_attempts
        FROM assets a JOIN releases r ON r.github_release_id = a.release_id
        LEFT JOIN attestation_checks t ON t.github_asset_id = a.github_asset_id
        LEFT JOIN content_checks c ON c.github_asset_id = a.github_asset_id
@@ -321,7 +326,9 @@ export async function authorReport(env: Env, internalId: string, includeOlder: b
   const suspendedIds = new Set(
     ((suspended?.results ?? []) as Array<{ github_release_id: number }>).map((row) => row.github_release_id),
   );
-  const scanOf = new Map(assetRows.map(({ row }) => [row.digest, row.scan ?? 'pending']));
+  const scanOf = new Map<string, ScanState>(
+    assetRows.map(({ row }) => [row.digest, { result: row.scan ?? 'pending', attempts: row.scan_attempts ?? 0 }]),
+  );
   const listedId = view.status === 'listed' ? view.listedRelease?.githubReleaseId : undefined;
   const listedPublished = ((releases?.results ?? []) as ReleaseRow[]).find(
     (row) => row.github_release_id === listedId,
@@ -341,7 +348,7 @@ export async function authorReport(env: Env, internalId: string, includeOlder: b
         ownerChanged: view.ownerChanged,
         readmeHeld: view.readmeHeld,
       };
-      const blockers = releaseBlockers(forStatus, (digest) => scanOf.get(digest) as ScanResult | undefined);
+      const blockers = releaseBlockers(forStatus, (digest) => scanOf.get(digest));
       const state = versionState(row.github_release_id === listedId, suspendedIds.has(row.github_release_id), blockers);
       const diffHits = parseJson<DiffHit[]>(check?.diff_hits ?? null, []);
       const review = parseJson<{ findings: Finding[]; unreadFiles: string[] } | null>(check?.review_json ?? null, null);
@@ -394,7 +401,13 @@ export async function authorReport(env: Env, internalId: string, includeOlder: b
                   : 'passed',
           },
           declaration: { result: check?.config_state ?? 'pending' },
-          malwarebazaar: { result: blockers.includes('scan_pending') ? 'pending' : 'passed' },
+          malwarebazaar: {
+            result: blockers.includes('scan_pending')
+              ? 'pending'
+              : blockers.includes('scan_retries_exhausted')
+                ? 'error'
+                : 'passed',
+          },
           diffRules: { result: check?.diff_state ?? 'pending', hits: diffHits.map(hitView) },
         },
         review: {
@@ -470,6 +483,7 @@ interface AssetRow {
   team_id: string | null;
   macos_reason: string | null;
   scan: ScanResult | null;
+  scan_attempts: number | null;
 }
 
 function toStatusAsset(row: AssetRow, declaredAssets: DeclaredAsset[] | null): AssetForStatus {

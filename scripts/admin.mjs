@@ -12,6 +12,8 @@
 //   npm run admin -- suspend-release <owner/repo> <tag> "<告知の文>" [--remote]
 //   npm run admin -- retry-checks <owner/repo> <tag> [--remote]
 //   npm run admin -- retry-declaration <owner/repo> <tag> [--remote]
+//   npm run admin -- retry-scans <owner/repo> <tag> [--remote]
+//   npm run admin -- retry-all-scans [--remote]
 // --remote を付けないときはローカルの D1 を更新する。<owner/repo> は現在の名前と登録したときの名前のどちらでもよい。
 // 手順と表示の意味は docs/operations/suspend.md と docs/operations/incident-response.md に記載している。
 import { spawnSync } from 'node:child_process';
@@ -24,6 +26,8 @@ const CATEGORIES = ['instrument', 'effect', 'analyzer', 'midi', 'utility'];
 // 試行の上限。src/domain/status.ts の MAX_CHECK_ATTEMPTS (証明の検証・中身の検査・macOS の判定) と MAX_REVIEW_ATTEMPTS に合わせる。
 const MAX_CHECK_ATTEMPTS = 3;
 const MAX_REVIEW_ATTEMPTS = 2;
+// MalwareBazaar の照会の試行の上限。src/domain/status.ts の MAX_SCAN_ATTEMPTS に合わせる。
+const MAX_SCAN_ATTEMPTS = 5;
 
 function fail(message) {
   console.error(message);
@@ -40,11 +44,15 @@ const USAGE =
   '       admin approve-readme <owner/repo> [--remote]\n' +
   '       admin suspend-release <owner/repo> <tag> "<note>" [--remote]\n' +
   '       admin retry-checks <owner/repo> <tag> [--remote]\n' +
-  '       admin retry-declaration <owner/repo> <tag> [--remote]';
-if (!command || (command !== 'pending' && !rawId)) fail(USAGE);
+  '       admin retry-declaration <owner/repo> <tag> [--remote]\n' +
+  '       admin retry-scans <owner/repo> <tag> [--remote]\n' +
+  '       admin retry-all-scans [--remote]';
+// プラグインを指定しないコマンド。
+const WITHOUT_PLUGIN = ['pending', 'retry-all-scans'];
+if (!command || (!WITHOUT_PLUGIN.includes(command) && !rawId)) fail(USAGE);
 
 const id = (rawId ?? '').toLowerCase();
-if (command !== 'pending' && !ID.test(id)) fail(`invalid plugin id: ${rawId}`);
+if (!WITHOUT_PLUGIN.includes(command) && !ID.test(id)) fail(`invalid plugin id: ${rawId}`);
 // id と理由は検証済みの値だけを SQL に入れ、単引用符は二重にして文字列から抜け出せないようにする。
 const quote = (value) => `'${value.replaceAll("'", "''")}'`;
 const now = new Date().toISOString();
@@ -84,6 +92,9 @@ if (command === 'suspend') {
   // 掲載の条件を満たしていない新しい版。管理者の確認を待つ理由と、証明の検証・中身の検査・macOS の判定を待っている件数を示す。
   // waiting_minutes は版の公開からの経過時間。定期処理が止まって検査が進まないことに気づけるよう示す。
   // 掲載中の版より前に公開された版は出さない。承認しても掲載されず、掲載されないまま後の版に置き換わった版 (superseded) が確認待ちに見えるため。
+  // 照会の試行切れは、掲載中だった版が照会し直しで止まった場合も出すため、掲載の期間の有無で除かない。
+  const scansExhausted = `(SELECT count(*) FROM assets a JOIN scans s ON s.digest = a.digest AND s.scanner = 'malwarebazaar'
+            WHERE a.release_id = r.github_release_id AND s.result = 'error' AND s.attempts >= ${MAX_SCAN_ATTEMPTS})`;
   sql = `SELECT p.owner || '/' || p.repo AS plugin, r.tag, r.published_at,
            CAST((julianday('now') - julianday(r.published_at)) * 1440 AS INTEGER) AS waiting_minutes,
            c.diff_state, c.diff_hits, c.config_state,
@@ -113,10 +124,12 @@ if (command === 'suspend') {
                 OR (k.result = 'error' AND k.attempts >= ${MAX_CHECK_ATTEMPTS})
                 OR (m.result = 'error' AND m.attempts >= ${MAX_CHECK_ATTEMPTS}))) AS checks_exhausted,
            (SELECT count(*) FROM attestation_checks t JOIN assets a ON a.github_asset_id = t.github_asset_id
-            WHERE a.release_id = r.github_release_id AND t.result = 'failed') AS attestations_failed
+            WHERE a.release_id = r.github_release_id AND t.result = 'failed') AS attestations_failed,
+           ${scansExhausted} AS scans_exhausted
          FROM release_checks c JOIN releases r ON r.github_release_id = c.github_release_id JOIN plugins p ON p.id = r.plugin_id
          WHERE c.admin_approved_at IS NULL AND p.removed = 0
            AND (c.notes_held = 1
+             OR ${scansExhausted} > 0
              OR NOT EXISTS (SELECT 1 FROM listing_periods l WHERE l.github_release_id = r.github_release_id))
            AND NOT EXISTS (SELECT 1 FROM release_suspensions s WHERE s.github_release_id = r.github_release_id)
            AND NOT EXISTS (SELECT 1 FROM listing_periods l JOIN releases lr ON lr.github_release_id = l.github_release_id
@@ -167,6 +180,22 @@ if (command === 'suspend') {
            LEFT JOIN macos_signing_checks m ON m.github_asset_id = a.github_asset_id
            WHERE a.release_id = ${releaseOf(reason)};
          SELECT review_state, review_attempts FROM release_checks WHERE github_release_id = ${releaseOf(reason)};`;
+} else if (command === 'retry-scans') {
+  // 試行を使い切った MalwareBazaar の照会 (scan_retries_exhausted) を、その版の配布物について待ちの状態に戻す。
+  // 照会の失敗の原因 (鍵の失効、MalwareBazaar の障害など) を確かめてから使う。次の定期処理で照会し直す。
+  if (!reason || !TAG.test(reason)) fail('a release tag is required');
+  const assetsOf = `(SELECT digest FROM assets WHERE release_id = ${releaseOf(reason)})`;
+  sql = `UPDATE scans SET result = 'pending', attempts = 0
+           WHERE scanner = 'malwarebazaar' AND result = 'error' AND attempts >= ${MAX_SCAN_ATTEMPTS} AND digest IN ${assetsOf};
+         SELECT a.name, s.result, s.attempts, s.detail FROM assets a
+           LEFT JOIN scans s ON s.digest = a.digest AND s.scanner = 'malwarebazaar'
+           WHERE a.release_id = ${releaseOf(reason)};`;
+} else if (command === 'retry-all-scans') {
+  // すべての版の、試行を使い切った MalwareBazaar の照会を待ちの状態に戻す。MalwareBazaar の障害が続いて、
+  // 掲載中の版が一斉に上限に達したときに使う。障害が解けたことを確かめてから使う。
+  sql = `UPDATE scans SET result = 'pending', attempts = 0
+           WHERE scanner = 'malwarebazaar' AND result = 'error' AND attempts >= ${MAX_SCAN_ATTEMPTS};
+         SELECT result, count(*) AS scans FROM scans WHERE scanner = 'malwarebazaar' GROUP BY result;`;
 } else if (command === 'retry-declaration') {
   // 宣言ファイルの判定をやり直す。本サービスの判定の不具合を直した後に、誤って invalid や mismatch にした版を戻すために使う。
   // 次の定期処理の新しい版の検査で、タグの時点の宣言ファイルを取得し直し、中身の検査の結果と照合し直す。

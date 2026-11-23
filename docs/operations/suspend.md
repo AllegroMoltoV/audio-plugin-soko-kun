@@ -25,6 +25,8 @@
 | README の照合による確認待ちの解除 | `npm run admin -- approve-readme <owner/repo>` |
 | 版の停止 | `npm run admin -- suspend-release <owner/repo> <tag> "<告知の文>"` |
 | 試行を使い切った検査のやり直し | `npm run admin -- retry-checks <owner/repo> <tag>` |
+| 試行を使い切った MalwareBazaar の照会のやり直し | `npm run admin -- retry-scans <owner/repo> <tag>` |
+| すべての版の、試行を使い切った MalwareBazaar の照会のやり直し | `npm run admin -- retry-all-scans` |
 | 宣言ファイルの判定のやり直し | `npm run admin -- retry-declaration <owner/repo> <tag>`。本サービスの判定の不具合を直した後に、誤って `invalid` や `mismatch` にした版を戻す。次の定期処理で、タグの時点の宣言ファイルを取得し直して照合し直す。照合し直すまでの間 (15 分ほど) は、その版が掲載の条件を満たさないため、掲載中の版に使うと掲載が旧い版に移る。より新しい版に判定済みの宣言があれば、旧い版を照合し直しても表示名・カテゴリ・配布物の宣言は替わらない |
 
 いずれのコマンドも、`--remote` を付けると本番の D1 を更新します。付けない場合はローカルの D1 を更新します。
@@ -67,6 +69,7 @@
 | `macos_waiting` | macOS の署名と公証の判定を待っている配布物の件数。数え方は `attestations_waiting` と同じ |
 | `checks_exhausted` | 証明の検証・中身の検査・macOS の判定のいずれかが `error` のまま試行を 3 回使い切った配布物の件数。作者には `check_retries_exhausted` と返る |
 | `attestations_failed` | 証明の検証に失敗した配布物の件数 |
+| `scans_exhausted` | MalwareBazaar の照会が `error` のまま試行を 5 回使い切った配布物の件数。作者には `scan_retries_exhausted` と返る。この列が 1 以上の版は、掲載の期間の有無にかかわらず表示する。照会し直しで止まった掲載中の版も含むためである |
 
 `approve-release` は、乗っ取りの兆候・LLM のレビューの指摘・レビューの失敗・macOS の署名の Team ID の食い違い・リリースノートの編集 (`notes_held`) による確認待ちを解きます。承認の後にリリースノートが編集され、新しい本文が型に当たると、承認は取り消されます。あわせて、同期で所有者の変更を検出したことによる確認待ちも解きます。証明・不変・配布の形・中身の検査・ライセンス・宣言ファイルの条件は解けません。証明の検証・中身の検査・macOS の判定が 3 回 `error` で終わった配布物を含む版も、承認だけでは掲載されません。原因を確かめてから `retry-checks` で検査し直します。確認待ちの理由と算出規則は [データモデル](../design/data-model.md) と [審査の基準](../design/review-criteria.md) に記載しています。
 
@@ -200,6 +203,28 @@
 | LLM のレビュー (`release_checks` の `review_state`) | `failed` で試行が 2 回 | 次の定期処理の新しい版の検査 |
 
 通信の検出 (`network_state`) の試行切れは戻しません。レビューは通信の API の検出の結果なしで進むためです。ただし、同じ取り出しで行う README 以外の文書の照合の結果も無いため、`no-security-bypass` と `no-terminal-paste` が重大の指摘になり、版は管理者の確認待ちになります。`serious_findings` の説明で照合できなかったことを確かめ、`approve-release` で判断します。試行が残っている `error` と、結果が確定した検査は変えません。レビューの失敗による確認待ちは `approve-release` でも解けます。レビューの結果を得てから判断したいときに `retry-checks` を使います。
+
+## 試行を使い切った MalwareBazaar の照会のやり直し
+
+MalwareBazaar の照会は、`error` が 5 回続くと自動では照会しません。その版は `scan_retries_exhausted` で掲載を止め、管理者への通知に載ります。鍵の失効や MalwareBazaar の障害のように、原因が解消したときに、管理者が照会を待ちの状態に戻します。`retry-checks` は照会を戻さないため、別のコマンドを使います。
+
+1. `pending` で、`scans_exhausted` が 1 以上の版を探します。
+2. 定期処理のログと MalwareBazaar の状態で、失敗の原因が解消したことを確かめます。
+3. 版の照会を待ちの状態に戻します。
+
+   ```sh
+   npm run admin -- retry-scans <owner/repo> <tag> --remote
+   ```
+
+4. 出力で、`error` だった配布物の結果が `pending` に、`attempts` が 0 に戻ったことを確認します。次の定期処理で照会し直します。
+
+MalwareBazaar の障害が約 75 分続くと、その間に照会した掲載中の版が一斉に上限に達します。版ごとに戻しきれないときは、すべての版の試行切れを戻します。
+
+```sh
+npm run admin -- retry-all-scans --remote
+```
+
+どちらも、`error` で 5 回に達した照会だけを戻します。ほかのプラグインの同じタグの版は戻しません。
 
 ## 通報を受けたとき
 

@@ -108,7 +108,7 @@ OAuth のクライアント・認可・トークンの情報は D1 ではなく 
 | `scanner` | TEXT | 主キーの一部。値は `malwarebazaar` | スキャナー |
 | `result` | TEXT | NOT NULL、下表の値のいずれか | 検査結果 |
 | `detail` | TEXT | | スキャナーの応答の要約 |
-| `attempts` | INTEGER | NOT NULL、既定値 0 | 照会した回数 |
+| `attempts` | INTEGER | NOT NULL、既定値 0 | 続けて失敗した回数。`error` で 1 増え、`not_found` と `malicious` で 0 に戻る。5 回に達した `error` は自動では照会せず、管理者の確認を待つ |
 | `scanned_at` | TEXT | | 最後に照会した日時 |
 
 索引: `scans_pending (result, scanned_at)`
@@ -330,7 +330,7 @@ OAuth のクライアント・認可・トークンの情報は D1 ではなく 
 リリースが検査済みとなるのは、次をすべて満たすときです。
 
 - 案内する配布物を 1 件以上持つ。
-- すべての配布物について、MalwareBazaar の結果が確定である。インストーラーと案内しない配布物も含む。
+- すべての配布物について、MalwareBazaar の結果が確定である。インストーラーと案内しない配布物も含む。`error` が 5 回続いた配布物がある版は、理由 `scan_retries_exhausted` で管理者の確認を待つ。
 - すべてのアーカイブの `content_checks` の結果が `pending` と `error` でない。また、`vst2_detected` と `undetermined` のアーカイブが無い。
 - 案内に使う OS に `macos` を含むすべてのアーカイブの `macos_signing_checks` の結果が `pending` と `error` でない。
 - すべての配布物の `attestation_checks` の結果が `passed` である。インストーラーと案内しない配布物も含む。

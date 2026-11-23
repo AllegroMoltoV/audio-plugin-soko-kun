@@ -2,11 +2,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   type AssetForStatus,
+  BLOCKER_WAITS_FOR,
   computeStatus,
   guidedAssets,
+  MAX_SCAN_ATTEMPTS,
   notGuidedReason,
   type ReleaseChecks,
   type ReleaseForStatus,
+  releaseBlockers,
   type ScanLookup,
   type ScanResult,
 } from '../../src/domain/status';
@@ -60,9 +63,14 @@ function release(
   };
 }
 
-// 表に無い digest は MalwareBazaar の未収録 (確定) とする。
-function lookupFrom(table: Record<string, ScanResult | undefined> = {}): ScanLookup {
-  return (digest) => (digest in table ? table[digest] : 'not_found');
+// 表に無い digest は MalwareBazaar の未収録 (確定) とする。値が結果だけなら attempts は 1 とする。
+function lookupFrom(table: Record<string, ScanResult | { result: ScanResult; attempts: number } | undefined> = {}) {
+  const lookup: ScanLookup = (digest) => {
+    if (!(digest in table)) return { result: 'not_found', attempts: 0 };
+    const value = table[digest];
+    return typeof value === 'string' ? { result: value, attempts: 1 } : value;
+  };
+  return lookup;
 }
 
 const listed = (target: ReleaseForStatus, lookup = lookupFrom()) =>
@@ -219,6 +227,29 @@ describe('掲載状態の算出: インストーラーと MalwareBazaar', () => 
 
   it('S22: MalwareBazaar の結果の行が無い配布物は確定として扱わない', () => {
     expect(listed(release([windows]), lookupFrom({ 'sha256:win.zip': undefined }))).toBe(false);
+  });
+
+  it('S38: error が試行の上限に達した配布物を持つ版は scan_retries_exhausted で、scan_pending にしない', () => {
+    const target = release([windows]);
+    const exhausted = lookupFrom({ 'sha256:win.zip': { result: 'error', attempts: MAX_SCAN_ATTEMPTS } });
+    const blockers = releaseBlockers(target, exhausted);
+    expect(blockers).toContain('scan_retries_exhausted');
+    expect(blockers).not.toContain('scan_pending');
+    expect(BLOCKER_WAITS_FOR.scan_retries_exhausted).toBe('admin');
+    // 管理者の承認では解けない。
+    expect(listed(release([windows], { adminApproved: true }), exhausted)).toBe(false);
+  });
+
+  it('S39: 上限未満の error は scan_pending のまま。上限に達した配布物とほかの未確定の配布物があれば両方を挙げる', () => {
+    const target = release([windows, installer('setup.exe')]);
+    const below = lookupFrom({ 'sha256:win.zip': { result: 'error', attempts: MAX_SCAN_ATTEMPTS - 1 } });
+    expect(releaseBlockers(target, below)).toContain('scan_pending');
+    expect(releaseBlockers(target, below)).not.toContain('scan_retries_exhausted');
+    const mixed = lookupFrom({
+      'sha256:win.zip': { result: 'error', attempts: MAX_SCAN_ATTEMPTS },
+      'sha256:setup.exe': { result: 'pending', attempts: 0 },
+    });
+    expect(releaseBlockers(target, mixed)).toEqual(expect.arrayContaining(['scan_pending', 'scan_retries_exhausted']));
   });
 });
 

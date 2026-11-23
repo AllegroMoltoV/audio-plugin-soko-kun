@@ -226,6 +226,7 @@ sequenceDiagram
 | `macos_check_pending` | 版 | macOS の署名と公証の判定が終わっていない | `system` |
 | `macos_team_id_mismatch` | 版 | macOS 向けのバンドルの署名の Team ID が、バンドルによって食い違う | `admin` |
 | `check_retries_exhausted` | 版 | 証明の検証・中身の検査・macOS の判定のいずれかが 3 回続けて失敗した | `admin` |
+| `scan_retries_exhausted` | 版 | MalwareBazaar の照会が 5 回続けて失敗した配布物がある。作者の対応は要らない。`checks.malwarebazaar` の結果は `error` になる | `admin` |
 | `installer_not_guided` | 配布物 | インストーラーのため案内しない | `author` |
 | `not_archive` | 配布物 | zip のアーカイブでもインストーラーでもないため案内しない | `author` |
 | `content_not_passed` | 配布物 | 中身の検査に通っていない。理由は版の `blockers` に載る | `system` |
