@@ -33,6 +33,7 @@ key="${FAKE}/${sub}/${repo//\//_}"
 code=$(cat "${key}.code" 2>/dev/null || echo 0)
 if [ -f "${key}.err" ]; then cat "${key}.err" >&2; fi
 if [ "${code}" -ne 0 ]; then exit "${code}"; fi
+if [ -f "${key}.out" ]; then cat "${key}.out"; fi
 if [ "${sub}" = "download" ] && [ ! -f "${key}.nobundle" ]; then
   echo '{"bundle":1}' > 'sha256-0000.jsonl'
 fi
@@ -119,6 +120,21 @@ class VerifyAttestationTest(unittest.TestCase):
     def test_download_200_without_slsa_provenance_is_no_attestation(self):
         self.setup_fake(("download", "o_r", 1, NO_SLSA))
         self.assertEqual(self.run_script("42", "o/r"), {"result": "failed", "reason": "no_attestation"})
+
+    def test_download_200_with_no_attestations_is_no_attestation(self):
+        """API が 0 件を返すと、gh は終了コード 0 で標準出力に No attestations found と書き、証明のファイルを作らない。"""
+        self.setup_fake()
+        open(os.path.join(self.fake, "download", "o_r.nobundle"), "w").close()
+        with open(os.path.join(self.fake, "download", "o_r.out"), "w", encoding="utf-8") as f:
+            f.write("No attestations found for /tmp/asset\n")
+        self.assertEqual(self.run_script("42", "o/r"), {"result": "failed", "reason": "no_attestation"})
+
+    def test_download_fetches_up_to_the_gh_maximum(self):
+        """download は種類の絞り込みを取得の後に手元で行うため、既定の 30 件ではリリースの証明に押し出されうる。"""
+        self.run_script("42", "o/r")
+        download = [call for call in self.calls() if call.startswith("attestation download")]
+        self.assertEqual(len(download), 1)
+        self.assertIn("--limit 1000", download[0])
 
     def test_download_5xx_is_transient(self):
         self.setup_fake(("download", "o_r", 1, "Error: failed to fetch attestations: HTTP 502: Bad Gateway"))

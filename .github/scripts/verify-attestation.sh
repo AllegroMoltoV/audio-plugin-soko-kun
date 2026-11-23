@@ -43,7 +43,9 @@ for name in "${names[@]}"; do
   dl="${work}/dl"
   rm -rf "${dl}"
   mkdir "${dl}"
-  if ! (cd "${dl}" && gh attestation download "${file}" --repo "${name}" --predicate-type https://slsa.dev/provenance/v1) > "${work}/dl.txt" 2> "${work}/err.txt"; then
+  # download は API から種類を問わず取得し、種類の絞り込みを取得の後に手元で行う。既定の 30 件では、同じ digest のリリースの証明が多いと
+  # ビルドの証明が押し出されるため、gh の上限の 1,000 件を取得する。
+  if ! (cd "${dl}" && gh attestation download "${file}" --repo "${name}" --predicate-type https://slsa.dev/provenance/v1 --limit 1000) > "${work}/dl.txt" 2> "${work}/err.txt"; then
     if grep -qF -e 'HTTP 404: Not Found' -e 'no attestations found' "${work}/err.txt"; then
       genuine=no_attestation
       echo "  ${name}: no attestation" >&2
@@ -52,6 +54,12 @@ for name in "${names[@]}"; do
       echo "  ${name}: failed to fetch the attestation" >&2
     fi
     head -5 "${work}/err.txt" | sed 's/^/    /' >&2
+    continue
+  fi
+  # API が 0 件を返すと、gh は終了コード 0 で標準出力に No attestations found と書き、証明のファイルを作らない。
+  if grep -qF 'No attestations found' "${work}/dl.txt"; then
+    genuine=no_attestation
+    echo "  ${name}: no attestation" >&2
     continue
   fi
   bundles=("${dl}"/*.jsonl)
