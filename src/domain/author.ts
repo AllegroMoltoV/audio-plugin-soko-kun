@@ -153,8 +153,8 @@ const BLOCKER_TEXT: Record<BlockerCode, { message: string; fix: string; criterio
   },
   content_undetermined: {
     message:
-      'A zip archive contains an installer or a nested archive, so it cannot be confirmed that the release has no VST 2 build.',
-    fix: 'Put the plugin bundles directly in the zip archive, then publish a new release.',
+      'A zip archive contains an installer, a nested archive, or an entry that cannot be inspected (an unsafe path, a link that leaves the bundle, a duplicate name, or a folder entry that carries data), so it cannot be confirmed that the release has no VST 2 build.',
+    fix: 'Put the plugin bundles directly in the zip archive. Remove unsafe paths, duplicate names, and links that leave the bundle. Then publish a new release.',
   },
   macos_check_pending: {
     message: 'The macOS code signing and notarization check has not finished yet.',

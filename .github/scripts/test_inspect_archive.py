@@ -1,7 +1,7 @@
-"""中身の検査のスクリプトのテスト (docs/design/testing.md の W01〜W11 と、検証 A1 の標本の突き合わせ)。
+"""中身の検査のスクリプトのテスト (docs/design/testing.md の W01〜W11・W17 と、検証 A1 の標本の突き合わせ)。
 
 使い方: python3 -I -B -m unittest discover -s .github/scripts -p "test_*.py"
-W01〜W11 は、テストの中で作った小さなアーカイブで確かめる。
+W01〜W11・W17 は、テストの中で作った小さなアーカイブで確かめる。
 A1 の標本は第三者の著作物のためリポジトリに含めない。手元の .tmp/ に標本があるときだけ突き合わせ、無ければ飛ばす。
 """
 
@@ -15,6 +15,7 @@ import stat
 import struct
 import tempfile
 import unittest
+import warnings
 import zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -202,10 +203,12 @@ class W01UnsafeEntries(ArchiveTest):
         self.assertEqual(rejected["C:/drive.dll"], "absolute_path")
         self.assertEqual(rejected["ctrl\x01.dll"], "control_character")
         self.assertEqual(rejected["Fixture.vst3/Contents/x86_64-win/link.vst3"], "symlink")
-        # 読まなかった項目の VST 2 のエクスポートは結果に現れない。残りの VST 3 のバンドルだけで判定する
-        self.assertEqual(result["result"], "passed")
+        # 読まなかった項目の VST 2 のエクスポートは結果に現れない。読めない項目があるため passed にしない
+        self.assertEqual(result["result"], "undetermined")
         self.assertEqual(result["vst2Files"], [])
         self.assertEqual([b["path"] for b in result["bundles"]], ["Fixture.vst3"])
+        undetermined = {u["path"] for u in result["diagnostics"]["undetermined"]}
+        self.assertEqual(undetermined, set(rejected))
 
 
 class W01bPathLength(ArchiveTest):
@@ -217,7 +220,7 @@ class W01bPathLength(ArchiveTest):
         result = self.inspect([(name, pe(exports=("VSTPluginMain",))), VST3_WIN])
         rejected = {r["path"]: r["reason"] for r in result["diagnostics"]["rejected"]}
         self.assertEqual(rejected[name], "path_too_long")
-        self.assertEqual(result["result"], "passed")
+        self.assertEqual(result["result"], "undetermined")
         self.assertEqual(result["vst2Files"], [])
 
     def test_the_limit_is_1024_utf16_units(self):
@@ -225,6 +228,131 @@ class W01bPathLength(ArchiveTest):
         self.assertEqual(ia.unsafe_reason("\U0001f600" * 513), "path_too_long")
         self.assertIsNone(ia.unsafe_reason("a" * 1024))
         self.assertEqual(ia.unsafe_reason("a" * 1025), "path_too_long")
+
+
+
+def link(name, target, create_system=3):
+    """シンボリックリンクの項目。create_system 0 は、作成元の OS の欄を Unix にしない ditto などの zip を表す。"""
+    info = zipfile.ZipInfo(name)
+    info.create_system = create_system
+    info.external_attr = (stat.S_IFLNK | 0o777) << 16
+    return (info, target.encode())
+
+
+NSIS = pe(exports=(), dll=False) + b"NullsoftInst" + b"\0" * 64
+VST2_DLL = pe(exports=("VSTPluginMain",))
+MAC_BINARY = macho_slice(exports=("GetPluginFactory",))
+NESTED_ZIP = b"PK\x05\x06" + b"\0" * 80
+
+
+class W17UnreadableEntries(ArchiveTest):
+    """読めない項目を含むアーカイブは、passed にせず undetermined にする (jtl.61)。"""
+
+    def assert_undetermined(self, entries, reason=None):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")  # 同名の項目を書くときの UserWarning
+            result = self.inspect(entries)
+        self.assertEqual(result["result"], "undetermined", result["diagnostics"])
+        if reason:
+            self.assertIn(reason, [u["reason"] for u in result["diagnostics"]["undetermined"]])
+        return result
+
+    def test_unsafe_paths_hiding_a_vst2_dll_or_an_installer(self):
+        paths = {
+            "control_character": "Evil\x01/Evil.dll",
+            "parent_reference": "../Evil.dll",
+            "absolute_path": "/Evil.dll",
+            "path_too_long": "a" * 1025 + "/Evil.dll",
+        }
+        for reason, path in paths.items():
+            for kind, data in (("vst2", VST2_DLL), ("installer", NSIS), ("broken", pe()[:0x60])):
+                with self.subTest(reason=reason, kind=kind):
+                    result = self.assert_undetermined([VST3_WIN, (path, data)])
+                    self.assertEqual(result["vst2Files"], [])
+                    self.assertEqual([b["path"] for b in result["bundles"]], ["Fixture.vst3"])
+                    self.assertEqual([u["reason"] for u in result["diagnostics"]["undetermined"]], [reason])
+
+    def test_unsafe_path_hiding_a_macos_bundle_is_not_counted_as_a_bundle(self):
+        result = self.assert_undetermined([VST3_WIN, ("../Evil.vst3/Contents/MacOS/Evil", MAC_BINARY)])
+        self.assertEqual(result["os"], ["windows"])
+
+    def test_symlinks_leaving_the_archive(self):
+        cases = {
+            "outside": link("Fixture.vst3/Contents/l", "../../../x"),
+            "outside_without_unix_create_system": link("Fixture.vst3/Contents/l", "../../../x", create_system=0),
+            "absolute": link("Fixture.vst3/Contents/l", "/etc/passwd"),
+            "windows_absolute": link("Fixture.vst3/Contents/l", "C:\\Windows"),
+            "loop": link("Fixture.vst3/Contents/l", "l"),
+        }
+        for label, entry in cases.items():
+            with self.subTest(label):
+                self.assert_undetermined([VST3_WIN, entry], "unsafe_symlink")
+
+    def test_unreadable_symlink_target_is_undetermined(self):
+        self.assert_undetermined([VST3_WIN, link("Fixture.vst3/Contents/l", "\x01")], "unsafe_symlink")
+
+    def test_duplicate_names(self):
+        self.assert_undetermined([VST3_WIN, ("x64/Evil.dll", VST2_DLL), ("x64/Evil.dll", b"harmless")], "duplicate_entry")
+        # バックスラッシュは / として扱うため、同じ名前になる
+        self.assert_undetermined([VST3_WIN, ("x64/Evil.dll", VST2_DLL), ("x64\\Evil.dll", b"harmless")], "duplicate_entry")
+
+    def test_directory_entry_carrying_data(self):
+        self.assert_undetermined([VST3_WIN, ("x64/Evil.dll/", VST2_DLL)], "directory_with_data")
+
+    def test_an_empty_directory_entry_is_fine(self):
+        result = self.inspect([VST3_WIN, ("docs/", b"")])
+        self.assertEqual(result["result"], "passed")
+
+    def test_readable_vst2_still_takes_priority(self):
+        result = self.inspect([VST3_WIN, ("x64/Fixture.dll", VST2_DLL), ("../up.dll", b"x")])
+        self.assertEqual(result["result"], "vst2_detected")
+
+    def test_symlinks_inside_the_bundle_are_not_a_problem(self):
+        # SDL2.framework のような、バンドルの中に置かれ同じバンドルの中を指す正規の形
+        fw = "Fixture.vst3/Contents/Frameworks/SDL2.framework"
+        result = self.inspect(
+            [
+                VST3_MAC,
+                (f"{fw}/Versions/A/SDL2", b"x" * 100),
+                link(f"{fw}/Versions/Current", "A"),
+                link(f"{fw}/SDL2", "Versions/Current/SDL2"),
+            ]
+        )
+        self.assertEqual(result["result"], "passed", result["diagnostics"])
+        self.assertEqual([b["path"] for b in result["bundles"]], ["Fixture.vst3"])
+
+    def test_symlink_names_that_hide_a_bundle_an_installer_or_a_nested_archive(self):
+        cases = {
+            "bundle": [("hidden/Contents/MacOS/Evil", MAC_BINARY), link("Evil.vst3", "hidden")],
+            "installer": [("data/blob", NSIS), link("setup.exe", "data/blob")],
+            "nested_archive": [("data/blob2", NESTED_ZIP), link("inner.zip", "data/blob2")],
+            "bundle_inside_a_bundle": [("Fixture.vst3/hidden/x", b"x" * 100), link("Fixture.vst3/Evil.clap", "hidden")],
+        }
+        for label, entries in cases.items():
+            with self.subTest(label):
+                self.assert_undetermined([VST3_WIN, *entries])
+
+    def test_symlink_outside_a_bundle_resolving_inside_the_archive(self):
+        self.assert_undetermined([VST3_WIN, ("data/blob", b"x" * 100), link("alias", "data/blob")], "unsafe_symlink")
+
+    def test_symlink_resolving_into_another_bundle(self):
+        entries = [VST3_MAC, ("Other.vst3/x", b"x" * 100), link("Fixture.vst3/Contents/l", "../../Other.vst3/x")]
+        self.assert_undetermined(entries, "unsafe_symlink")
+
+    def test_trailing_dots_and_spaces_do_not_hide_names(self):
+        cases = {
+            "installer_dot": ("setup.exe.", NSIS),
+            "installer_space": ("setup.exe ", NSIS),
+            "nested_dot": ("inner.zip.", NESTED_ZIP),
+            "nested_dot_space": ("inner.zip. .", NESTED_ZIP),
+        }
+        for label, entry in cases.items():
+            with self.subTest(label):
+                self.assert_undetermined([VST3_WIN, entry], "nested_archive_or_installer")
+
+    def test_trailing_dot_does_not_hide_a_bundle_root(self):
+        result = self.inspect([("Fixture.vst3./Contents/x86_64-win/Fixture.vst3", pe(exports=("GetPluginFactory",)))])
+        self.assertEqual(result["formats"], ["vst3"])
 
 
 class W02Limits(ArchiveTest):
@@ -534,7 +662,7 @@ EXPECTED_RESULT = {
     "dexed-0.9.4-linux": "vst2_detected",
     "dexed-0.9.4-win": "undetermined",
     "dexed-0.9.3-osx": "vst2_detected",
-    "unsafe-paths": "no_plugin",
+    "unsafe-paths": "undetermined",
 }
 
 

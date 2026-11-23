@@ -17,7 +17,6 @@ import importlib.util
 import json
 import os
 import re
-import stat
 import sys
 import zipfile
 
@@ -28,70 +27,11 @@ _spec = importlib.util.spec_from_file_location(
 ia = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(ia)
 
-MAX_LINK_TARGET = 1024
-MAX_LINK_HOPS = 40
 MAX_TEAM_IDS = 10  # Worker の受け口の上限 (src/checks/macos-route.ts)
 TEAM_ID = re.compile(r"^[A-Z0-9]{10}$")
 
-
-class Unsafe(Exception):
-    """展開してはいけない zip。"""
-
-
-def _is_link(info):
-    # ditto は作成元の OS の欄を見ずに Unix の mode を使うことがあるため、create_system を問わず mode で判定する。
-    return stat.S_ISLNK(info.external_attr >> 16)
-
-
-def _bundle_root(parts):
-    """パスの最も外側のバンドルのフォルダー (拡張子が .vst3 などの要素) までの要素。バンドルの外なら空。"""
-    for i, part in enumerate(parts[:-1]):
-        if part.lower().endswith(ia.BUNDLE_EXT):
-            return parts[: i + 1]
-    return []
-
-
-def _resolve(link_parts, links):
-    """シンボリックリンクの行き先を、zip の中のほかのシンボリックリンクもたどって求める。
-    展開先のフォルダーより上に出るか、たどる回数が上限を超えたら None。"""
-    parts = list(link_parts[:-1])
-    queue = links["/".join(link_parts)].split("/")
-    hops = 1
-    while queue:
-        part = queue.pop(0)
-        if part in ("", "."):
-            continue
-        if part == "..":
-            if not parts:
-                return None
-            parts.pop()
-            continue
-        parts.append(part)
-        target = links.get("/".join(parts))
-        if target is not None:
-            hops += 1
-            if hops > MAX_LINK_HOPS:
-                return None
-            parts.pop()
-            queue = target.split("/") + queue
-    return parts
-
-
-def _link_target(zf, info):
-    if info.file_size > MAX_LINK_TARGET:
-        raise Unsafe(f"{info.filename}: symlink target is too long")
-    try:
-        with zf.open(info) as f:
-            raw = f.read(MAX_LINK_TARGET + 1)
-        target = raw.decode("utf-8")
-    except (UnicodeDecodeError, zipfile.BadZipFile, OSError, RuntimeError, NotImplementedError) as e:
-        raise Unsafe(f"{info.filename}: unreadable symlink target: {type(e).__name__}") from e
-    if not target or len(raw) > MAX_LINK_TARGET or any(ord(c) < 0x20 or ord(c) == 0x7F for c in target):
-        raise Unsafe(f"{info.filename}: invalid symlink target")
-    target = target.replace("\\", "/")
-    if target.startswith("/") or re.match(r"^[A-Za-z]:", target):
-        raise Unsafe(f"{info.filename}: symlink to an absolute path")
-    return target
+# シンボリックリンクの判定と行き先の解決も中身の検査と同じものを使う。
+Unsafe = ia.UnsafeArchive
 
 
 def check_zip(path, bundles, limits=ia.DEFAULT_LIMITS):
@@ -114,14 +54,14 @@ def check_zip(path, bundles, limits=ia.DEFAULT_LIMITS):
                     raise Unsafe(f"{info.filename!r}: {problem}")
                 name = info.filename.replace("\\", "/").rstrip("/")
                 names.add(name)
-                if _is_link(info):
-                    links[name] = _link_target(zf, info)
+                if ia.is_symlink(info):
+                    links[name] = ia.read_link_target(zf, info)
             for name in links:
                 parts = name.split("/")
-                resolved = _resolve(parts, links)
+                resolved = ia.resolve_link(parts, links)
                 if resolved is None:
                     raise Unsafe(f"{name}: symlink resolves outside the extraction folder")
-                root = _bundle_root(parts)
+                root = ia.bundle_root(parts)
                 if resolved[: len(root)] != root:
                     raise Unsafe(f"{name}: symlink resolves outside the bundle {'/'.join(root)}")
         except Unsafe as e:
