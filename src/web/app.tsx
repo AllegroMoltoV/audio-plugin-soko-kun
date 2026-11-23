@@ -151,6 +151,37 @@ app.get('/robots.txt', (c) =>
   c.text(`User-agent: *\nAllow: /\nDisallow: /mcp\nSitemap: ${c.env.ORIGIN}/sitemap.xml\n`),
 );
 
+// AI エージェント向けの案内 (llms.txt の慣習)。DAW のオーディオプラグインを作る相談を受けたエージェントが、
+// 作り方・掲載の条件・MCP の接続先を一度で読めるようにする。本文は固定で、外部データを含めない。
+// VST の語を表示するページにはロゴが要る (ADR 0004) ため、テキストの本文には VST の語を書かず、形式は掲載ポリシーで示す。
+app.get('/llms.txt', (c) => {
+  const origin = c.env.ORIGIN;
+  const body = `# Audio Plugin Soko-kun
+
+> An independent, unofficial registry of open-source audio plugins for DAWs, designed for AI coding agents. Authors build plugins with Claude Code, publish them on GitHub Releases, and register them over MCP. Users and agents search the catalog on the web or over MCP. Not affiliated with the developers of plugin formats or DAWs.
+
+## Build and publish an audio plugin with AI
+
+- Install the Claude Code skill that guides planning, a project template that builds the supported plugin formats from one codebase, validation in CI, testing a GUI without a display, releases with build provenance attestations, and listing: \`claude plugin marketplace add AllegroMoltoV/audio-plugin-soko-kun\` then \`claude plugin install audio-soko-kun-plugin-dev@audio-plugin-soko-kun\`
+- The supported plugin formats are listed in the [listing policy](${origin}/policy?lang=en).
+- When a plugin is listed, anyone can download its files from GitHub for free, and anyone can use and redistribute its code commercially under the conditions of its license. Paid-only distributions without public source are not listed.
+
+## MCP
+
+- Endpoint: ${origin}/mcp (streamable HTTP). Tools: search_plugins and get_plugin without sign-in; submit_plugin and list_my_plugins with GitHub sign-in.
+- Claude Code: \`claude mcp add --transport http audio-plugin-soko-kun ${origin}/mcp\`
+
+## Docs
+
+- [Submit a plugin](${origin}/submit?lang=en): listing conditions, declarations in .audio-soko-kun/config.json, and how refusals are fixed
+- [Listing policy](${origin}/policy?lang=en)
+- [About](${origin}/about?lang=en)
+- [Review criteria](https://github.com/AllegroMoltoV/audio-plugin-soko-kun/blob/main/docs/design/review-criteria.md) (Japanese)
+- [Source code](https://github.com/AllegroMoltoV/audio-plugin-soko-kun)
+`;
+  return c.body(body, 200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=3600' });
+});
+
 app.get('/sitemap.xml', async (c) => {
   const { items } = await searchPlugins(c.env, { limit: 5000 });
   const paths = [
