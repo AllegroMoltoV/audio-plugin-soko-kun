@@ -14,6 +14,7 @@ import {
   SYNC_QUERIES,
 } from '../../src/domain/cron';
 import { RELEASE_CHECK_COST, runReleaseChecks } from '../../src/domain/release-checks';
+import { MAX_SCAN_ATTEMPTS } from '../../src/domain/status';
 import { submitPlugin } from '../../src/domain/submit';
 import { markListable } from '../fixtures/checks';
 import {
@@ -1018,6 +1019,111 @@ describe('runCron の MalwareBazaar への照会', () => {
       }>();
       expect(results, String(status)).toEqual([{ result: 'error' }]);
     }
+  });
+
+  // 掲載中の配布物の照会を、指定の状態にして NOW に定期処理を 1 回走らせる。
+  async function runListedWith(
+    state: { result: string; attempts: number },
+    handler: ReturnType<typeof http.post>,
+    budget = new Budget(),
+  ) {
+    await env.DB.prepare('UPDATE scans SET result = ?, attempts = ?, scanned_at = ? WHERE digest = ?')
+      .bind(state.result, state.attempts, new Date(NOW.getTime() - 8 * DAY_MS).toISOString(), `sha256:${ZIP_HEX}`)
+      .run();
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(NOW);
+    try {
+      network.use(repoById(503), handler, ...releaseCheckHandlers());
+      return await runCron(env, budget);
+    } finally {
+      vi.useRealTimers();
+    }
+  }
+
+  const scanRow = () =>
+    env.DB.prepare("SELECT result, detail, attempts FROM scans WHERE digest = ? AND scanner = 'malwarebazaar'")
+      .bind(`sha256:${ZIP_HEX}`)
+      .all<{
+        result: string;
+        detail: string | null;
+        attempts: number;
+      }>();
+  const answer = (status: string) =>
+    http.post('https://mb-api.abuse.ch/api/v1/', () => HttpResponse.json({ query_status: status }));
+
+  it('C17 attempts は続けて失敗した回数。照会し直しの not_found で 0 に戻り、error のあとも次の起動で照会される', async () => {
+    await registerFixture();
+    await markListable(env.DB);
+    await recordListings(env, new Budget());
+    // 旧い数え方で積み上がった attempts (照会し直しのたびに 1 ずつ増えていた)。
+    await runListedWith({ result: 'not_found', attempts: 7 }, answer('hash_not_found'));
+    expect((await scanRow()).results).toEqual([{ result: 'not_found', detail: expect.any(String), attempts: 0 }]);
+    // 照会し直しで 1 回 error になっても、次の起動で選ばれて照会される。
+    // 直前が not_found なら、旧い数え方で残った attempts (配備の前の行) を引き継がず 1 から数える。
+    await runListedWith({ result: 'not_found', attempts: 2 }, answer('unknown_auth_key'));
+    expect((await scanRow()).results).toMatchObject([{ result: 'error', attempts: 1 }]);
+    const hashes: string[] = [];
+    network.resetHandlers();
+    network.use(repoById(503), lookups(hashes), ...releaseCheckHandlers());
+    await runCron(env);
+    expect(hashes).toEqual([ZIP_HEX]);
+    expect((await scanRow()).results).toMatchObject([{ result: 'not_found', attempts: 0 }]);
+  });
+
+  it('C17 の対照: error が続けて上限に達した配布物は、照会の対象に選ばない', async () => {
+    await registerFixture();
+    await markListable(env.DB);
+    const hashes: string[] = [];
+    await runListedWith({ result: 'error', attempts: MAX_SCAN_ATTEMPTS }, lookups(hashes));
+    expect(hashes).toEqual([]);
+    await runListedWith({ result: 'error', attempts: MAX_SCAN_ATTEMPTS - 1 }, lookups(hashes));
+    expect(hashes).toEqual([ZIP_HEX]);
+  });
+
+  it.each([
+    ['fetch の例外', () => HttpResponse.error()],
+    ['JSON でない 200 の応答', () => new HttpResponse('<html>maintenance</html>', { status: 200 })],
+  ])(
+    'C18 照会が %s になっても、その配布物を error・attempts +1 で記録し、ほかの配布物の照会と後段を続ける',
+    async (_name, failure) => {
+      await registerFixture();
+      const other = `sha256:${'f7'.repeat(32)}`;
+      await env.DB.prepare("INSERT INTO scans (digest, scanner, result) VALUES (?, 'malwarebazaar', 'pending')")
+        .bind(other)
+        .run();
+      const handler = http.post('https://mb-api.abuse.ch/api/v1/', async ({ request }) => {
+        const hash = new URLSearchParams(await request.text()).get('hash');
+        return hash === ZIP_HEX ? failure() : HttpResponse.json({ query_status: 'hash_not_found' });
+      });
+      const report = await runListedWith({ result: 'pending', attempts: 0 }, handler);
+      const { results } = await env.DB.prepare(
+        "SELECT digest, result, detail, attempts FROM scans WHERE scanner = 'malwarebazaar'",
+      ).all<{ digest: string; result: string; detail: string; attempts: number }>();
+      const byDigest = new Map(results.map((row) => [row.digest, row]));
+      expect(byDigest.get(`sha256:${ZIP_HEX}`)).toMatchObject({ result: 'error', attempts: 1 });
+      expect(byDigest.get(`sha256:${ZIP_HEX}`)?.detail.length).toBeLessThanOrEqual(260);
+      expect(byDigest.get(other)).toMatchObject({ result: 'not_found', attempts: 0 });
+      // 新しい版の検査と同期が走っている (同期は repoById(503) で止まる)。
+      expect(report.releasesChecked).toBeDefined();
+      expect(report.stoppedBy).toBe('github_unavailable');
+    },
+  );
+
+  it('C18 の対照: 429 は試行に数えずに止め、予算の超過は投げ直す', async () => {
+    await registerFixture();
+    await runListedWith(
+      { result: 'pending', attempts: 0 },
+      http.post('https://mb-api.abuse.ch/api/v1/', () => new HttpResponse(null, { status: 429 })),
+    );
+    expect((await scanRow()).results).toMatchObject([{ result: 'pending', attempts: 0 }]);
+    // 同じホストへのリダイレクトを続けて、照会の途中で予算を使い切る。
+    const redirect = http.post(
+      'https://mb-api.abuse.ch/api/v1/',
+      () => new HttpResponse(null, { status: 302, headers: { Location: 'https://mb-api.abuse.ch/api/v1/' } }),
+    );
+    const report = await runListedWith({ result: 'pending', attempts: 0 }, redirect, new Budget(FINAL_RESERVE + 2, 45));
+    expect(report.stoppedBy).toBe('budget_subrequest');
+    expect((await scanRow()).results).toMatchObject([{ result: 'pending', attempts: 0 }]);
   });
 });
 

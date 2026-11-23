@@ -18,6 +18,9 @@ export type ReviewState = 'pending' | 'done' | 'failed';
 export const MAX_REVIEW_ATTEMPTS = 2;
 // 証明の検証・中身の検査・macOS の判定の error は 3 回まで試み、3 回目も error なら管理者が原因を確かめるまで掲載しない。
 export const MAX_CHECK_ATTEMPTS = 3;
+// MalwareBazaar の照会は、続けて 5 回 error なら、管理者が原因を確かめるまで掲載しない。attempts は続けて失敗した回数で、
+// 結果が確定すると 0 に戻る。scripts/admin.mjs の MAX_SCAN_ATTEMPTS と test/admin-script.test.ts で一致を保つ。
+export const MAX_SCAN_ATTEMPTS = 5;
 
 export interface ReleaseChecks {
   immutable: boolean;
@@ -68,12 +71,18 @@ export interface PluginForStatus {
   removed: boolean;
 }
 
-export type ScanLookup = (digest: string, scanner: Scanner) => ScanResult | undefined;
+export interface ScanState {
+  result: ScanResult;
+  attempts: number;
+}
+
+export type ScanLookup = (digest: string, scanner: Scanner) => ScanState | undefined;
 
 // 掲載を止めている理由。理由コードは docs/design/author-feedback.md の「理由コード」。
 export type BlockerCode =
   | 'no_assets'
   | 'scan_pending'
+  | 'scan_retries_exhausted'
   | 'release_suspended'
   | 'checks_missing'
   | 'not_immutable'
@@ -112,6 +121,7 @@ export type WaitsFor = 'author' | 'admin' | 'system';
 export const BLOCKER_WAITS_FOR: Record<BlockerCode, WaitsFor> = {
   no_assets: 'author',
   scan_pending: 'system',
+  scan_retries_exhausted: 'admin',
   release_suspended: 'admin',
   checks_missing: 'system',
   not_immutable: 'author',
@@ -250,9 +260,11 @@ export function releaseBlockers(release: ReleaseForStatus, lookup: ScanLookup): 
   if (assets.length === 0) blockers.push('no_assets');
   // MalwareBazaar は既知のマルウェアだけを収録するため、未登録は既知のマルウェアに該当しないことを意味する。
   // インストーラーと案内しない配布物も含め、すべての配布物の結果が確定するまで掲載しない。
-  if (!assets.every((asset) => lookup(asset.digest, 'malwarebazaar') === 'not_found')) {
-    blockers.push('scan_pending');
-  }
+  // error が試行の上限に達した照会は自動ではやり直さないため、待つ相手を管理者にする。
+  const scans = assets.map((asset) => lookup(asset.digest, 'malwarebazaar'));
+  const scanExhausted = (scan: ScanState | undefined) => scan?.result === 'error' && scan.attempts >= MAX_SCAN_ATTEMPTS;
+  if (!scans.every((scan) => scan?.result === 'not_found' || scanExhausted(scan))) blockers.push('scan_pending');
+  if (scans.some(scanExhausted)) blockers.push('scan_retries_exhausted');
   if (release.suspended) blockers.push('release_suspended');
   // 版の承認では解かず、どの版にも付ける。旧い版や、案内を README に残したまま出した新しい版に掲載が移らないようにするため。
   if (release.readmeHeld) blockers.push('readme_held');
@@ -320,7 +332,7 @@ export function computeStatus(plugin: PluginForStatus, releases: ReleaseForStatu
 
   // インストーラーと案内しない配布物を含め、どのリリースのどの配布物でもマルウェアを検出したら止める。
   const hasMalicious = releases.some((release) =>
-    release.assets.some((asset) => lookup(asset.digest, 'malwarebazaar') === 'malicious'),
+    release.assets.some((asset) => lookup(asset.digest, 'malwarebazaar')?.result === 'malicious'),
   );
   if (hasMalicious) return { status: 'suspended', reason: 'malicious', pendingReleaseIds: [] };
 
