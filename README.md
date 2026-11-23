@@ -148,6 +148,10 @@ MIT License です。[LICENSE](LICENSE) を参照してください。VST Compat
 
 ## 更新履歴
 
+### 0.1.32 (2026-11-23)
+
+- MCP Registry への公開を、`deploy.yml` の job `publish-registry` で行うようにしました。この job は deploy の後に動き、GitHub Actions の OIDC で認証するため、版ごとのデバイスコードの入力が要りません。`server.json` と `package.json` の版が食い違うと公開を止めます。同じ版が登録済みなら公開を飛ばします。`mcp-publisher` は v1.8.9 に固定し、Sigstore のバンドルを検証してから使います。
+
 ### 0.1.31 (2026-11-23)
 
 - 依存のパッケージを更新しました。実行時に使う `hono` を 4.13.19 にしました。開発用の `@biomejs/biome` を 2.6.8、`@cloudflare/vitest-plugin` を 1.8.4、`@cloudflare/workers-types` を 5.20261118.1、`msw` を 3.0.7、`vitest` を 5.1.1、`wrangler` を 4.164.0 にしました。CI の `actions/dependency-review-action` を 5.0.1 にしました。Dependabot が作った 3 件の更新を、まとめて取り込みました。
