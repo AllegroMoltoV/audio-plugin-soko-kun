@@ -164,6 +164,13 @@ class RuleTest(unittest.TestCase):
         self.assertEqual(mj.summarize(verdicts)["teamIds"], ["AAAAA11111", "BBBBB22222"])
 
 
+    def test_team_ids_are_truncated_to_the_first_ten_in_sorted_order(self):
+        # 受け口は 10 件を超える Team ID を受け付けないため、生成側でも 10 件に収める
+        ids = [f"TEAM{n:06d}" for n in range(11, 0, -1)]
+        verdicts = [{"result": "passed", "reason": None, "teamId": t} for t in ids]
+        self.assertEqual(mj.summarize(verdicts)["teamIds"], sorted(ids)[:10])
+
+
 class CheckZipTest(unittest.TestCase):
     """M09: 展開の前に zip の項目を確かめる。ditto -x -k は、展開先の外を指すシンボリックリンクをそのまま作る (V2 の U54)。"""
 
@@ -248,6 +255,27 @@ class CheckZipTest(unittest.TestCase):
         # M08: Worker から受け取ったパスはデータとして照合するだけで、解釈しない
         entries = [("Ultramaster KR-106.vst3/Contents/Info.plist", "<plist/>")]
         self.assertTrue(self.check(entries, ["Ultramaster KR-106.vst3"])["safe"])
+
+    def test_broken_symlink_data_is_a_check_error(self):
+        # 圧縮データの壊れたシンボリックリンクの項目は、zlib.error で読み取りに失敗する。例外のまま落とさない
+        path = os.path.join(self.tmp.name, "broken-link.zip")
+        info = zipfile.ZipInfo("Plugin.vst3/Contents/link")
+        info.create_system = 3
+        info.external_attr = (stat.S_IFLNK | 0o777) << 16
+        info.compress_type = zipfile.ZIP_DEFLATED
+        with zipfile.ZipFile(path, "w") as z:
+            z.writestr("Plugin.vst3/Contents/Info.plist", "<plist/>")
+            z.writestr(info, "../x")
+        with zipfile.ZipFile(path) as z:
+            link = z.getinfo("Plugin.vst3/Contents/link")
+        start = link.header_offset + 30 + len(link.filename.encode()) + len(link.extra)
+        with open(path, "rb") as f:
+            data = bytearray(f.read())
+        data[start] = 0xFF  # 圧縮のブロックの種類が不正になる
+        with open(path, "wb") as f:
+            f.write(data)
+        r = mj.check_zip(path, ["Plugin.vst3"])
+        self.assertEqual((r["safe"], r["reason"]), (False, "check_error"))
 
     def test_broken_zip_is_a_check_error(self):
         path = os.path.join(self.tmp.name, "broken.zip")

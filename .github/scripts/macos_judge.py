@@ -30,6 +30,7 @@ _spec.loader.exec_module(ia)
 
 MAX_LINK_TARGET = 1024
 MAX_LINK_HOPS = 40
+MAX_TEAM_IDS = 10  # Worker の受け口の上限 (src/checks/macos-route.ts)
 TEAM_ID = re.compile(r"^[A-Z0-9]{10}$")
 
 
@@ -125,6 +126,8 @@ def check_zip(path, bundles, limits=ia.DEFAULT_LIMITS):
                     raise Unsafe(f"{name}: symlink resolves outside the bundle {'/'.join(root)}")
         except Unsafe as e:
             return {"safe": False, "reason": "unsafe_archive", "detail": str(e)}
+        except Exception as e:  # 壊れた圧縮データの zlib.error・EOFError・LZMAError など。判定できなかったものとして扱う
+            return {"safe": False, "reason": "check_error", "detail": f"unreadable entry: {type(e).__name__}"}
     for bundle in bundles:
         if bundle.endswith("/") or not any(n == bundle or n.startswith(bundle + "/") for n in names):
             return {"safe": False, "reason": "check_error", "detail": f"bundle not found: {bundle}"}
@@ -189,8 +192,9 @@ def judge_bundle(codesign, spctl):
 
 def summarize(verdicts):
     """アーカイブの判定。1 件でも failed なら failed、failed が無く error があれば error、すべて passed なら passed。
-    Team ID は、判定したバンドルの値をすべて記録する。食い違いは Worker が版の確認待ちにする。"""
-    team_ids = sorted({v["teamId"] for v in verdicts if v.get("teamId")})
+    Team ID は、判定したバンドルの値を並べ替えて先頭の 10 件まで記録する。食い違いは Worker が版の確認待ちにする。"""
+    # 受け口は 10 件までしか受け付けない。第三者が 11 社以上の署名を 1 つの zip に入れても要求が拒まれないよう、先頭の 10 件に切り詰める。
+    team_ids = sorted({v["teamId"] for v in verdicts if v.get("teamId")})[:MAX_TEAM_IDS]
     for result in ("failed", "error"):
         hit = next((v for v in verdicts if v["result"] == result), None)
         if hit:

@@ -226,8 +226,7 @@ describe('macOS の判定の結果', () => {
       ['I11 理由のある passed', [{ ...PASSED, reason: 'adhoc' }]],
       ['I11 Developer ID の公証の判定を failed にした', [{ ...PASSED, result: 'failed', reason: 'not_notarized' }]],
       ['I11 理由の無い failed', [{ ...PASSED, result: 'failed', reason: null }]],
-      ['I11 決めた理由の外の error', [{ ...PASSED, result: 'error', reason: 'whatever' }]],
-      ['I11 Team ID の形が違う', [{ ...PASSED, teamIds: ['team000001'] }]],
+      ['I11 Team ID の形が違うものだけの passed', [{ ...PASSED, teamIds: ['team000001'] }]],
       ['I11 Team ID が重なる', [{ ...PASSED, teamIds: ['TEAM000001', 'TEAM000001'] }]],
       ['I11 配布物の ID が数でない', [{ ...PASSED, assetId: '8001' }]],
     ];
@@ -238,6 +237,40 @@ describe('macOS の判定の結果', () => {
         expect(await macosRow()).toMatchObject({ result: 'pending', attempts: 0 });
       });
     }
+  });
+});
+
+describe('I11 第三者の値で決まる項目の不一致は、要求全体を拒まず、その値を捨てるか check_error にする', () => {
+  const errorEntries: Array<[string, Record<string, unknown>]> = [
+    ['決めた理由の外の error', { ...PASSED, result: 'error', reason: 'whatever', teamIds: [] }],
+    ['reason が null の error (check.json が空のとき)', { ...PASSED, result: 'error', reason: null, teamIds: [] }],
+  ];
+  for (const [label, entry] of errorEntries) {
+    it(`${label}は、check_error として書き、試行を数える`, async () => {
+      await registerWithContent([MAC_VST3]);
+      const response = await post([entry]);
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ updated: 1 });
+      expect(await macosRow()).toMatchObject({ result: 'error', reason: 'check_error', attempts: 1 });
+    });
+  }
+
+  it('Team ID が 11 件なら、並べ替えて先頭の 10 件に切り詰めて受け付け、管理者の確認待ちにする', async () => {
+    await registerWithContent([MAC_VST3, bundle('Fixture Synth.clap', 'clap', ['macos'])]);
+    const ids = Array.from({ length: 11 }, (_, index) => `TEAM${String(11 - index).padStart(6, '0')}`);
+    const response = await post([{ ...PASSED, teamIds: ids }]);
+    expect(response.status).toBe(200);
+    const row = await macosRow();
+    expect(row).toMatchObject({ result: 'passed', attempts: 1 });
+    expect(JSON.parse(row?.team_id ?? '[]')).toEqual([...ids].sort().slice(0, 10));
+    expect((await view())?.status).toBe('pending');
+  });
+
+  it('形の違う Team ID は 1 件ずつ捨て、残りで受け付ける', async () => {
+    await registerWithContent([MAC_VST3]);
+    const response = await post([{ ...PASSED, teamIds: ['team000001', 'TEAM000002', 7] }]);
+    expect(response.status).toBe(200);
+    expect(await macosRow()).toMatchObject({ result: 'passed', team_id: 'TEAM000002' });
   });
 });
 
