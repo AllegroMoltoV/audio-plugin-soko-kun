@@ -361,12 +361,29 @@ class WorkflowStepTest(unittest.TestCase):
         self.assertEqual(len(content["bundles"]), 200)
         self.assertEqual(len(content["vst2Files"]), 100)
 
-    def test_w07_oversized_results_replace_scans_before_content(self):
-        """結果が 800,000 バイトを超えるとき、まず本文の大きい版の通信の検出を error にして、上限に収めて送る。"""
+    def test_w07_oversized_results_replace_the_largest_content_and_keep_small_scans(self):
+        """結果が 800,000 バイトを超えるとき、大きい中身の検査だけを error にして、小さい通信の検出は done のまま残す。"""
         path, digest = self.zip_with(["Fixture.vst3/Contents/x86_64-win/Fixture.vst3"])
         self.write_inspect()
-        big = [{"file": f"src/{i}.cpp", "line": 1, "api": "socket", "text": "t" * 200} for i in range(1200)]
-        self.write_scan("501", big[:300])
+        small = [{"file": f"src/{i}.cpp", "line": 1, "api": "socket", "text": "t" * 200} for i in range(20)]
+        for release_id in ("501", "502", "503"):
+            self.write_scan(release_id, small)
+        raw = self.pipeline("verify", self.verify_pending(digest, assets=3, releases=[501, 502, 503]), path)
+        self.assertLessEqual(len(raw), BODY_LIMIT)
+        body = json.loads(raw)
+        contents = [item["content"] for item in body["results"]]
+        replaced = [content for content in contents if content.get("bundles") is None]
+        # 受け口が受け付ける error の理由 (src/checks/route.ts の REASON) にする。
+        self.assertEqual(replaced, [{"result": "error", "reason": "result_too_large"}])
+        self.assertEqual(len(contents) - len(replaced), 2)
+        self.assertEqual([scan["result"] for scan in body["networkScans"]], ["done", "done", "done"])
+
+    def test_w07_oversized_results_replace_the_largest_scan_and_keep_contents(self):
+        """通信の検出が最も大きいとき、その版の通信の検出だけを error にして、中身の検査は残す。"""
+        path, digest = self.zip_with(["Fixture.vst3/Contents/x86_64-win/Fixture.vst3"])
+        self.write_inspect(bundles=20, vst2_files=10)
+        big = [{"file": f"src/{i}.cpp", "line": 1, "api": "socket", "text": "t" * 200} for i in range(4000)]
+        self.write_scan("501", big[:20])
         self.write_scan("502", big)
         raw = self.pipeline("verify", self.verify_pending(digest, assets=2, releases=[501, 502]), path)
         self.assertLessEqual(len(raw), BODY_LIMIT)
@@ -374,20 +391,7 @@ class WorkflowStepTest(unittest.TestCase):
         scans = {scan["releaseId"]: scan for scan in body["networkScans"]}
         self.assertEqual(scans[502], {"releaseId": 502, "result": "error"})
         self.assertEqual(scans[501]["result"], "done")
-        # 通信の検出の置き換えで収まるため、中身の検査の結果は残る。
-        self.assertEqual([len(item["content"]["bundles"]) for item in body["results"]], [200, 200])
-
-    def test_w07_oversized_results_replace_content_when_scans_are_not_enough(self):
-        """通信の検出を置き換えても超えるとき、本文の大きい配布物の中身の検査を error にして、上限に収めて送る。"""
-        path, digest = self.zip_with(["Fixture.vst3/Contents/x86_64-win/Fixture.vst3"])
-        self.write_inspect()
-        raw = self.pipeline("verify", self.verify_pending(digest, assets=3), path)
-        self.assertLessEqual(len(raw), BODY_LIMIT)
-        contents = [item["content"] for item in json.loads(raw)["results"]]
-        replaced = [content for content in contents if content.get("bundles") is None]
-        # 受け口が受け付ける error の理由 (src/checks/route.ts の REASON) にする。
-        self.assertEqual(replaced, [{"result": "error", "reason": "result_too_large"}])
-        self.assertEqual(len(contents) - len(replaced), 2)
+        self.assertEqual([len(item["content"]["bundles"]) for item in body["results"]], [20, 20])
 
     def test_w07_low_free_space_posts_nothing(self):
         path, digest = self.zip_with(["Fixture.vst3/Contents/x86_64-win/Fixture.vst3"])

@@ -268,26 +268,31 @@ jobs:
 
           # report は送る本文を環境変数で受け取る。Linux の環境変数 1 つの上限 (128 KiB) を超えうるため、
           # 100,000 バイトずつ最大 8 個の output に分ける。8 個の合計 800,000 バイトは job output の上限 (1 MB) に収まる。
-          # 超えるときは、本文の大きい版から順に通信の検出の結果を error に置き換え、それでも超えるなら本文の大きい配布物から順に
-          # 中身の検査の結果を error に置き換える。失敗で止めると受け口に何も届かず、試行の回数も増えないため、同じ一覧で失敗を
-          # 繰り返してほかのプラグインの証明の検証まで止まる。error にしたものは、受け口で試行を数え、使い切ると既存の扱いへ進む。
+          # 超えるときは、通信の検出の結果 (done のもの) と中身の検査の結果 (bundles を持つもの) のうち、本文が最も大きい 1 つを error に置き換え、
+          # 収まるまで繰り返す。中身の検査は 1 件で 300 KB を超えうる一方、通信の検出は 1 版あたり小さく抑えられている。
+          # 大きいものから置き換えるため、巨大な配布物を出した第三者のせいで、同じ回にいるほかの作者の小さい結果が error になることはない。
+          # 失敗で止めると受け口に何も届かず、試行の回数も増えないため、同じ一覧で失敗を繰り返してほかのプラグインの証明の検証まで止まる。
+          # error にしたものは、受け口で試行を数え、使い切ると既存の扱いへ進む。
           chunk=100000
           while [ "$(wc -c < "${work}/body.json")" -gt $((chunk * 8)) ]; do
-            largest=$(jq -r '[.networkScans[] | select(.result == "done")] | max_by(tojson | length) | .releaseId // empty' "${work}/body.json")
-            if [ -n "${largest}" ]; then
-              echo "release ${largest}: network scan results are too large to send; reporting as error"
-              jq -ajc --argjson id "${largest}" \
+            pick=$(jq -r '([.networkScans[] | select(.result == "done") | {kind: "scan", id: .releaseId, size: (tojson | length)}]
+              + [.results[] | select(.content.bundles != null) | {kind: "content", id: .assetId, size: (.content | tojson | length)}])
+              | max_by(.size) // empty | "\(.kind) \(.id)"' "${work}/body.json")
+            if [ -z "${pick}" ]; then
+              echo "results are too large to pass to the report job even without scans and contents: $(wc -c < "${work}/body.json") bytes" >&2
+              exit 1
+            fi
+            kind="${pick%% *}"
+            id="${pick##* }"
+            if [ "${kind}" = "scan" ]; then
+              echo "release ${id}: network scan results are too large to send; reporting as error"
+              jq -ajc --argjson id "${id}" \
                 '.networkScans |= map(if .releaseId == $id then {releaseId: .releaseId, result: "error"} else . end)' \
                 "${work}/body.json" > "${work}/body.next"
             else
-              largest=$(jq -r '[.results[] | select(.content.bundles != null)] | max_by(.content | tojson | length) | .assetId // empty' "${work}/body.json")
-              if [ -z "${largest}" ]; then
-                echo "results are too large to pass to the report job even without scans and contents: $(wc -c < "${work}/body.json") bytes" >&2
-                exit 1
-              fi
-              echo "asset ${largest}: content results are too large to send; reporting as error"
+              echo "asset ${id}: content results are too large to send; reporting as error"
               # reason は受け口が受け付ける形 (src/checks/route.ts の REASON) にする。
-              jq -ajc --argjson id "${largest}" \
+              jq -ajc --argjson id "${id}" \
                 '.results |= map(if .assetId == $id then .content = {result: "error", reason: "result_too_large"} else . end)' \
                 "${work}/body.json" > "${work}/body.next"
             fi
