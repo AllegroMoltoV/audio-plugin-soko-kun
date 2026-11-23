@@ -153,6 +153,61 @@ class ScanNetworkTest(unittest.TestCase):
         self.assertEqual(len(result["hits"]), 50)
         self.assertTrue(result["truncated"])
 
+    def run_script(self, source: str) -> dict:
+        out = subprocess.run(
+            [BASH, SCRIPT.replace(os.sep, "/"), source],
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        )
+        return json.loads(out.stdout)
+
+    # 候補のパスの合計が引数の上限 (ARG_MAX) を超える場面。候補を grep のコマンドラインに並べると grep を起動できず、
+    # 当たり 0 件として通信の検出を逃れられる。約 3,700 バイトのパスのファイルを、合計が ARG_MAX を超える数だけ置く。
+    # ARG_MAX は環境で変わるため、実行する環境の値から数を決める。Windows はこの長さのパスを作れないため飛ばす。
+    @unittest.skipIf(os.name == "nt", "Windows は長いパスを作れない")
+    def test_candidates_over_arg_max_are_still_scanned(self):
+        arg_max = os.sysconf("SC_ARG_MAX")
+        count = arg_max // 3700 + 100
+        with tempfile.TemporaryDirectory() as root:
+            deep = os.path.join(root, "many", *["d" * 250] * 14, "d" * 100)
+            os.makedirs(deep)
+            for number in range(count):
+                with open(os.path.join(deep, f"f{number}.cpp"), "w", encoding="utf-8", newline="\n") as handle:
+                    handle.write("// socket (\n")
+            write(root, "src/real.cpp", "curl_easy_init();\n")
+            result = self.run_script(root)
+        real = [(hit["file"], hit["line"], hit["api"]) for hit in result["hits"] if hit["file"].endswith("src/real.cpp")]
+        self.assertEqual(real, [("src/real.cpp", 1, "libcurl")])
+        self.assertEqual(len(result["hits"]), 50)
+        self.assertTrue(result["truncated"])
+
+    # 探すディレクトリからの相対では書き出せるが、絶対パスでは上限 (PATH_MAX、4096 バイト) を超えるファイル。
+    # 絶対パスで grep に渡すと開けず、その版の通信の検出が消える。絶対パスでは作れないため、1 段ずつ移りながら作る。
+    # 相対は 16 x 251 + 8 = 4,024 バイトで上限より短く、探すディレクトリの名前 (約 100 バイト) を前に付けた絶対パスは上限を超える。
+    # 探すディレクトリは "." ではなく絶対パスで渡す。"." では候補が相対パスになり、修正の前でも上限を超えない。
+    @unittest.skipIf(os.name == "nt", "Windows は長いパスを作れない")
+    def test_file_whose_absolute_path_exceeds_path_max_is_scanned(self):
+        with tempfile.TemporaryDirectory() as root:
+            source = os.path.join(root, "q" * 100)
+            os.mkdir(source)
+            descriptor = os.open(source, os.O_RDONLY)
+            try:
+                for _ in range(16):
+                    os.mkdir("p" * 250, dir_fd=descriptor)
+                    child = os.open("p" * 250, os.O_RDONLY, dir_fd=descriptor)
+                    os.close(descriptor)
+                    descriptor = child
+                file = os.open("deep.cpp", os.O_WRONLY | os.O_CREAT, 0o644, dir_fd=descriptor)
+                with os.fdopen(file, "w", encoding="utf-8", newline="\n") as handle:
+                    handle.write("curl_easy_init();\n")
+            finally:
+                os.close(descriptor)
+            result = self.run_script(source)
+        hits = [(hit["line"], hit["api"], hit["file"].endswith("/deep.cpp")) for hit in result["hits"]]
+        self.assertEqual(hits, [(1, "libcurl", True)])
+
     # 受け口は知らない名前の当たりを捨てるため、スクリプトのパターンの名前は network.ts の一覧と一致しなければならない。
     def test_pattern_names_match_network_ts(self):
         with open(SCRIPT, encoding="utf-8") as handle:
