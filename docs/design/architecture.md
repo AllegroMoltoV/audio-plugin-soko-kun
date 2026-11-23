@@ -21,6 +21,8 @@ Cloudflare のアカウントは、配信プラグイン倉庫くんと共有し
 
 配布物を取得して行う処理は、Worker の外で行います。対象は、証明の署名の検証・中身の検査・macOS の署名と公証の判定の 3 つです。Worker では配布物をダウンロードせず、読み込みの上限を設けているためです。本サービスのリポジトリの GitHub Actions のワークフロー `verify.yaml` が配布物を取得して証明の署名を検証し、アーカイブの中身を検査して、結果を Worker へ送ります。配布物は 1 件ずつ最大 2 GiB まで取得し、処理を終えるたびに削除します。macOS の署名と公証の判定は、macOS のランナーで動作する別のワークフロー `macos-verify.yaml` が行います。判定の方法は [検査と同期](scanning.md) に記載します。無料プランの上限から導いたこの設計は、Workers Paid でも保ちます (派生元の ADR 0017)。
 
+第三者の入力に対する検査は、[派生元の ADR 0019](https://github.com/AllegroMoltoV/plugin-soko-kun/blob/main/docs/decisions/0019-verification-principles.md) の 4 つの原則にしたがいます。分からないものを合格にしない、異常をその対象に閉じ込め必ず終わる状態に至らせる、入力の決まりを 1 か所で定める、第三者が決められる値を一覧にする、の 4 つです。
+
 単一の Worker にまとめるのは、構成要素と運用の手間を最小にするためです。MCP と Web は共通のドメインロジックを使います。そのため、検索の条件や掲載状態の算出が経路によって食い違うことはありません。
 
 本サービスは、プラグインの情報の正を GitHub に置きます。D1 が保持するのは、GitHub から取得した情報の写しと、本サービス固有の情報です。固有の情報は、検査結果・中身の検査の結果・署名と公証の判定の結果・新しい版の検査とレビューの結果・証明の検証の結果・管理停止・止めた版の記録・掲載の期間・掲載の後の README の照合の結果・旧い URL の ID・登録の記録・レート制限の記録・概要の機械翻訳・ロゴと説明の画像・ダウンロード数の日ごとの記録・管理者への通知の記録です。
@@ -120,6 +122,7 @@ GitHub と配布物から取得した文字列は、外部データとして扱�
 | リポジトリの名前の変更と移管を ID で追う | [ADR 0015](https://github.com/AllegroMoltoV/plugin-soko-kun/blob/main/docs/decisions/0015-repository-rename-and-transfer.md) |
 | レビューの項目をルールと LLM に分け、ルールで計算した事実を LLM に渡す | [ADR 0016](https://github.com/AllegroMoltoV/plugin-soko-kun/blob/main/docs/decisions/0016-review-by-rules-and-facts.md) |
 | Cloudflare Workers の有料プラン (Workers Paid) を続ける。ADR 0001 の無料プランを使う判断を改め、無料プランの上限から導いた設計は保つ | [ADR 0017](https://github.com/AllegroMoltoV/plugin-soko-kun/blob/main/docs/decisions/0017-continue-workers-paid.md) |
+| 第三者の入力に対する検査を 4 つの原則にしたがわせる | [ADR 0019](https://github.com/AllegroMoltoV/plugin-soko-kun/blob/main/docs/decisions/0019-verification-principles.md) |
 
 派生元の ADR 0013 のうち、署名を条件にしない判断は、macOS についてだけ本サービスの [ADR 0003](../decisions/0003-listing-conditions.md) で改めています。exe と msi を含むリリースを掲載しない判断は、同じ ADR でインストーラーを案内しない形に改めています。案内しないインストーラーにも、証明は求めます。
 
