@@ -1,7 +1,7 @@
-"""中身の検査のスクリプトのテスト (docs/design/testing.md の W01〜W11・W17 と、検証 A1 の標本の突き合わせ)。
+"""中身の検査のスクリプトのテスト (docs/design/testing.md の W01〜W11・W17・W18 と、検証 A1 の標本の突き合わせ)。
 
 使い方: python3 -I -B -m unittest discover -s .github/scripts -p "test_*.py"
-W01〜W11・W17 は、テストの中で作った小さなアーカイブで確かめる。
+W01〜W11・W17・W18 は、テストの中で作った小さなアーカイブで確かめる。
 A1 の標本は第三者の著作物のためリポジトリに含めない。手元の .tmp/ に標本があるときだけ突き合わせ、無ければ飛ばす。
 """
 
@@ -17,6 +17,7 @@ import tempfile
 import unittest
 import warnings
 import zipfile
+from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(HERE))
@@ -85,6 +86,28 @@ def macho_slice(cputype=MACHO_ARM64, exports=(), filetype=8):
     symtab = struct.pack("<IIIIII", 2, 24, symoff, len(exports), stroff, len(strtab))
     data = header + symtab + syms + strtab
     return data + b"\0" * (64 - len(data) % 64)
+
+
+def macho_trie(edges, cputype=MACHO_ARM64, filetype=8):
+    """LC_DYLD_EXPORTS_TRIE だけを持つ 64 ビットの Mach-O。edges は (名前, 葉の番号) の並びで、
+    名前は _ 付きで書く。同じ番号の辺は同じ葉のノードを指す。"""
+    leaf = b"\x02\x00\x00\x00"  # 名前を持つ (terminal size 2、flags 0、address 0) 子の無いノード
+    nleaf = max(i for _, i in edges) + 1
+    root_size = 2 + sum(len(n.encode()) + 1 + 2 for n, _ in edges)
+    root = b"\x00" + bytes([len(edges)])
+    for n, i in edges:
+        child = root_size + 4 * i
+        root += n.encode() + b"\0" + bytes([0x80 | (child & 0x7F), child >> 7])  # 2 バイトに詰めた ULEB128
+    trie = root + leaf * nleaf
+    header = struct.pack("<IiiIIIII", 0xFEEDFACF, cputype, 0, filetype, 1, 16, 0, 0)
+    cmd = struct.pack("<IIII", 0x80000033, 16, 48, len(trie))
+    data = header + cmd + trie
+    return data + b"\0" * (64 - len(data) % 64)
+
+
+def macho_trie_flat(names, **kwargs):
+    """名前ごとに別の葉を持つトライ。名前は _ なしで書く。"""
+    return macho_trie([("_" + n, i) for i, n in enumerate(names)], **kwargs)
 
 
 def macho_fat(*slices_):
@@ -353,6 +376,83 @@ class W17UnreadableEntries(ArchiveTest):
     def test_trailing_dot_does_not_hide_a_bundle_root(self):
         result = self.inspect([("Fixture.vst3./Contents/x86_64-win/Fixture.vst3", pe(exports=("GetPluginFactory",)))])
         self.assertEqual(result["formats"], ["vst3"])
+
+
+class W18ExportNames(ArchiveTest):
+    """エクスポート名を上限で打ち切ったバイナリを含むアーカイブは、passed にせず undetermined にする (jtl.65)。"""
+
+    CAP = 3
+    # 名前の並びから、その名前をエクスポートするバイナリを作る形式ごとの関数。
+    BUILDERS = {
+        "pe": lambda names: pe(exports=names),
+        "elf": lambda names: elf(exports=names),
+        "macho_symtab": lambda names: macho_slice(exports=names),
+        "macho_trie": lambda names: macho_trie_flat(names),
+    }
+    # ELF は動的シンボル表の先頭に空のエントリーを置くため、上限と比べる件数が名前より 1 件多い。
+    EXTRA_ENTRIES = {"pe": 0, "elf": 1, "macho_symtab": 0, "macho_trie": 0}
+
+    def archive(self, kind, names):
+        # Mach-O のトライは後入れ先出しで辿るため、並びの最後の名前が最初に読まれる。
+        # 並びを逆にして、先頭に置いた名前が最後に読まれる位置に合わせる。
+        if kind == "macho_trie":
+            names = list(reversed(names))
+        return [VST3_WIN, ("lib/Fixture.bin", self.BUILDERS[kind](names))]
+
+    def inspect_capped(self, entries):
+        with mock.patch.object(ia, "MAX_EXPORT_NAMES", self.CAP):
+            return self.inspect(entries)
+
+    def assert_incomplete(self, result):
+        self.assertEqual(result["result"], "undetermined", result["diagnostics"])
+        self.assertEqual(
+            result["diagnostics"]["undetermined"], [{"path": "lib/Fixture.bin", "reason": "export_names_incomplete"}]
+        )
+
+    def test_vst_plugin_main_after_the_cap_is_undetermined(self):
+        for kind in self.BUILDERS:
+            with self.subTest(kind):
+                # 先頭から数えて上限の後ろになる位置に VSTPluginMain を置く
+                names = ["a" + str(i) for i in range(self.CAP - self.EXTRA_ENTRIES[kind])] + ["VSTPluginMain"]
+                self.assert_incomplete(self.inspect_capped(self.archive(kind, names)))
+
+    def test_vst_plugin_main_before_the_cap_is_still_vst2_detected(self):
+        for kind in self.BUILDERS:
+            with self.subTest(kind):
+                names = ["VSTPluginMain"] + ["a" + str(i) for i in range(self.CAP + 1)]
+                result = self.inspect_capped(self.archive(kind, names))
+                self.assertEqual(result["result"], "vst2_detected")
+                self.assertEqual(result["vst2Files"], ["lib/Fixture.bin"])
+
+    def test_exactly_the_cap_is_passed(self):
+        for kind in self.BUILDERS:
+            with self.subTest(kind):
+                names = ["a" + str(i) for i in range(self.CAP - self.EXTRA_ENTRIES[kind])]
+                result = self.inspect_capped(self.archive(kind, names))
+                self.assertEqual(result["result"], "passed", result["diagnostics"])
+
+    def test_one_over_the_cap_is_undetermined(self):
+        for kind in self.BUILDERS:
+            with self.subTest(kind):
+                names = ["a" + str(i) for i in range(self.CAP + 1 - self.EXTRA_ENTRIES[kind])]
+                self.assert_incomplete(self.inspect_capped(self.archive(kind, names)))
+
+    def test_one_incomplete_slice_of_a_fat_binary_is_undetermined(self):
+        fat = macho_fat(
+            (MACHO_ARM64, macho_slice(exports=("a",))),
+            (MACHO_X86_64, macho_slice(exports=("a", "b", "c", "VSTPluginMain"))),
+        )
+        self.assert_incomplete(self.inspect_capped([VST3_WIN, ("lib/Fixture.bin", fat)]))
+
+    def test_trie_node_reached_by_two_different_edges_is_undetermined(self):
+        # 2 つの辺が同じノードを指す。後から取り出す辺の名前は読まれない
+        data = macho_trie([("_VSTPluginMain", 0), ("_foo", 0)])
+        self.assert_incomplete(self.inspect([VST3_WIN, ("lib/Fixture.bin", data)]))
+
+    def test_trie_node_reached_again_with_the_same_name_is_not_incomplete(self):
+        data = macho_trie([("_foo", 0), ("_foo", 0)])
+        result = self.inspect([VST3_WIN, ("lib/Fixture.bin", data)])
+        self.assertEqual(result["result"], "passed", result["diagnostics"])
 
 
 class W02Limits(ArchiveTest):
