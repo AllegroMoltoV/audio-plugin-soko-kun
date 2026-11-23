@@ -122,6 +122,7 @@ GitHub と配布物から取得した文字列は、外部データとして扱�
 | リポジトリの名前の変更と移管を ID で追う | [ADR 0015](https://github.com/AllegroMoltoV/plugin-soko-kun/blob/main/docs/decisions/0015-repository-rename-and-transfer.md) |
 | レビューの項目をルールと LLM に分け、ルールで計算した事実を LLM に渡す | [ADR 0016](https://github.com/AllegroMoltoV/plugin-soko-kun/blob/main/docs/decisions/0016-review-by-rules-and-facts.md) |
 | Cloudflare Workers の有料プラン (Workers Paid) を続ける。ADR 0001 の無料プランを使う判断を改め、無料プランの上限から導いた設計は保つ | [ADR 0017](https://github.com/AllegroMoltoV/plugin-soko-kun/blob/main/docs/decisions/0017-continue-workers-paid.md) |
+| 第三者の入力に対する検査を 4 つの原則にしたがわせる | [ADR 0019](https://github.com/AllegroMoltoV/plugin-soko-kun/blob/main/docs/decisions/0019-verification-principles.md) |
 
 派生元の ADR 0013 のうち、署名を条件にしない判断は、macOS についてだけ本サービスの [ADR 0003](../decisions/0003-listing-conditions.md) で改めています。exe と msi を含むリリースを掲載しない判断は、同じ ADR でインストーラーを案内しない形に改めています。案内しないインストーラーにも、証明は求めます。
 
