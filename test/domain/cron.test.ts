@@ -1059,7 +1059,8 @@ describe('runCron の MalwareBazaar への照会', () => {
     await runListedWith({ result: 'not_found', attempts: 7 }, answer('hash_not_found'));
     expect((await scanRow()).results).toEqual([{ result: 'not_found', detail: expect.any(String), attempts: 0 }]);
     // 照会し直しで 1 回 error になっても、次の起動で選ばれて照会される。
-    await runListedWith({ result: 'not_found', attempts: 0 }, answer('unknown_auth_key'));
+    // 直前が not_found なら、旧い数え方で残った attempts (配備の前の行) を引き継がず 1 から数える。
+    await runListedWith({ result: 'not_found', attempts: 2 }, answer('unknown_auth_key'));
     expect((await scanRow()).results).toMatchObject([{ result: 'error', attempts: 1 }]);
     const hashes: string[] = [];
     network.resetHandlers();

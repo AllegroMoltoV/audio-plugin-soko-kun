@@ -70,10 +70,12 @@ async function runScans(env: Env, budget: Budget, report: CronReport): Promise<v
     .all<PendingScan>();
   const updates: D1PreparedStatement[] = [];
   // attempts は続けて失敗した回数。結果が確定したら 0 に戻し、error のときだけ 1 増やす。
+  // 直前の結果が error でなければ、残っている attempts を引き継がず 1 から数える (右辺の result は更新前の値)。
   const record = (row: PendingScan, outcome: ScanOutcome) =>
     updates.push(
       env.DB.prepare(
-        `UPDATE scans SET result = ?, detail = ?, attempts = CASE WHEN ? = 'error' THEN attempts + 1 ELSE 0 END,
+        `UPDATE scans SET result = ?, detail = ?, attempts = CASE WHEN ? = 'error'
+             THEN (CASE WHEN result = 'error' THEN attempts ELSE 0 END) + 1 ELSE 0 END,
            scanned_at = ? WHERE digest = ? AND scanner = ?`,
       ).bind(outcome.result, outcome.detail, outcome.result, now(), row.digest, row.scanner),
     );
