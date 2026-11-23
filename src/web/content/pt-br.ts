@@ -177,7 +177,7 @@ export const ptBR: Record<PageKey, PageContent> = {
             list: [
               'vst2_detected: Um arquivo compactado contém um bundle ou ponto de entrada VST 2. Remova o VST 2 de todos os arquivos compactados e publique uma nova versão.',
               'no_plugin_detected, no_plugin_in_archive: Nenhum bundle de plugin suportado foi encontrado nos arquivos compactados. Coloque os bundles compilados nos arquivos zip. Os arquivos de código-fonte não precisam de mudança.',
-              'content_undetermined: Um arquivo compactado contém arquivos que não podem ser inspecionados, como instaladores ou arquivos compactados aninhados. Coloque os bundles do plugin diretamente no arquivo zip.',
+              'content_undetermined: Um arquivo compactado contém itens que não podem ser inspecionados, como instaladores, arquivos compactados aninhados, caminhos inseguros, links que saem do bundle, nomes duplicados ou entradas de pasta com dados. Coloque os bundles do plugin diretamente no arquivo zip e remova esses itens.',
               'macos_not_signed, macos_adhoc, macos_not_developer_id, macos_not_notarized: Assine os bundles para macOS com um certificado Developer ID e notarize-os com a Apple.',
               'declaration_mismatch, not_declared: As declarações em .audio-soko-kun/config.json não batem com os arquivos compactados inspecionados. Corrija as declarações e publique uma nova versão.',
               'installer_not_guided: Instaladores não são indicados. Os usuários obtêm os plugins pelos arquivos zip.',

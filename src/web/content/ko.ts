@@ -177,7 +177,7 @@ export const ko: Record<PageKey, PageContent> = {
             list: [
               'vst2_detected: 압축 파일에 VST 2 번들이나 엔트리 포인트가 있습니다. 모든 압축 파일에서 VST 2를 빼고 새 릴리스를 공개해 주세요.',
               'no_plugin_detected, no_plugin_in_archive: 압축 파일에서 지원 규격의 플러그인 번들을 찾지 못했습니다. 빌드한 번들을 zip 압축 파일에 넣어 주세요. 소스 코드 압축 파일은 고칠 필요가 없습니다.',
-              'content_undetermined: 설치 프로그램이나 중첩된 압축 파일처럼 내용을 검사할 수 없는 파일이 압축 파일에 있습니다. 플러그인 번들을 zip 압축 파일에 직접 넣어 주세요.',
+              'content_undetermined: 설치 프로그램, 중첩된 압축 파일, 안전하지 않은 경로, 번들 밖으로 나가는 링크, 중복된 이름, 데이터를 가진 폴더 항목처럼 내용을 검사할 수 없는 항목이 압축 파일에 있습니다. 플러그인 번들을 zip 압축 파일에 직접 넣고 이러한 항목을 제거해 주세요.',
               'macos_not_signed, macos_adhoc, macos_not_developer_id, macos_not_notarized: macOS용 번들을 Developer ID 인증서로 서명하고 Apple의 공증을 받아 주세요.',
               'declaration_mismatch, not_declared: .audio-soko-kun/config.json의 선언과 검사한 압축 파일의 내용이 일치하지 않습니다. 선언을 고친 뒤 새 릴리스를 공개해 주세요.',
               'installer_not_guided: 설치 프로그램은 안내하지 않습니다. 이용자는 zip 압축 파일로 플러그인을 설치합니다.',

@@ -35,6 +35,8 @@ MAX_TEXT_READ = 1024 * 1024  # Info.plist・manifest.ttl・moduleinfo.json の�
 MAX_EXPORT_NAMES = 200_000
 MAX_PATH_LENGTH = 1024  # Worker の受け口の上限。受け口は JS の length (UTF-16 の単位数) で数える
 MAX_BUNDLES = 200
+MAX_LINK_TARGET = 1024
+MAX_LINK_HOPS = 40
 MAX_VST2_FILES = 100
 
 BUNDLE_EXT = (".vst3", ".clap", ".component", ".lv2", ".vst")
@@ -70,6 +72,10 @@ INSTALLER_SECTIONS = (".wixburn",)
 INSTALLER_SCAN_BYTES = 1024 * 1024
 
 
+class UnsafeArchive(Exception):
+    """展開してはいけない zip、または項目を読めない zip。"""
+
+
 class InspectionError(Exception):
     """result を error にする失敗。code は Worker へ送る理由のコード。"""
 
@@ -94,7 +100,65 @@ def unsafe_reason(name):
 
 
 def is_symlink(info):
-    return info.create_system == 3 and stat.S_ISLNK(info.external_attr >> 16)
+    # ditto は作成元の OS の欄を見ずに Unix の mode を使うことがあるため、create_system を問わず mode で判定する。
+    return stat.S_ISLNK(info.external_attr >> 16)
+
+
+def name_ends_with(name, exts):
+    """拡張子で名前を判定する。Windows は名前の末尾の . と空白を無視して展開するため、除いてから比べる。"""
+    return name.lower().rstrip(". ").endswith(exts)
+
+
+def bundle_root(parts):
+    """パスの最も外側のバンドルのフォルダー (拡張子が BUNDLE_EXT の要素) までの要素。バンドルの外なら空。"""
+    for i, part in enumerate(parts[:-1]):
+        if name_ends_with(part, BUNDLE_EXT):
+            return parts[: i + 1]
+    return []
+
+
+def read_link_target(zf, info):
+    """シンボリックリンクの行き先を読む。読めない・長すぎる・制御文字を含む・絶対パスなら UnsafeArchive。"""
+    if info.file_size > MAX_LINK_TARGET:
+        raise UnsafeArchive(f"{info.filename}: symlink target is too long")
+    try:
+        with zf.open(info) as f:
+            raw = f.read(MAX_LINK_TARGET + 1)
+        target = raw.decode("utf-8")
+    except (UnicodeDecodeError, zipfile.BadZipFile, OSError, RuntimeError, NotImplementedError) as e:
+        raise UnsafeArchive(f"{info.filename}: unreadable symlink target: {type(e).__name__}") from e
+    if not target or len(raw) > MAX_LINK_TARGET or any(ord(c) < 0x20 or ord(c) == 0x7F for c in target):
+        raise UnsafeArchive(f"{info.filename}: invalid symlink target")
+    target = target.replace("\\", "/")
+    if target.startswith("/") or re.match(r"^[A-Za-z]:", target):
+        raise UnsafeArchive(f"{info.filename}: symlink to an absolute path")
+    return target
+
+
+def resolve_link(link_parts, links):
+    """シンボリックリンクの行き先を、zip の中のほかのシンボリックリンクもたどって求める。
+    展開先のフォルダーより上に出るか、たどる回数が上限を超えたら None。"""
+    parts = list(link_parts[:-1])
+    queue = links["/".join(link_parts)].split("/")
+    hops = 1
+    while queue:
+        part = queue.pop(0)
+        if part in ("", "."):
+            continue
+        if part == "..":
+            if not parts:
+                return None
+            parts.pop()
+            continue
+        parts.append(part)
+        target = links.get("/".join(parts))
+        if target is not None:
+            hops += 1
+            if hops > MAX_LINK_HOPS:
+                return None
+            parts.pop()
+            queue = target.split("/") + queue
+    return parts
 
 
 class Reader:
@@ -445,8 +509,7 @@ def find_bundles(files, binaries, reader, diagnostics, categories=None):
     for n in files:
         parts = n.split("/")
         for i, seg in enumerate(parts):
-            low = seg.lower()
-            ext = next((x for x in BUNDLE_EXT if low.endswith(x)), None)
+            ext = next((x for x in BUNDLE_EXT if name_ends_with(seg, (x,))), None)
             if ext:
                 roots.setdefault("/".join(parts[: i + 1]), (ext, i == len(parts) - 1))
                 break  # 最も外側の規格の拡張子を持つ要素を根とする
@@ -574,18 +637,53 @@ def _inspect_zip(zf, limits, out, diagnostics):
 
     reader = Reader(zf, limits)
     files = {}  # 正規化したパス -> ZipInfo
+    link_infos = {}  # 正規化したパス -> ZipInfo (シンボリックリンク)
+
+    def undetermined(path, reason, **extra):
+        diagnostics["undetermined"].append({"path": path, "reason": reason, **extra})
+
+    # 読めない項目 (安全でないパス・同名の項目・データを持つフォルダー・行き先をたどれないリンク) は、読まずに判定不能にする。
+    # 読み飛ばして passed にすると、そこに置いた VST 2・インストーラー・入れ子のアーカイブを見逃す。
     for info in infos:
         reason = unsafe_reason(info.filename)
         if reason:
             diagnostics["rejected"].append({"path": info.filename, "reason": reason})
-            continue
-        if info.is_dir():
+            undetermined(info.filename, reason)
             continue
         name = info.filename.replace("\\", "/")
         if is_symlink(info):
+            name = name.rstrip("/")
             diagnostics["rejected"].append({"path": name, "reason": "symlink"})
+            if name in files or name in link_infos:
+                undetermined(name, "duplicate_entry")
+            link_infos[name] = info
             continue
+        if info.is_dir():
+            if info.file_size > 0:
+                undetermined(name, "directory_with_data")
+            continue
+        if name in files or name in link_infos:
+            undetermined(name, "duplicate_entry")
         files[name] = info
+
+    # シンボリックリンクはリンク先の実体だけを検査するため、リンクの名前で隠せる判定がある。
+    # リンクは、バンドルの中に置かれ同じバンドルの中を指し、名前がバンドル・入れ子のアーカイブ・インストーラーでないものだけを許す。
+    targets = {}
+    for name, info in link_infos.items():
+        try:
+            targets[name] = read_link_target(zf, info)
+        except Exception as e:  # UnsafeArchive と、壊れた圧縮データの zlib.error・EOFError など
+            undetermined(name, "unsafe_symlink", detail=str(e))
+    for name in targets:
+        parts = name.split("/")
+        resolved = resolve_link(parts, targets)
+        root = bundle_root(parts)
+        if resolved is None:
+            undetermined(name, "unsafe_symlink", detail="resolves outside the extraction folder or loops")
+        elif not root or resolved[: len(root)] != root:
+            undetermined(name, "unsafe_symlink", detail="not placed in a bundle or resolves outside it")
+        elif name_ends_with(name, BUNDLE_EXT + NESTED_EXT + (".exe",)):
+            undetermined(name, "unsafe_symlink", detail="the name hides a bundle, an installer or a nested archive")
 
     # 実行形式を探す。すべてのファイルの先頭 4 バイトを見る
     binaries = {}
@@ -619,13 +717,10 @@ def _inspect_zip(zf, limits, out, diagnostics):
             vst2.append(name)
 
     for name in files:
-        low = name.lower()
-        if low.endswith(NESTED_EXT):
-            diagnostics["undetermined"].append({"path": name, "reason": "nested_archive_or_installer"})
-        elif low.endswith(".exe") and binaries.get(name, {}).get("installer"):
-            diagnostics["undetermined"].append(
-                {"path": name, "reason": "nested_archive_or_installer", "installer": binaries[name]["installer"]}
-            )
+        if name_ends_with(name, NESTED_EXT):
+            undetermined(name, "nested_archive_or_installer")
+        elif name_ends_with(name, (".exe",)) and binaries.get(name, {}).get("installer"):
+            undetermined(name, "nested_archive_or_installer", installer=binaries[name]["installer"])
 
     out["bundles"] = bundles
     out["formats"] = sorted({b["format"] for b in bundles})

@@ -184,7 +184,7 @@ const DEFERRED: Condition<DeferredConditionCode>[] = [
     code: 'plugin_content',
     result: 'unchecked',
     message:
-      'After registration, every zip archive is inspected for VST 3, CLAP, LV2, or Audio Unit bundles. Archives with a VST 2 entry point, or with installers or nested archives inside, block the version.',
+      'After registration, every zip archive is inspected for VST 3, CLAP, LV2, or Audio Unit bundles. Archives with a VST 2 entry point, or with installers, nested archives, or entries that cannot be inspected (unsafe paths, links that leave the bundle, duplicate names, folder entries that carry data) inside, block the version.',
   },
   {
     code: 'macos_signing',

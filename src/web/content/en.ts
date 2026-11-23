@@ -177,7 +177,7 @@ export const en: Record<PageKey, PageContent> = {
             list: [
               'vst2_detected: An archive contains a VST 2 bundle or entry point. Remove VST 2 from every archive, then publish a new release.',
               'no_plugin_detected, no_plugin_in_archive: No supported plugin bundle was found in the archives. Put the built bundles in the zip archives. Source code archives need no change.',
-              'content_undetermined: An archive contains files that cannot be inspected, such as installers or nested archives. Put the plugin bundles directly in the zip archive.',
+              'content_undetermined: An archive contains items that cannot be inspected, such as installers, nested archives, unsafe paths, links that leave the bundle, duplicate names, or folder entries that carry data. Put the plugin bundles directly in the zip archive and remove these items.',
               'macos_not_signed, macos_adhoc, macos_not_developer_id, macos_not_notarized: Sign the macOS bundles with a Developer ID certificate and notarize them with Apple.',
               'declaration_mismatch, not_declared: The declarations in .audio-soko-kun/config.json and the inspected archives disagree. Fix the declarations, then publish a new release.',
               'installer_not_guided: Installers are not guided. Users get the plugins from the zip archives.',

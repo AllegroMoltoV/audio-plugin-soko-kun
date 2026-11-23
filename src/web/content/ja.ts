@@ -177,7 +177,7 @@ export const ja: Record<PageKey, PageContent> = {
             list: [
               'vst2_detected: アーカイブに VST 2 のバンドルかエントリーポイントがあります。すべてのアーカイブから VST 2 を外し、新しいリリースを公開してください。',
               'no_plugin_detected、no_plugin_in_archive: アーカイブに対象の規格のバンドルが見つかりません。ビルドしたバンドルを zip のアーカイブに入れてください。ソースコードのアーカイブは直す必要はありません。',
-              'content_undetermined: インストーラーや入れ子のアーカイブなど、中を調べられないファイルがアーカイブにあります。プラグインのバンドルを zip のアーカイブに直接入れてください。',
+              'content_undetermined: インストーラーや入れ子のアーカイブ、安全でないパス・バンドルの外へ出るリンク・同じ名前の項目・データを持つフォルダーの項目など、中を調べられないものがアーカイブにあります。プラグインのバンドルを zip のアーカイブに直接入れ、これらを取り除いてください。',
               'macos_not_signed、macos_adhoc、macos_not_developer_id、macos_not_notarized: macOS 向けのバンドルを Developer ID の証明書で署名し、Apple の公証を受けてください。',
               'declaration_mismatch、not_declared: .audio-soko-kun/config.json の宣言と、検査したアーカイブの中身が食い違います。宣言を直して、新しいリリースを公開してください。',
               'installer_not_guided: インストーラーは案内しません。利用者は zip のアーカイブからプラグインを導入します。',

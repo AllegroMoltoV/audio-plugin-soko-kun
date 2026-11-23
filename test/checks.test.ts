@@ -7,6 +7,7 @@ import { HttpResponse, http } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { Budget } from '../src/budget';
 import { VERIFY_WORKFLOW_REF } from '../src/checks/oidc';
+import { listMyPlugins } from '../src/domain/author';
 import { runReleaseChecks } from '../src/domain/release-checks';
 import { submitPlugin } from '../src/domain/submit';
 import type { Env } from '../src/env';
@@ -349,6 +350,105 @@ describe('配布物の検証の結果', () => {
     expect((await post([{ assetId: ARCHIVE_ID, content: passedWindows }])).status).toBe(200);
     expect(await contentOf(ARCHIVE_ID)).toMatchObject({ result: 'passed', os: '["windows"]' });
     expect(await macosRows()).toEqual([]);
+  });
+
+  // jtl.61: 中身の検査が読めない項目を含むアーカイブは undetermined で送られる。受け口は終わった状態として保存し、版を掲載しない。
+  describe('J01〜J03 判定不能 (undetermined) の中身の検査の結果は、合格にも案内にもつながらない', () => {
+    const undetermined = { ...passedWindows, result: 'undetermined' };
+    const detailLink = `/plugins/${OWNER}/${REPO}`;
+
+    const mcp = async (name: string, args: Record<string, unknown>): Promise<Record<string, unknown>> => {
+      const response = await SELF.fetch(
+        new Request(`${ORIGIN}/mcp`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json, text/event-stream',
+            'MCP-Protocol-Version': '2025-06-18',
+          },
+          body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }),
+        }),
+      );
+      const text = await response.text();
+      const line = text.split('\n').find((l) => l.startsWith('data:')) ?? text;
+      const message = JSON.parse(line.replace(/^data:\s*/, '')) as { result: { content: Array<{ text: string }> } };
+      return JSON.parse(message.result.content[0]?.text ?? '{}') as Record<string, unknown>;
+    };
+    const visible = async () => ({
+      web: (await (await SELF.fetch(`${ORIGIN}/?lang=en&q=pitch`)).text()).includes(detailLink),
+      mcpTotal: (await mcp('search_plugins', { keyword: 'pitch' })).total,
+      mcpDetail: JSON.stringify(await mcp('get_plugin', { id: `${OWNER}/${REPO}` })).includes('releases/download'),
+    });
+
+    // 中身の検査以外の条件をすべて満たした版を作り、中身の検査の行だけを pending に戻す。
+    async function listableExceptContent(): Promise<void> {
+      await register();
+      await markListable(env.DB);
+      await env.DB.prepare("UPDATE content_checks SET result = 'pending', attempts = 0").run();
+    }
+
+    it('J01 対照: passed を受けた版は、画面と MCP に出る', async () => {
+      await listableExceptContent();
+      expect((await post([{ assetId: ARCHIVE_ID, content: passedWindows }])).status).toBe(200);
+      expect(await visible()).toEqual({ web: true, mcpTotal: 1, mcpDetail: true });
+    });
+
+    it('J01 undetermined を受けた版は、画面と MCP に出さず、作者には content_undetermined を返す', async () => {
+      await listableExceptContent();
+      expect((await post([{ assetId: ARCHIVE_ID, content: undetermined }])).status).toBe(200);
+      expect(await contentOf(ARCHIVE_ID)).toMatchObject({ result: 'undetermined', attempts: 1 });
+      expect(await visible()).toEqual({ web: false, mcpTotal: 0, mcpDetail: false });
+      network.use(...githubHandlers());
+      const mine = (await listMyPlugins(
+        env,
+        { githubUserId: 4242, githubLogin: OWNER, githubToken: USER_TOKEN },
+        {},
+      )) as {
+        plugins: Array<{ versions: Array<{ state: string; blockers: Array<{ code: string; waitsFor: string }> }> }>;
+      };
+      network.resetHandlers();
+      const version = mine.plugins[0]?.versions[0];
+      expect(version?.state).not.toBe('listed');
+      expect(version?.blockers).toContainEqual(
+        expect.objectContaining({ code: 'content_undetermined', waitsFor: 'author' }),
+      );
+    });
+
+    it('J02 undetermined は終わった状態で、一覧に戻らず、あとから passed を送っても書き換えない', async () => {
+      await listableExceptContent();
+      expect((await pending()).map((asset) => asset.assetId)).toEqual([ARCHIVE_ID]);
+      expect((await post([{ assetId: ARCHIVE_ID, content: undetermined }])).status).toBe(200);
+      expect(await pending()).toEqual([]);
+      expect((await post([{ assetId: ARCHIVE_ID, content: passedWindows }])).status).toBe(200);
+      expect(await contentOf(ARCHIVE_ID)).toMatchObject({ result: 'undetermined', attempts: 1 });
+      expect(await pending()).toEqual([]);
+    });
+
+    it('J03 undetermined の配布物と正常な配布物を同じ要求で送っても、正常な側の結果は変わらない', async () => {
+      await register();
+      const other = 8010;
+      const digest = `sha256:${'e5'.repeat(32)}`;
+      await env.DB.batch([
+        env.DB.prepare(
+          "INSERT INTO assets (github_asset_id, release_id, name, size, digest, download_url, kind) VALUES (?, 7001, 'other-windows.zip', 1, ?, 'https://github.com/x/y/releases/download/v1.1.0/other-windows.zip', 'archive')",
+        ).bind(other, digest),
+        env.DB.prepare('INSERT INTO attestation_checks (github_asset_id) VALUES (?)').bind(other),
+        env.DB.prepare('INSERT INTO content_checks (github_asset_id) VALUES (?)').bind(other),
+      ]);
+      const response = await post([
+        { assetId: ARCHIVE_ID, content: undetermined },
+        { assetId: other, content: passedWindows },
+      ]);
+      expect(response.status).toBe(200);
+      expect(await contentOf(ARCHIVE_ID)).toMatchObject({ result: 'undetermined', attempts: 1 });
+      expect(await contentOf(other)).toMatchObject({
+        result: 'passed',
+        os: '["windows"]',
+        vst2_files: '[]',
+        attempts: 1,
+      });
+      expect(await macosRows()).toEqual([]);
+    });
   });
 
   describe('C14 宣言ファイルの照合は、宣言の取得と中身の検査の両方を終えてから行う', () => {

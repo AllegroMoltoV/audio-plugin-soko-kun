@@ -177,7 +177,7 @@ export const zhHans: Record<PageKey, PageContent> = {
             list: [
               'vst2_detected：压缩包中包含 VST 2 插件包或入口点。请从所有压缩包中移除 VST 2，然后发布新版本。',
               'no_plugin_detected、no_plugin_in_archive：压缩包中找不到受支持的插件包。请将构建好的插件包放入 zip 压缩包。源代码压缩包无需修改。',
-              'content_undetermined：压缩包中包含无法检查的文件，例如安装程序或嵌套的压缩包。请将插件包直接放入 zip 压缩包。',
+              'content_undetermined：压缩包中包含无法检查的项目，例如安装程序、嵌套的压缩包、不安全的路径、指向插件包之外的链接、重名的项目或带有数据的文件夹项目。请将插件包直接放入 zip 压缩包，并删除这些项目。',
               'macos_not_signed、macos_adhoc、macos_not_developer_id、macos_not_notarized：请使用 Developer ID 证书为 macOS 插件包签名，并通过 Apple 公证。',
               'declaration_mismatch、not_declared：.audio-soko-kun/config.json 中的声明与检查的压缩包不一致。请修正声明，然后发布新版本。',
               'installer_not_guided：本平台不引导用户前往安装程序。用户从 zip 压缩包获取插件。',
