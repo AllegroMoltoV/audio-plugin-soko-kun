@@ -38,6 +38,8 @@ Registry への公開は、`.github/workflows/deploy.yml` の job `publish-regis
 
 Registry は、OIDC のトークンの `repository_owner` だけから `io.github.<所有者>/*` の権限を与えます。environment、ワークフロー、ブランチは見ません。そのため、所有者のリポジトリで `id-token: write` を持つすべてのワークフローが、この名前空間の全体へ公開できます。`production` の承認は、この経路を守りません。job `publish-registry` に `environment` を付けないのは、このためです。公開は `needs` により、承認済みの deploy の後に限られます。
 
+同じ理由で、第三者のデータを処理するジョブには `id-token: write` を付けません。`verify.yaml` と `macos-verify.yaml` では、受け口と通信するジョブ `prepare` と `report` だけにトークンを許可し、配布物とソースを処理するジョブ `scan` と `judge` は許可しません。分け方は [CI と配備](ci-cd.md) に記載しています。
+
 ### 手で公開する手順
 
 ワークフローが使えないときは、`AllegroMoltoV` の GitHub アカウントで認証して手で公開します。認証はブラウザーでの確認を伴います。`mcp-publisher` は外部から取得したプログラムで、Claude Code では実行が自動の権限判定で止められることがあるため、運営者が実行します。

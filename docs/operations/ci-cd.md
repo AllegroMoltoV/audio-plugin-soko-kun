@@ -9,8 +9,8 @@ GitHub Actions のワークフローの目的と権限、依存の更新、本�
 | `ci.yml` | 静的検査とテスト、`.github/scripts/` のスクリプトのテスト、ワークフローの検査、依存の脆弱性の検査 | PR、`main` への push | `contents: read` |
 | `codeql.yml` | CodeQL によるコードの脆弱性の検査 | PR、`main` への push、毎週月曜 04:23 UTC | ワークフローは `contents: read`。ジョブに `security-events: write` と `actions: read` を加える |
 | `deploy.yml` | 本番への D1 のマイグレーションの適用と Worker の配備 | 手動実行 `workflow_dispatch` だけ | `contents: read`。environment `production` の秘密情報を使う |
-| `verify.yaml` | 配布物の証明の検証とアーカイブの中身の検査、新しい版のソースからの通信の API の検出。結果を Worker へ送る | Worker の定期処理からの `workflow_dispatch`、予備の schedule (毎時 7・22・37・52 分) | `contents: read` と `id-token: write` |
-| `macos-verify.yaml` | macOS 向けのバンドルの Developer ID の署名と Apple の公証の判定。結果を Worker へ送る | Worker の定期処理からの `workflow_dispatch`、予備の schedule (毎時 12・27・42・57 分) | `contents: read` と `id-token: write` |
+| `verify.yaml` | 配布物の証明の検証とアーカイブの中身の検査、新しい版のソースからの通信の API の検出。結果を Worker へ送る | Worker の定期処理からの `workflow_dispatch`、予備の schedule (毎時 7・22・37・52 分) | ワークフローは `contents: read`。Worker と通信するジョブ `prepare` と `report` だけに `id-token: write` を加える |
+| `macos-verify.yaml` | macOS 向けのバンドルの Developer ID の署名と Apple の公証の判定。結果を Worker へ送る | Worker の定期処理からの `workflow_dispatch`、予備の schedule (毎時 12・27・42・57 分) | ワークフローは `contents: read`。Worker と通信するジョブ `prepare` と `report` だけに `id-token: write` を加える |
 | `macos-signing-probe.yaml` | macOS の署名と公証の判定の方法を、標本の配布物で確かめる検証用のワークフロー | 手動実行 `workflow_dispatch` だけ | `contents: read` |
 
 ### ci.yml
@@ -40,17 +40,43 @@ GitHub Actions のワークフローの目的と権限、依存の更新、本�
 
 ### verify.yaml
 
-`verify.yaml` は、検証を待つ配布物の一覧を Worker の `/internal/checks/pending` から受け取り、配布物ごとに SHA-256 の照合・証明の検証・アーカイブの中身の検査を行います。続けて、通信の検出を待つ版ごとに、版のコミットのソースを取得して通信の API を探します。結果は `/internal/checks/results` へまとめて 1 回で送ります。どちらの要求にも、`aud` を `audio-soko-kun` にした GitHub Actions の OIDC のトークンを添えます。Worker は、このリポジトリの `main` で動作する `verify.yaml` のトークンだけを受け付けます。そのため、ジョブは `main` で起動したときだけ実行します。
+`verify.yaml` は 3 つのジョブに分かれます。第三者の配布物とソースを処理するジョブ `scan` には `id-token: write` を付けません。MCP Registry は OIDC のトークンの `repository_owner` だけで `io.github.AllegroMoltoV/*` の公開権限を与えます。そのため、`scan` で動くツール (git・gh・grep・node・jq) の脆弱性を突かれた場合に、Registry の登録を書き換えられるトークンを発行させないためです。GitHub が用意するランナーはジョブごとに別の仮想マシンで動くため、ジョブを分ければ、トークンを取る環境と第三者のデータを処理する環境を分けられます。Worker の OIDC の照合は `job_workflow_ref` などを見て、ジョブの名前を見ないため、受け口は変えません。
 
-送り先は、ワークフローの `env` の `SOKO_KUN_ORIGIN` にある本番の URL `https://audio-soko-kun.allegromoltov.jp` です。配布物は 1 件ずつ最大 2 GiB まで取得し、処理を終えるたびに削除します。ジョブの最初にランナーの空き容量を確かめ、3 GiB に満たなければその回の処理を行いません。ジョブの時間の上限は 40 分です。ジョブの開始から 25 分を過ぎたら、新しい配布物と通信の検出のソースを取得せず、次の回に回します。同時に 1 つだけ実行し、実行中の検証を取り消しません。検査の規則は [検査と同期](../design/scanning.md) に記載しています。
+| ジョブ | 権限 | 内容 |
+| --- | --- | --- |
+| `prepare` | `contents: read`、`id-token: write` | 受け口から検証待ちの一覧を受け取り、artifact で `scan` へ渡す。検証待ちが無ければ、`scan` と `report` を実行しない |
+| `scan` | `contents: read` | 最初に OIDC のトークンを要求する環境変数が無いことを確かめる。配布物の取得と SHA-256 の照合、証明の検証、中身の検査、ソースの取得と通信の API の検出、文書の照合を行い、送る結果をジョブの出力で `report` へ渡す |
+| `report` | `id-token: write` | `scan` の結果を解析せずにそのまま受け口へ送る。形の検証は受け口が行う。チェックアウトしない |
+
+この分け方では、`scan` を乗っ取られた場合の結果の改ざんは防げません。`report` は、`scan` が作った結果をそのまま本サービスのトークンを付けて送ります。
+
+一覧は、旧い名前を配布物ごとに繰り返すため大きくなることがあります。ジョブの出力は次のジョブで環境変数になり、Linux では 1 つあたり 128 KiB までです。そのため `prepare` から `scan` へは artifact で渡します。`scan` から `report` へは、第三者のデータに由来する zip を `report` で展開しないよう、ジョブの出力で渡します。`scan` は結果を ASCII だけの JSON にして 100,000 バイトずつ最大 8 個の出力に分け、`report` がつなぎ直します。`scan` は、中身の検査・通信の検出・文書の照合の結果を `jq` の引数ではなくファイルで渡します。引数にすると、1 件で約 300 KB になる結果が引数の上限を超えるためです。
+
+8 個の合計 800,000 バイトを超えるときは、本文の大きい版から順に、通信の検出の結果を `error` に置き換えます。それでも超えるときは、本文の大きい配布物から順に、中身の検査の結果を `error` (`result_too_large`) に置き換えます。失敗で止めると受け口に何も届かず試行の回数も増えないため、同じ一覧で失敗を繰り返し、ほかのプラグインの証明の検証まで止まるためです。置き換えた結果は受け口が試行として数え、使い切ると既存の扱いへ進みます。`scan` が空き容量の不足で早く終わった回は本文が無く、`report` は何も送りません。
+
+`scan` は、当たりのファイル名を受け口が受け付ける形に整えてから送ります。受け口は、改行や NUL を含むか 200 文字を超えるファイル名の当たりを捨てるためです。改行・CR・NUL は `?` に置き換え、100 文字を超える名前は末尾の 99 文字を残して先頭を `…` にします。
+
+ジョブの内容は次のとおりです。`prepare` と `scan` を合わせると、`verify.yaml` は、検証を待つ配布物の一覧を Worker の `/internal/checks/pending` から受け取り、配布物ごとに SHA-256 の照合・証明の検証・アーカイブの中身の検査を行います。続けて、通信の検出を待つ版ごとに、版のコミットのソースを取得して通信の API を探します。結果は `/internal/checks/results` へまとめて 1 回で送ります。どちらの要求にも、`aud` を `audio-soko-kun` にした GitHub Actions の OIDC のトークンを添えます。Worker は、このリポジトリの `main` で動作する `verify.yaml` のトークンだけを受け付けます。そのため、ジョブは `main` で起動したときだけ実行します。
+
+送り先は、ワークフローの `env` の `SOKO_KUN_ORIGIN` にある本番の URL `https://audio-soko-kun.allegromoltov.jp` です。配布物は 1 件ずつ最大 2 GiB まで取得し、処理を終えるたびに削除します。`scan` の最初にランナーの空き容量を確かめ、3 GiB に満たなければその回の処理を行いません。`scan` の時間の上限は 40 分です。`scan` の開始から 25 分を過ぎたら、新しい配布物と通信の検出のソースを取得せず、次の回に回します。同時に 1 つだけ実行し、実行中の検証を取り消しません。検査の規則は [検査と同期](../design/scanning.md) に記載しています。
 
 Worker の定期処理は、15 分ごとの起動の最後に、検証を待つ配布物か通信の検出を待つ版があるときだけ `verify.yaml` を起動します。起動には、後述の `GITHUB_DISPATCH_TOKEN` を使います。
 
 ### macos-verify.yaml
 
-`macos-verify.yaml` は、macOS の判定を待つ配布物の一覧を Worker の `/internal/macos-checks/pending` から受け取り、`macos-latest` のランナーで配布物ごとに SHA-256 の照合・zip の項目の確かめ・`ditto -x -k` による展開・バンドルごとの `codesign` と `spctl` の判定を行います。結果は `/internal/macos-checks/results` へまとめて 1 回で送ります。トークンの `aud` と、`main` で起動したときだけ実行する条件は `verify.yaml` と同じです。Worker は `macos-verify.yaml` のトークンだけを受け付け、`verify.yaml` のトークンでは macOS の結果を書けません。
+`macos-verify.yaml` も、`verify.yaml` と同じ理由で 3 つのジョブに分かれます。第三者の配布物を処理するジョブ `judge` には `id-token: write` を付けず、最初に OIDC のトークンを要求する環境変数が無いことを確かめます。
 
-配布物は 1 件ずつ最大 2 GiB まで取得し、展開したフォルダーとともに処理を終えるたびに削除します。ジョブの最初にランナーの空き容量を確かめ、7 GiB に満たなければその回の処理を行いません。ジョブの時間の上限は 40 分で、開始から 25 分を過ぎたら新しい配布物を取得しません。同時に 1 つだけ実行し、実行中の判定を取り消しません。秘密情報は使いません。配布物の中のコードは実行しません。ログに出すバンドルのパスと `spctl` の出力は外部データのため、`::stop-commands::` でワークフローのコマンドとして解釈させません。判定の規則は [検査と同期](../design/scanning.md) の「署名と公証の判定」に記載しています。
+| ジョブ | ランナー | 権限 | 内容 |
+| --- | --- | --- | --- |
+| `prepare` | `ubuntu-latest` | `contents: read`、`id-token: write` | 受け口から判定待ちの一覧を受け取り、artifact で `judge` へ渡す。判定待ちが無ければ、`judge` と `report` を実行しない |
+| `judge` | `macos-latest` | `contents: read` | 配布物の判定を行い、結果をジョブの出力 1 つで `report` へ渡す |
+| `report` | `ubuntu-latest` | `id-token: write` | `judge` の結果を解析せずにそのまま受け口へ送る |
+
+一覧は、配布物ごとにバンドルのパスを最大 200 件・各 1,024 字まで含むため、1 件で 100,000 バイトを超えることがあります。ジョブの出力の環境変数の上限 (128 KiB) に掛かるため、`prepare` から `judge` へは artifact で渡します。結果は 1 件あたり小さく、最大 50 件でも上限に収まるため、分けずに 1 つの出力で渡します。`judge` が空き容量の不足で早く終わった回は本文が無く、`report` は何も送りません。
+
+`judge` は、macOS の判定を待つ配布物の一覧を `prepare` から受け取り、`macos-latest` のランナーで配布物ごとに SHA-256 の照合・zip の項目の確かめ・`ditto -x -k` による展開・バンドルごとの `codesign` と `spctl` の判定を行います。結果は `/internal/macos-checks/results` へまとめて 1 回で送ります。トークンの `aud` と、`main` で起動したときだけ実行する条件は `verify.yaml` と同じです。Worker は `macos-verify.yaml` のトークンだけを受け付け、`verify.yaml` のトークンでは macOS の結果を書けません。
+
+配布物は 1 件ずつ最大 2 GiB まで取得し、展開したフォルダーとともに処理を終えるたびに削除します。`judge` の最初にランナーの空き容量を確かめ、7 GiB に満たなければその回の処理を行いません。`judge` の時間の上限は 40 分で、開始から 25 分を過ぎたら新しい配布物を取得しません。同時に 1 つだけ実行し、実行中の判定を取り消しません。秘密情報は使いません。配布物の中のコードは実行しません。ログに出すバンドルのパスと `spctl` の出力は外部データのため、`::stop-commands::` でワークフローのコマンドとして解釈させません。判定の規則は [検査と同期](../design/scanning.md) の「署名と公証の判定」に記載しています。
 
 Worker の定期処理は、`verify.yaml` の起動を確かめた後に、macOS の判定を待つ配布物があるときだけ `macos-verify.yaml` を起動します。
 
