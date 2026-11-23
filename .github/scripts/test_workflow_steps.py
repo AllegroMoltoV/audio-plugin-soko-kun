@@ -158,8 +158,13 @@ class WorkflowStepTest(unittest.TestCase):
         self.write_scan("default", [])
         stubs = dict(STUBS)
         # 中身の検査は、固定の出力を用意したときだけ差し替える。ほかは本物のスクリプトを走らせる。
+        # 配布物ごとの出力 (<固定のファイル>.asset-<ID>) があれば、そちらを優先する。
         stubs["python3"] = (
-            f'if [[ "$*" == *inspect_archive.py* && -f "${{STUB_INSPECT}}" ]]; then cat "${{STUB_INSPECT}}"; exit 0; fi\n'
+            f'if [[ "$*" == *inspect_archive.py* ]]; then\n'
+            f'  per_asset="${{STUB_INSPECT}}.$(basename "${{!#}}")"\n'
+            f'  if [[ -f "${{per_asset}}" ]]; then cat "${{per_asset}}"; exit 0; fi\n'
+            f'  if [[ -f "${{STUB_INSPECT}}" ]]; then cat "${{STUB_INSPECT}}"; exit 0; fi\n'
+            f'fi\n'
             f'exec "{slash(sys.executable)}" -X utf8 "$@"\n'
         )
         if os.name == "nt":
@@ -188,13 +193,14 @@ class WorkflowStepTest(unittest.TestCase):
         with open(os.path.join(self.scan_dir, f"{name}.docs.json"), "w", encoding="utf-8") as f:
             json.dump({"hits": doc_hits or [], "truncated": False}, f)
 
-    def write_inspect(self, bundles=200, vst2_files=100, path_length=1000):
-        """受け口の上限いっぱいの中身の検査の出力を、python3 のスタブが返す固定のファイルに書く (1 件で約 300 KB)。"""
+    def write_inspect(self, bundles=200, vst2_files=100, path_length=1000, fill="a", asset_id=None):
+        """受け口の上限いっぱいの中身の検査の出力を、python3 のスタブが返す固定のファイルに書く (1 件で約 300 KB)。
+        asset_id を渡すと、その配布物にだけ返す出力になる。"""
         content = {
             "result": "vst2_detected",
             "reason": None,
             "bundles": [
-                {"path": f"{i:03d}".ljust(path_length - 5, "a") + ".vst3", "format": "vst3", "os": ["windows"],
+                {"path": f"{i:03d}".ljust(path_length - 5, fill) + ".vst3", "format": "vst3", "os": ["windows"],
                  "arches": ["x86_64"]}
                 for i in range(bundles)
             ],
@@ -205,7 +211,8 @@ class WorkflowStepTest(unittest.TestCase):
             "categories": [],
             "diagnostics": [],
         }
-        with open(self.inspect, "w", encoding="utf-8") as f:
+        target = self.inspect if asset_id is None else f"{self.inspect}.asset-{asset_id}"
+        with open(target, "w", encoding="utf-8") as f:
             json.dump(content, f)
 
     def verify_pending(self, digest, assets=1, releases=()):
@@ -377,6 +384,18 @@ class WorkflowStepTest(unittest.TestCase):
         self.assertEqual(replaced, [{"result": "error", "reason": "result_too_large"}])
         self.assertEqual(len(contents) - len(replaced), 2)
         self.assertEqual([scan["result"] for scan in body["networkScans"]], ["done", "done", "done"])
+
+    def test_w07_oversized_results_compare_sizes_after_ascii_conversion(self):
+        """非 ASCII の長いパスを持つ巨大な中身の検査 (攻撃者) だけを error にして、ASCII の中くらいの中身の検査 (ほかの作者) は残す。"""
+        path, digest = self.zip_with(["Fixture.vst3/Contents/x86_64-win/Fixture.vst3"])
+        # コードポイントでは約 182,000、送る形 (ASCII) では約 1,080,000 バイトになる。
+        self.write_inspect(vst2_files=0, path_length=900, fill="あ", asset_id=8001)
+        self.write_inspect(vst2_files=0, asset_id=8002)
+        raw = self.pipeline("verify", self.verify_pending(digest, assets=2), path)
+        self.assertLessEqual(len(raw), BODY_LIMIT)
+        results = {item["assetId"]: item["content"] for item in json.loads(raw)["results"]}
+        self.assertEqual(results[8001], {"result": "error", "reason": "result_too_large"})
+        self.assertEqual(len(results[8002]["bundles"]), 200)
 
     def test_w07_oversized_results_replace_the_largest_scan_and_keep_contents(self):
         """通信の検出が最も大きいとき、その版の通信の検出だけを error にして、中身の検査は残す。"""

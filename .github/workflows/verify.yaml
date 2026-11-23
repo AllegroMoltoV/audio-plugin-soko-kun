@@ -268,15 +268,18 @@ jobs:
 
           # report は送る本文を環境変数で受け取る。Linux の環境変数 1 つの上限 (128 KiB) を超えうるため、
           # 100,000 バイトずつ最大 8 個の output に分ける。8 個の合計 800,000 バイトは job output の上限 (1 MB) に収まる。
-          # 超えるときは、通信の検出の結果 (done のもの) と中身の検査の結果 (bundles を持つもの) のうち、本文が最も大きい 1 つを error に置き換え、
+          # 超えるときは、通信の検出の結果 (done のもの) と中身の検査の結果 (bundles を持つもの) のうち、送る形 (ASCII に変換した後) の本文が最も大きい 1 つを error に置き換え、
           # 収まるまで繰り返す。中身の検査は 1 件で 300 KB を超えうる一方、通信の検出は 1 版あたり小さく抑えられている。
           # 大きいものから置き換えるため、巨大な配布物を出した第三者のせいで、同じ回にいるほかの作者の小さい結果が error になることはない。
           # 失敗で止めると受け口に何も届かず、試行の回数も増えないため、同じ一覧で失敗を繰り返してほかのプラグインの証明の検証まで止まる。
           # error にしたものは、受け口で試行を数え、使い切ると既存の扱いへ進む。
           chunk=100000
           while [ "$(wc -c < "${work}/body.json")" -gt $((chunk * 8)) ]; do
-            pick=$(jq -r '([.networkScans[] | select(.result == "done") | {kind: "scan", id: .releaseId, size: (tojson | length)}]
-              + [.results[] | select(.content.bundles != null) | {kind: "content", id: .assetId, size: (.content | tojson | length)}])
+            # size は jq -a で出力した後のバイト数にする。非 ASCII は \uXXXX (6 バイト、BMP 外は 12 バイト) になる。
+            # tojson の出力に残るエスケープは、その時点で ASCII の 2 文字以上になっている。
+            pick=$(jq -r 'def size: tojson | [explode[] | if . > 65535 then 12 elif . > 127 then 6 else 1 end] | add;
+              ([.networkScans[] | select(.result == "done") | {kind: "scan", id: .releaseId, size: size}]
+              + [.results[] | select(.content.bundles != null) | {kind: "content", id: .assetId, size: (.content | size)}])
               | max_by(.size) // empty | "\(.kind) \(.id)"' "${work}/body.json")
             if [ -z "${pick}" ]; then
               echo "results are too large to pass to the report job even without scans and contents: $(wc -c < "${work}/body.json") bytes" >&2
