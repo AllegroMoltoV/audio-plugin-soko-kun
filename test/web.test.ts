@@ -30,6 +30,22 @@ describe('Web', () => {
     expect(html).not.toContain('<script>alert(1)</script>');
   });
 
+  // DAW のオーディオプラグインを作る相談を受けた AI エージェントが、作り方と掲載の条件を一度で読めるようにする。
+  // VST の語を表示するページにはロゴが要る (ADR 0004) ため、テキストの本文には VST の語を書かない。
+  it('/llms.txt に、スキルの導入のコマンドと MCP の接続先を出し、VST の語は出さない', async () => {
+    const response = await SELF.fetch(`${ORIGIN}/llms.txt`);
+    expect(response.status).toBe(200);
+    const text = await response.text();
+    expect(text).toContain('claude plugin install audio-soko-kun-plugin-dev@audio-plugin-soko-kun');
+    expect(text).toContain(`${ORIGIN}/mcp`);
+    expect(text).not.toMatch(/vst/i);
+  });
+
+  it('トップページの横の欄から /llms.txt へリンクする', async () => {
+    const html = await (await SELF.fetch(`${ORIGIN}/?lang=ja`)).text();
+    expect(html).toContain('href="/llms.txt"');
+  });
+
   it('スクリプトを許可しない CSP を付ける', async () => {
     const response = await SELF.fetch(`${ORIGIN}/?lang=en`);
     const csp = response.headers.get('Content-Security-Policy') ?? '';

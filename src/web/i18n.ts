@@ -120,6 +120,8 @@ export interface Dict {
   sideAgentBody: string;
   sideAgentExample: string;
   sideAgentLink: string;
+  sideAgentBuild: string;
+  sideAgentLlms: string;
   sideListingTitle: string;
   sideListingItems: string[];
   sidePolicy: string;
@@ -290,6 +292,9 @@ const en: Dict = {
     'Connect Claude Code or Codex over MCP to search for plugins in conversation. Authors of audio plugins can also submit their plugins in conversation.',
   sideAgentExample: 'Example: "Find a pitch shift plugin that works on Windows"',
   sideAgentLink: 'How to connect',
+  sideAgentBuild:
+    'To build and publish an audio plugin for DAWs, have your AI agent read this site’s URL. The site guides it from installing the build skill to submitting the plugin.',
+  sideAgentLlms: 'Guide for AI agents (llms.txt)',
   sideListingTitle: 'About listings and checks',
   sideListingItems: [
     'Authors submit their own public GitHub repositories.',
@@ -468,6 +473,9 @@ const ja: Dict = {
     'Claude Code や Codex を MCP で接続すると、会話でプラグインを探せます。オーディオプラグインの作者は、会話でプラグインを登録することもできます。',
   sideAgentExample: '例:「Windows で動くピッチシフトのプラグインを探して」',
   sideAgentLink: '接続方法を見る',
+  sideAgentBuild:
+    'DAW のオーディオプラグインを作って公開したいときは、このサイトの URL を AI エージェントに読ませてください。作り方のスキルの入れ方から登録まで案内しています。',
+  sideAgentLlms: 'AI エージェント向けの案内 (llms.txt)',
   sideListingTitle: '掲載と検査について',
   sideListingItems: [
     '作者本人が GitHub の公開リポジトリを登録します。',
@@ -645,6 +653,9 @@ const zhHans: Dict = {
   sideAgentBody: '通过 MCP 连接 Claude Code 或 Codex，即可在对话中查找插件。音频插件的作者也可以在对话中提交插件。',
   sideAgentExample: '例：“帮我找一个能在 Windows 上使用的变调插件”',
   sideAgentLink: '查看连接方法',
+  sideAgentBuild:
+    '想要制作并发布 DAW 的音频插件时，请让 AI 代理读取本站的 URL。本站会引导它完成从安装制作技能到提交插件的全部步骤。',
+  sideAgentLlms: '面向 AI 代理的说明 (llms.txt)',
   sideListingTitle: '关于收录与检查',
   sideListingItems: [
     '作者本人提交自己的 GitHub 公开仓库。',
@@ -814,6 +825,9 @@ const zhHant: Dict = {
   sideAgentBody: '透過 MCP 連接 Claude Code 或 Codex，即可在對話中尋找外掛。音訊外掛的作者也可以在對話中提交外掛。',
   sideAgentExample: '例：「幫我找一個能在 Windows 上使用的變調外掛」',
   sideAgentLink: '查看連接方法',
+  sideAgentBuild:
+    '想要製作並發布 DAW 的音訊外掛時，請讓 AI 代理讀取本站的 URL。本站會引導它完成從安裝製作技能到提交外掛的全部步驟。',
+  sideAgentLlms: '給 AI 代理的說明 (llms.txt)',
   sideListingTitle: '關於收錄與檢查',
   sideListingItems: [
     '作者本人提交自己的 GitHub 公開儲存庫。',
@@ -990,6 +1004,9 @@ const ko: Dict = {
     'Claude Code나 Codex를 MCP로 연결하면 대화로 플러그인을 찾을 수 있습니다. 오디오 플러그인 작성자는 대화로 플러그인을 등록할 수도 있습니다.',
   sideAgentExample: '예: "Windows에서 동작하는 피치 시프트 플러그인을 찾아 줘"',
   sideAgentLink: '연결 방법 보기',
+  sideAgentBuild:
+    'DAW용 오디오 플러그인을 만들어 공개하고 싶다면 AI 에이전트에게 이 사이트의 URL을 읽게 하세요. 제작 스킬 설치부터 등록까지 안내합니다.',
+  sideAgentLlms: 'AI 에이전트용 안내 (llms.txt)',
   sideListingTitle: '게재와 검사에 대하여',
   sideListingItems: [
     '작성자 본인이 GitHub 공개 저장소를 등록합니다.',
@@ -1167,6 +1184,9 @@ const ptBR: Dict = {
     'Conecte o Claude Code ou o Codex via MCP para buscar plugins conversando. Os autores de plugins de áudio também podem enviar seus plugins conversando.',
   sideAgentExample: 'Exemplo: "Encontre um plugin de pitch shift que funcione no Windows"',
   sideAgentLink: 'Como conectar',
+  sideAgentBuild:
+    'Para criar e publicar um plugin de áudio para DAWs, peça ao seu agente de IA que leia a URL deste site. O site o orienta desde a instalação da skill de desenvolvimento até o envio do plugin.',
+  sideAgentLlms: 'Guia para agentes de IA (llms.txt)',
   sideListingTitle: 'Sobre listagens e verificações',
   sideListingItems: [
     'Os autores enviam os próprios repositórios públicos do GitHub.',
@@ -1347,6 +1367,9 @@ const es419: Dict = {
     'Conecta Claude Code o Codex por MCP para buscar plugins conversando. Los autores de plugins de audio también pueden enviar sus plugins conversando.',
   sideAgentExample: 'Ejemplo: "Busca un plugin de pitch shift que funcione en Windows"',
   sideAgentLink: 'Cómo conectar',
+  sideAgentBuild:
+    'Para crear y publicar un plugin de audio para DAWs, pide a tu agente de IA que lea la URL de este sitio. El sitio lo guía desde la instalación de la skill de desarrollo hasta el envío del plugin.',
+  sideAgentLlms: 'Guía para agentes de IA (llms.txt)',
   sideListingTitle: 'Sobre la lista y las revisiones',
   sideListingItems: [
     'Los autores envían sus propios repositorios públicos de GitHub.',
