@@ -4,6 +4,9 @@ name: Verify release files
 # 結果を音のプラグイン倉庫くんへ送る
 # (docs/design/scanning.md の「配布物の検証のワークフロー」、docs/decisions/0014-attestation-verification-in-actions.md)。
 # 音のプラグイン倉庫くんの /internal/checks/ は、このリポジトリの main で動作するこのワークフローの OIDC のトークンだけを受け付ける。
+# 第三者のデータを処理する scan ジョブには id-token を付けない。MCP Registry は OIDC のトークンの repository_owner だけで
+# io.github.AllegroMoltoV/* の公開権限を与えるため、そのジョブで第三者のデータを処理するツールの脆弱性を突かれると、
+# Registry の登録を書き換えられるトークンを発行されうる。トークンを取るのは、第三者のデータを処理しない prepare と report だけにする。
 on:
   schedule:
     - cron: '7,22,37,52 * * * *'
@@ -11,7 +14,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 concurrency:
   group: verify-release-files
@@ -19,19 +21,76 @@ concurrency:
 
 env:
   SOKO_KUN_ORIGIN: https://audio-soko-kun.allegromoltov.jp
-  # 配布物 1 件の取得の上限 (2 GiB) と、ジョブの最初に確かめる空き容量 (取得の上限に 1 GiB を足した値)
+  # 配布物 1 件の取得の上限 (2 GiB) と、scan の最初に確かめる空き容量 (取得の上限に 1 GiB を足した値)
   MAX_DOWNLOAD_BYTES: '2147483648'
   MIN_FREE_BYTES: '3221225472'
-  # ジョブの開始からこの秒数を過ぎたら、新しい配布物と通信の検出のソースを取得しない。残りは次の回に回す。
+  # scan の開始からこの秒数を過ぎたら、新しい配布物と通信の検出のソースを取得しない。残りは次の回に回す。
   # 結果は最後にまとめて送るため、ジョブが時間切れ (timeout-minutes) になるとその回の結果をすべて失う。
   FETCH_DEADLINE_SECONDS: '1500'
 
 jobs:
-  verify:
+  # 検証待ちの一覧を受け取り、artifact で scan へ渡す。
+  prepare:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      has_work: ${{ steps.pending.outputs.has_work }}
     steps:
+      - name: Fetch pending release files
+        id: pending
+        run: |
+          set -euo pipefail
+          out="${RUNNER_TEMP}/pending"
+          mkdir -p "${out}"
+          token=$(curl -fsS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=audio-soko-kun" | jq -r '.value')
+          curl -fsS -H "Authorization: Bearer ${token}" "${SOKO_KUN_ORIGIN}/internal/checks/pending" > "${out}/pending.json"
+          count=$(jq '.assets | length' "${out}/pending.json")
+          releases=$(jq '(.releases // []) | length' "${out}/pending.json")
+          echo "pending: ${count} assets, ${releases} releases for the network scan"
+          if [ "${count}" -eq 0 ] && [ "${releases}" -eq 0 ]; then has_work=false; else has_work=true; fi
+          echo "has_work=${has_work}" >> "${GITHUB_OUTPUT}"
+      # 一覧は 1 件ごとに旧い名前を繰り返すため大きくなりうる。job output は環境変数で次の job へ渡り 128 KiB に掛かるため、
+      # artifact で渡す。prepare は第三者のデータを処理せず、一覧は受け口が作ったものなので、scan で展開しても安全上の問題は無い。
+      - name: Upload the pending list
+        if: steps.pending.outputs.has_work == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pending-checks
+          path: ${{ runner.temp }}/pending/pending.json
+          if-no-files-found: error
+          retention-days: 1
+
+  # 第三者の配布物とソースを取得して検証し、送る結果を job output で report へ渡す。OIDC のトークンは取らない。
+  scan:
+    needs: prepare
+    if: needs.prepare.outputs.has_work == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    outputs:
+      body_0: ${{ steps.verify.outputs.body_0 }}
+      body_1: ${{ steps.verify.outputs.body_1 }}
+      body_2: ${{ steps.verify.outputs.body_2 }}
+      body_3: ${{ steps.verify.outputs.body_3 }}
+      body_4: ${{ steps.verify.outputs.body_4 }}
+      body_5: ${{ steps.verify.outputs.body_5 }}
+      body_6: ${{ steps.verify.outputs.body_6 }}
+      body_7: ${{ steps.verify.outputs.body_7 }}
+    steps:
+      # 権限の付け間違いで、このジョブが OIDC のトークンを取れる状態になっていないことを確かめる。
+      - name: Confirm that no OIDC token can be requested
+        run: |
+          if [ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] || [ -n "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
+            echo "The scan job must not have id-token: write." >&2
+            exit 1
+          fi
+          echo "No OIDC token request variables are set."
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -40,11 +99,20 @@ jobs:
           sparse-checkout: |
             .github/scripts
             src/review
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: pending-checks
+          path: ${{ runner.temp }}/pending
       - name: Verify pending release files
+        id: verify
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          # 第三者の文字列 (エラーの文面やパス) がログの行頭に出ても、ワークフローコマンドとして解釈させない。
+          # ::add-mask:: で本文の一部を秘密として登録されると、その値を含むジョブの出力が捨てられ、report が壊れた本文を送って
+          # 同じ一覧で失敗を繰り返すため。結果はファイル (GITHUB_OUTPUT) で渡すため、この停止の影響を受けない。
+          echo "::stop-commands::$(openssl rand -hex 16)"
           started=$(date +%s)
           past_deadline() { [ $(( $(date +%s) - started )) -ge "${FETCH_DEADLINE_SECONDS}" ]; }
           work="${RUNNER_TEMP}/verify"
@@ -55,24 +123,18 @@ jobs:
             exit 0
           fi
 
-          token() {
-            curl -fsS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
-              "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=audio-soko-kun" | jq -r '.value'
-          }
-          curl -fsS -H "Authorization: Bearer $(token)" "${SOKO_KUN_ORIGIN}/internal/checks/pending" > pending.json
-          count=$(jq '.assets | length' pending.json)
-          releases=$(jq '(.releases // []) | length' pending.json)
-          echo "pending: ${count} assets, ${releases} releases for the network scan"
-          if [ "${count}" -eq 0 ] && [ "${releases}" -eq 0 ]; then exit 0; fi
+          pending="${RUNNER_TEMP}/pending/pending.json"
+          count=$(jq '.assets | length' "${pending}")
+          releases=$(jq '(.releases // []) | length' "${pending}")
 
-          echo '[]' > results.json
-          echo '[]' > scans.json
+          echo '[]' > "${work}/results.json"
+          echo '[]' > "${work}/scans.json"
           for i in $(seq 0 $((count - 1))); do
             if past_deadline; then
               echo "fetch deadline reached; $((count - i)) assets are left for the next run"
               break
             fi
-            item=$(jq -c ".assets[${i}]" pending.json)
+            item=$(jq -c ".assets[${i}]" "${pending}")
             asset_id=$(jq -r '.assetId' <<< "${item}")
             kind=$(jq -r '.kind' <<< "${item}")
             url=$(jq -r '.downloadUrl' <<< "${item}")
@@ -88,7 +150,9 @@ jobs:
             result=error
             reason=download_failed
             signer_found=""
-            content=""
+            # 中身の検査の結果は 1 件で 300 KB ほどになりうるため、jq の引数ではなくファイルで渡す (null は結果なし)。
+            content="${work}/content-entry.json"
+            echo 'null' > "${content}"
 
             # 配布物は 1 件ずつ取得し、処理を終えるたびに削除する。中のコードは実行しない。
             status=0
@@ -128,24 +192,24 @@ jobs:
               if [ "${kind}" = "archive" ]; then
                 if python3 -I .github/scripts/inspect_archive.py --digest "${digest}" "${file}" > "${work}/content.json"; then
                   jq -c '.diagnostics' "${work}/content.json" | sed 's/^/  diagnostics: /'
-                  content=$(jq -c '{result, reason, bundles, formats, os, arches, vst2Files, categories}' "${work}/content.json")
+                  jq -c '{result, reason, bundles, formats, os, arches, vst2Files, categories}' "${work}/content.json" > "${content}"
                 else
-                  content='{"result":"error","reason":"inspect_failed"}'
+                  echo '{"result":"error","reason":"inspect_failed"}' > "${content}"
                 fi
               fi
             elif [ "${kind}" = "archive" ]; then
-              content=$(jq -cn --arg reason "${reason}" '{result: "error", reason: $reason}')
+              jq -cn --arg reason "${reason}" '{result: "error", reason: $reason}' > "${content}"
             fi
             rm -f "${file}"
-            echo "${repository} ${tag} asset ${asset_id}: attestation ${result} ${reason}; content ${content:-none}"
+            echo "${repository} ${tag} asset ${asset_id}: attestation ${result} ${reason}; content $(jq -r '.result // "none"' "${content}")"
             jq --argjson id "${asset_id}" --arg result "${result}" --arg reason "${reason}" --arg signer "${signer_found}" \
-              --arg content "${content}" \
+              --slurpfile content "${content}" \
               '. + [{assetId: $id,
                      attestation: ({result: $result}
                        + (if $reason == "" then {} else {reason: $reason} end)
                        + (if $signer == "" then {} else {signerWorkflow: $signer} end))}
-                    + (if $content == "" then {} else {content: ($content | fromjson)} end)]' \
-              results.json > results.next && mv results.next results.json
+                    + (if $content[0] == null then {} else {content: $content[0]} end)]' \
+              "${work}/results.json" > "${work}/results.next" && mv "${work}/results.next" "${work}/results.json"
           done
 
           # 版ごとに、そのコミットのソースだけを取得して通信の API と、README 以外の文書の案内を探す。ソースは実行もビルドもしない。
@@ -154,13 +218,14 @@ jobs:
               echo "fetch deadline reached; $((releases - i)) network scans are left for the next run"
               break
             fi
-            item=$(jq -c ".releases[${i}]" pending.json)
+            item=$(jq -c ".releases[${i}]" "${pending}")
             release_id=$(jq -r '.releaseId' <<< "${item}")
             repository=$(jq -r '.repository' <<< "${item}")
             commit=$(jq -r '.commitSha' <<< "${item}")
             src="${work}/src-${release_id}"
-            scan=""
-            docs=""
+            # 出力が大きくなりうるため、jq の引数ではなくファイルで受ける。空のままなら失敗。
+            : > "${work}/scan.json"
+            : > "${work}/docs.json"
             # 第三者のソースで、同じ回のほかの版の検証を止めないよう、取得と取り出しに時間の上限を付け、
             # 取り出しの前後でディスクの空きを確かめる。Git LFS のファイルは取得しない。
             if [[ "${repository}" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] && [[ "${commit}" =~ ^[0-9a-f]{40}$ ]] \
@@ -170,24 +235,96 @@ jobs:
                   && timeout 120 git fetch -q --depth 1 --no-tags "https://github.com/${repository}.git" "${commit}" \
                   && timeout 120 git checkout -q FETCH_HEAD) \
                   && [ "$(df --output=avail -B1 "${work}" | tail -1 | tr -d ' ')" -ge "${MIN_FREE_BYTES}" ]; then
-                scan=$(timeout 60 bash .github/scripts/scan-network.sh "${src}" || true)
+                timeout 60 bash .github/scripts/scan-network.sh "${src}" > "${work}/scan.json" || true
                 # 同じ取り出しで、README 以外の文書の案内を照合する。どちらかが失敗した版は error として送り、やり直させる。
-                docs=$(timeout 60 node .github/scripts/scan-docs.mjs "${src}" || true)
-                if [ -z "${docs}" ]; then scan=""; fi
+                timeout 60 node .github/scripts/scan-docs.mjs "${src}" > "${work}/docs.json" || true
               fi
             fi
             rm -rf "${src}"
-            if [ -n "${scan}" ]; then
-              echo "${repository} ${commit}: $(jq '.hits | length' <<< "${scan}") network API hits, $(jq '.hits | length' <<< "${docs}") document hits"
-              jq --argjson id "${release_id}" --argjson scan "${scan}" --argjson docs "${docs}" \
-                '. + [{releaseId: $id, result: "done"} + $scan + {docHits: $docs.hits, docTruncated: $docs.truncated}]' \
-                scans.json > scans.next && mv scans.next scans.json
+            if jq -e . "${work}/scan.json" > /dev/null 2>&1 && jq -e . "${work}/docs.json" > /dev/null 2>&1; then
+              echo "${repository} ${commit}: $(jq '.hits | length' "${work}/scan.json") network API hits, $(jq '.hits | length' "${work}/docs.json") document hits"
+              jq --argjson id "${release_id}" --slurpfile scan "${work}/scan.json" --slurpfile docs "${work}/docs.json" \
+                '. + [{releaseId: $id, result: "done"} + $scan[0] + {docHits: $docs[0].hits, docTruncated: $docs[0].truncated}]' \
+                "${work}/scans.json" > "${work}/scans.next" && mv "${work}/scans.next" "${work}/scans.json"
             else
               echo "${repository} ${commit}: network scan error"
-              jq --argjson id "${release_id}" '. + [{releaseId: $id, result: "error"}]' scans.json > scans.next && mv scans.next scans.json
+              jq --argjson id "${release_id}" '. + [{releaseId: $id, result: "error"}]' \
+                "${work}/scans.json" > "${work}/scans.next" && mv "${work}/scans.next" "${work}/scans.json"
             fi
           done
 
-          jq --slurpfile scans scans.json '{results: ., networkScans: $scans[0]}' results.json > body.json
-          curl -fsS -X POST -H "Authorization: Bearer $(token)" -H 'Content-Type: application/json' \
-            --data @body.json "${SOKO_KUN_ORIGIN}/internal/checks/results"
+          # 当たりのファイル名を、受け口 (src/review/network.ts の FILE: 改行と NUL を含まず 200 文字以下) が受け付ける形に整える。
+          # 受け口は形の合わない当たりを捨てるため、深いパスや改行を含む名前のファイルに置いた処理の検出が消えないようにする。
+          # 改行・CR・NUL は ? に置き換え、100 文字 (コードポイント) を超える名前は末尾の 99 文字を残して先頭を … にする。
+          # 受け口は UTF-16 の長さで数えるため、1 文字が 2 単位になる文字だけでも 200 以下に収まる。
+          # -a は非 ASCII を \u の形に直す。次の分割をバイト単位で行っても文字が壊れず、環境変数の上限も文字数と一致する。
+          # -j は末尾の改行を付けない。
+          jq -ajc --slurpfile scans "${work}/scans.json" '
+            def fix_file: explode | map(if . == 0 or . == 10 or . == 13 then 63 else . end) | implode
+              | if length > 100 then "…" + .[-99:] else . end;
+            def fix_hits: if type == "array" then map(if (.file | type) == "string" then .file |= fix_file else . end) else . end;
+            {results: ., networkScans: ($scans[0] | map(if .result == "done" then (.hits |= fix_hits) | (.docHits |= fix_hits) else . end))}
+          ' "${work}/results.json" > "${work}/body.json"
+
+          # report は送る本文を環境変数で受け取る。Linux の環境変数 1 つの上限 (128 KiB) を超えうるため、
+          # 100,000 バイトずつ最大 8 個の output に分ける。8 個の合計 800,000 バイトは job output の上限 (1 MB) に収まる。
+          # 超えるときは、本文の大きい版から順に通信の検出の結果を error に置き換え、それでも超えるなら本文の大きい配布物から順に
+          # 中身の検査の結果を error に置き換える。失敗で止めると受け口に何も届かず、試行の回数も増えないため、同じ一覧で失敗を
+          # 繰り返してほかのプラグインの証明の検証まで止まる。error にしたものは、受け口で試行を数え、使い切ると既存の扱いへ進む。
+          chunk=100000
+          while [ "$(wc -c < "${work}/body.json")" -gt $((chunk * 8)) ]; do
+            largest=$(jq -r '[.networkScans[] | select(.result == "done")] | max_by(tojson | length) | .releaseId // empty' "${work}/body.json")
+            if [ -n "${largest}" ]; then
+              echo "release ${largest}: network scan results are too large to send; reporting as error"
+              jq -ajc --argjson id "${largest}" \
+                '.networkScans |= map(if .releaseId == $id then {releaseId: .releaseId, result: "error"} else . end)' \
+                "${work}/body.json" > "${work}/body.next"
+            else
+              largest=$(jq -r '[.results[] | select(.content.bundles != null)] | max_by(.content | tojson | length) | .assetId // empty' "${work}/body.json")
+              if [ -z "${largest}" ]; then
+                echo "results are too large to pass to the report job even without scans and contents: $(wc -c < "${work}/body.json") bytes" >&2
+                exit 1
+              fi
+              echo "asset ${largest}: content results are too large to send; reporting as error"
+              # reason は受け口が受け付ける形 (src/checks/route.ts の REASON) にする。
+              jq -ajc --argjson id "${largest}" \
+                '.results |= map(if .assetId == $id then .content = {result: "error", reason: "result_too_large"} else . end)' \
+                "${work}/body.json" > "${work}/body.next"
+            fi
+            mv "${work}/body.next" "${work}/body.json"
+          done
+          for k in 0 1 2 3 4 5 6 7; do
+            echo "body_${k}=$(head -c $(((k + 1) * chunk)) "${work}/body.json" | tail -c +$((k * chunk + 1)))" >> "${GITHUB_OUTPUT}"
+          done
+
+  # scan の結果を倉庫くんへ送るだけにする。第三者のデータに由来する body は、展開も解析もせずにそのまま送り、形の検証は受け口に任せる。
+  report:
+    needs: scan
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      id-token: write
+    steps:
+      - name: Send results
+        env:
+          BODY_0: ${{ needs.scan.outputs.body_0 }}
+          BODY_1: ${{ needs.scan.outputs.body_1 }}
+          BODY_2: ${{ needs.scan.outputs.body_2 }}
+          BODY_3: ${{ needs.scan.outputs.body_3 }}
+          BODY_4: ${{ needs.scan.outputs.body_4 }}
+          BODY_5: ${{ needs.scan.outputs.body_5 }}
+          BODY_6: ${{ needs.scan.outputs.body_6 }}
+          BODY_7: ${{ needs.scan.outputs.body_7 }}
+        run: |
+          set -euo pipefail
+          # scan が空き容量の不足で早く終わった回は、本文が無い。送らない。
+          if [ -z "${BODY_0}" ]; then
+            echo "scan produced no results; nothing to send"
+            exit 0
+          fi
+          token=$(curl -fsS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=audio-soko-kun" | jq -r '.value')
+          printf '%s' "${BODY_0}" "${BODY_1}" "${BODY_2}" "${BODY_3}" "${BODY_4}" "${BODY_5}" "${BODY_6}" "${BODY_7}" \
+            | curl -fsS -X POST -H "Authorization: Bearer ${token}" -H 'Content-Type: application/json' \
+              --data-binary @- "${SOKO_KUN_ORIGIN}/internal/checks/results"
