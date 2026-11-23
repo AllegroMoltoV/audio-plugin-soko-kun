@@ -136,6 +136,18 @@ class ScanNetworkTest(unittest.TestCase):
         )
         self.assertEqual(hits, [("src/legacy.cpp", 2, "libcurl")])
 
+    # ファイル名の : で file と行番号の分け方を作者に決めさせないため、: を含む名前でも当たりをファイル名のまま返す。
+    # Windows はファイル名に : を使えないため飛ばす。
+    @unittest.skipIf(os.name == "nt", "Windows はファイル名に : を使えない")
+    def test_file_name_with_null_between_colons_is_scanned(self):
+        hits = self.apis({"a:null:b.cpp": "int x;\ncurl_easy_init();"})
+        self.assertEqual(hits, [("a:null:b.cpp", 2, "libcurl")])
+
+    @unittest.skipIf(os.name == "nt", "Windows はファイル名に : を使えない")
+    def test_file_name_with_non_numeric_between_colons_is_scanned(self):
+        hits = self.apis({"a:x:b.cpp": "int y;\nint z;\ncurl_easy_init();"})
+        self.assertEqual(hits, [("a:x:b.cpp", 3, "libcurl")])
+
     def test_hits_are_capped_at_50(self):
         result = self.scan({"src/many.c": "\n".join(["curl_easy_init();"] * 60)})
         self.assertEqual(len(result["hits"]), 50)

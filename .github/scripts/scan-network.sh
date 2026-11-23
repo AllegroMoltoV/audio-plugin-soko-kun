@@ -43,12 +43,13 @@ for entry in "${patterns[@]}"; do
   expressions+=(-e "${entry#*|}")
 done
 candidates=()
+# 候補は NUL 区切りのまま sort -z で並べる。結果の順序と max_hits での打ち切りの順を、ファイル名の順にそろえるため。
 while IFS= read -r -d '' file; do
   # JUCE を同梱した作者で JUCE 自身の通信の実装に当たらないよう、JUCE の配置 (modules/juce_core/) のファイルだけを捨てる。
   # 名前ではなく配置で判定する。JUCE の配置に似せたディレクトリに置いた処理は逃れられる (docs/design/scanning.md)。
   [[ "${file#"${dir}"/}" =~ ^(.*/)?modules/juce_core/ ]] && continue
   candidates+=("${file}")
-done < <(grep -rlIEZ --exclude-dir=.git "${expressions[@]}" "${dir}" || true)
+done < <(grep -rlIEZ --exclude-dir=.git "${expressions[@]}" "${dir}" | sort -z || true)
 
 hits='[]'
 count=0
@@ -57,20 +58,19 @@ for entry in "${patterns[@]}"; do
   [ "${#candidates[@]}" -gt 0 ] || break
   name="${entry%%|*}"
   regex="${entry#*|}"
-  while IFS= read -r line; do
-    [ -n "${line}" ] || continue
+  # grep -Z はファイル名の後ろを NUL にする。ファイル名に : や空白を含めても、ファイル名と行番号の分け方を作者に決めさせない。
+  # 行番号は grep が出すため、rest の最初の : までが常に数になる。IFS= はファイル名の末尾の空白を残すために付ける。
+  while IFS= read -r -d '' file && IFS= read -r rest; do
     if [ "${count}" -ge "${max_hits}" ]; then
       truncated=true
       break 2
     fi
-    file="${line%%:*}"
-    rest="${line#*:}"
     number="${rest%%:*}"
     text="${rest#*:}"
     hits=$(jq -c --arg file "${file#"${dir}"/}" --argjson line "${number}" --arg api "${name}" --arg text "${text:0:160}" \
       '. + [{file: $file, line: $line, api: $api, text: $text}]' <<< "${hits}")
     count=$((count + 1))
-  done < <(grep -nHIE -e "${regex}" -- "${candidates[@]}" | sort -t: -k1,1 -k2,2n || true)
+  done < <(grep -nHIEZ -e "${regex}" -- "${candidates[@]}" || true)
 done
 
 jq -n --argjson hits "${hits}" --argjson truncated "${truncated}" '{hits: $hits, truncated: $truncated}'
