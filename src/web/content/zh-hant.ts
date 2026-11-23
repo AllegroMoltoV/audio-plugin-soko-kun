@@ -177,7 +177,7 @@ export const zhHant: Record<PageKey, PageContent> = {
             list: [
               'vst2_detected：壓縮檔中包含 VST 2 外掛套件或進入點。請從所有壓縮檔中移除 VST 2，然後發布新版本。',
               'no_plugin_detected、no_plugin_in_archive：壓縮檔中找不到受支援的外掛套件。請將建置好的外掛套件放入 zip 壓縮檔。原始碼壓縮檔無需修改。',
-              'content_undetermined：壓縮檔中包含無法檢查的檔案，例如安裝程式或巢狀的壓縮檔。請將外掛套件直接放入 zip 壓縮檔。',
+              'content_undetermined：壓縮檔中包含無法檢查的項目，例如安裝程式、巢狀的壓縮檔、不安全的路徑、指向外掛套件之外的連結、重複名稱的項目或帶有資料的資料夾項目。請將外掛套件直接放入 zip 壓縮檔，並移除這些項目。',
               'macos_not_signed、macos_adhoc、macos_not_developer_id、macos_not_notarized：請使用 Developer ID 憑證簽署 macOS 外掛套件，並通過 Apple 公證。',
               'declaration_mismatch、not_declared：.audio-soko-kun/config.json 中的宣告與檢查的壓縮檔不一致。請修正宣告，然後發布新版本。',
               'installer_not_guided：本平台不引導使用者前往安裝程式。使用者從 zip 壓縮檔取得外掛。',

@@ -177,7 +177,7 @@ export const es419: Record<PageKey, PageContent> = {
             list: [
               'vst2_detected: Un archivo comprimido contiene un bundle o un punto de entrada VST 2. Quita VST 2 de todos los archivos comprimidos y publica una nueva versión.',
               'no_plugin_detected, no_plugin_in_archive: No se encontró ningún bundle de plugin compatible en los archivos comprimidos. Coloca los bundles compilados en los archivos zip. Los archivos de código fuente no necesitan cambios.',
-              'content_undetermined: Un archivo comprimido contiene archivos que no se pueden inspeccionar, como instaladores o archivos comprimidos anidados. Coloca los bundles del plugin directamente en el archivo zip.',
+              'content_undetermined: Un archivo comprimido contiene elementos que no se pueden inspeccionar, como instaladores, archivos comprimidos anidados, rutas no seguras, enlaces que salen del bundle, nombres duplicados o entradas de carpeta con datos. Coloca los bundles del plugin directamente en el archivo zip y elimina estos elementos.',
               'macos_not_signed, macos_adhoc, macos_not_developer_id, macos_not_notarized: Firma los bundles para macOS con un certificado Developer ID y notarízalos con Apple.',
               'declaration_mismatch, not_declared: Las declaraciones de .audio-soko-kun/config.json no coinciden con los archivos comprimidos inspeccionados. Corrige las declaraciones y publica una nueva versión.',
               'installer_not_guided: No se guía a los instaladores. Los usuarios obtienen los plugins de los archivos zip.',
