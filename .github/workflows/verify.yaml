@@ -127,6 +127,13 @@ jobs:
           count=$(jq '.assets | length' "${pending}")
           releases=$(jq '(.releases // []) | length' "${pending}")
 
+          # 証明の照合に使う信頼の根 (Sigstore の TUF) を、この回の最初に 1 回だけ取得する。取得に失敗したら空のファイルにし、
+          # この回の配布物の証明を一時的な失敗 (trust_root_unavailable) として送る。受け口で試行を数え、次の起動でやり直す。
+          trusted_root="${work}/trusted_root.jsonl"
+          if [ "${count}" -gt 0 ] && ! gh attestation trusted-root > "${trusted_root}"; then
+            echo "failed to fetch the trusted root"
+            : > "${trusted_root}"
+          fi
           echo '[]' > "${work}/results.json"
           echo '[]' > "${work}/scans.json"
           for i in $(seq 0 $((count - 1))); do
@@ -164,29 +171,13 @@ jobs:
                 result=failed
                 reason=digest_mismatch
               else
-                result=failed
-                reason=verification_failed
-                for name in "${names[@]}"; do
-                  args=(attestation verify "${file}" --repo "${name}" --source-ref "refs/tags/${tag}" --source-digest "${commit}" --format json)
-                  if [ -n "${signer}" ]; then args+=(--signer-workflow "${name}/${signer}"); fi
-                  if gh "${args[@]}" > "${work}/out.json" 2> "${work}/err.txt"; then
-                    # 名前は別のリポジトリに使われうるため、証明書のリポジトリ ID が登録したものと同じことも確かめる。
-                    found_id=$(jq -r '.[0].verificationResult.signature.certificate.sourceRepositoryIdentifier // empty' "${work}/out.json")
-                    if [ -n "${repository_id}" ] && [ "${found_id}" != "${repository_id}" ]; then
-                      reason=repository_id_mismatch
-                      echo "  ${name}: repository id ${found_id} differs from ${repository_id}"
-                      continue
-                    fi
-                    # buildSignerURI は https://github.com/<owner>/<repo>/<workflow のパス>@<ref> の形。
-                    uri=$(jq -r '.[0].verificationResult.signature.certificate.buildSignerURI // empty' "${work}/out.json")
-                    signer_found=$(sed -E 's#^https://github\.com/[^/]+/[^/]+/##; s#@.*$##' <<< "${uri}")
-                    result=passed
-                    reason=""
-                    break
-                  fi
-                  echo "  ${name}: not verified"
-                  sed 's/^/    /' "${work}/err.txt" | head -5
-                done
+                # 証明の検証と、一時的な失敗と本物の失敗の分類は verify-attestation.sh が行う。
+                # スクリプトが想定外に失敗しても、ほかの配布物の処理を止めず、この配布物の証明を一時的な失敗として送る (派生元の ADR 0019 の原則 2)。
+                verdict=$(bash .github/scripts/verify-attestation.sh "${file}" "${trusted_root}" "${tag}" "${commit}" "${signer}" "${repository_id}" "${names[@]}") \
+                  || verdict='{"result":"error","reason":"attestation_check_failed"}'
+                result=$(jq -r '.result' <<< "${verdict}")
+                reason=$(jq -r '.reason // empty' <<< "${verdict}")
+                signer_found=$(jq -r '.signerWorkflow // empty' <<< "${verdict}")
               fi
               # アーカイブの中身は、ファイルへ展開せずメモリ上で読んで検査する。digest が違えば検査しない。
               if [ "${kind}" = "archive" ]; then

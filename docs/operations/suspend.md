@@ -24,7 +24,7 @@
 | 確認待ちの版の承認 | `npm run admin -- approve-release <owner/repo> <tag>` |
 | README の照合による確認待ちの解除 | `npm run admin -- approve-readme <owner/repo>` |
 | 版の停止 | `npm run admin -- suspend-release <owner/repo> <tag> "<告知の文>"` |
-| 試行を使い切った検査のやり直し | `npm run admin -- retry-checks <owner/repo> <tag>` |
+| 試行を使い切った検査のやり直し | `npm run admin -- retry-checks <owner/repo> <tag> [--include-failed]` |
 | 試行を使い切った MalwareBazaar の照会のやり直し | `npm run admin -- retry-scans <owner/repo> <tag>` |
 | すべての版の、試行を使い切った MalwareBazaar の照会のやり直し | `npm run admin -- retry-all-scans` |
 | 宣言ファイルの判定のやり直し | `npm run admin -- retry-declaration <owner/repo> <tag>`。本サービスの判定の不具合を直した後に、誤って `invalid` や `mismatch` にした版を戻す。次の定期処理で、タグの時点の宣言ファイルを取得し直して照合し直す。照合し直すまでの間 (15 分ほど) は、その版が掲載の条件を満たさないため、掲載中の版に使うと掲載が旧い版に移る。より新しい版に判定済みの宣言があれば、旧い版を照合し直しても表示名・カテゴリ・配布物の宣言は替わらない |
@@ -197,12 +197,14 @@
 
 | 検査 | 戻す条件 | 戻した後に検査する処理 |
 | --- | --- | --- |
-| 証明の検証 (`attestation_checks`) | `error` で試行が 3 回 | 次の `verify.yaml` の起動 |
+| 証明の検証 (`attestation_checks`) | `error` で試行が 3 回。`--include-failed` を付けたときは、理由が `no_attestation` か `verification_failed` の `failed` も | 次の `verify.yaml` の起動 |
 | 中身の検査 (`content_checks`) | `error` で試行が 3 回 | 次の `verify.yaml` の起動 |
 | macOS の判定 (`macos_signing_checks`) | `error` で試行が 3 回 | 次の `macos-verify.yaml` の起動 |
 | LLM のレビュー (`release_checks` の `review_state`) | `failed` で試行が 2 回 | 次の定期処理の新しい版の検査 |
 
-通信の検出 (`network_state`) の試行切れは戻しません。レビューは通信の API の検出の結果なしで進むためです。ただし、同じ取り出しで行う README 以外の文書の照合の結果も無いため、`no-security-bypass` と `no-terminal-paste` が重大の指摘になり、版は管理者の確認待ちになります。`serious_findings` の説明で照合できなかったことを確かめ、`approve-release` で判断します。試行が残っている `error` と、結果が確定した検査は変えません。レビューの失敗による確認待ちは `approve-release` でも解けます。レビューの結果を得てから判断したいときに `retry-checks` を使います。
+`--include-failed` は、GitHub や Sigstore の障害の時期と重なるなど、一時的な障害を本物の失敗と取り違えた疑いがあるときに付けます。証明の取得の失敗の分類は gh のエラーの文面に依存するため、gh の版が変わって文面が変わったときの戻し方でもあります。正しい証明の無い配布物は、検証し直しても同じ結果に戻ります。ハッシュとリポジトリ ID とワークフローの不一致 (`digest_mismatch`・`repository_id_mismatch`・`signer_workflow_mismatch`・`signer_workflow_missing`) は、配布物とリポジトリの事実のため戻しません。
+
+通信の検出 (`network_state`) の試行切れは戻しません。レビューは通信の API の検出の結果なしで進むためです。ただし、同じ取り出しで行う README 以外の文書の照合の結果も無いため、`no-security-bypass` と `no-terminal-paste` が重大の指摘になり、版は管理者の確認待ちになります。`serious_findings` の説明で照合できなかったことを確かめ、`approve-release` で判断します。試行が残っている `error` は変えません。結果が確定した検査も、`--include-failed` で戻す証明の検証を除いて変えません。レビューの失敗による確認待ちは `approve-release` でも解けます。レビューの結果を得てから判断したいときに `retry-checks` を使います。
 
 ## 試行を使い切った MalwareBazaar の照会のやり直し
 

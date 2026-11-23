@@ -10,7 +10,7 @@
 //   npm run admin -- approve-release <owner/repo> <tag> [--remote]
 //   npm run admin -- approve-readme <owner/repo> [--remote]
 //   npm run admin -- suspend-release <owner/repo> <tag> "<告知の文>" [--remote]
-//   npm run admin -- retry-checks <owner/repo> <tag> [--remote]
+//   npm run admin -- retry-checks <owner/repo> <tag> [--include-failed] [--remote]
 //   npm run admin -- retry-declaration <owner/repo> <tag> [--remote]
 //   npm run admin -- retry-scans <owner/repo> <tag> [--remote]
 //   npm run admin -- retry-all-scans [--remote]
@@ -36,14 +36,15 @@ function fail(message) {
 
 const args = process.argv.slice(2);
 const remote = args.includes('--remote');
-const [command, rawId, reason, extra] = args.filter((a) => a !== '--remote');
+const includeFailed = args.includes('--include-failed');
+const [command, rawId, reason, extra] = args.filter((a) => a !== '--remote' && a !== '--include-failed');
 const USAGE =
   'usage: admin <suspend|resume|show|set-category|hide-images|show-images> <owner/repo> [reason|category] [--remote]\n' +
   '       admin pending [--remote]\n' +
   '       admin approve-release <owner/repo> <tag> [--remote]\n' +
   '       admin approve-readme <owner/repo> [--remote]\n' +
   '       admin suspend-release <owner/repo> <tag> "<note>" [--remote]\n' +
-  '       admin retry-checks <owner/repo> <tag> [--remote]\n' +
+  '       admin retry-checks <owner/repo> <tag> [--include-failed] [--remote]\n' +
   '       admin retry-declaration <owner/repo> <tag> [--remote]\n' +
   '       admin retry-scans <owner/repo> <tag> [--remote]\n' +
   '       admin retry-all-scans [--remote]';
@@ -165,10 +166,16 @@ if (command === 'suspend') {
   // 証明の検証・中身の検査・macOS の判定は、次の verify.yaml と macos-verify.yaml の起動で検査し直す。
   // 2 回失敗したレビューは、次の定期処理の新しい版の検査でやり直す。
   // 通信の検出の試行切れは戻さない。掲載を止めず、レビューは検出の結果なしで進むため。
+  // --include-failed を付けると、証明の検証が no_attestation か verification_failed の failed になった配布物も戻す。
+  // 一時的な障害を本物の失敗と取り違えたときに戻せるようにするため。検証し直すだけなので、正しい証明の無い配布物は同じ結果に戻る。
+  // ハッシュ・リポジトリ ID・ワークフローの不一致 (digest_mismatch など) は配布物とリポジトリの事実なので戻さない。
   if (!reason || !TAG.test(reason)) fail('a release tag is required');
   const assetsOf = `(SELECT github_asset_id FROM assets WHERE release_id = ${releaseOf(reason)})`;
   const exhausted = `result = 'error' AND attempts >= ${MAX_CHECK_ATTEMPTS} AND github_asset_id IN ${assetsOf}`;
-  sql = `UPDATE attestation_checks SET result = 'pending', attempts = 0 WHERE ${exhausted};
+  const failedAttestations = includeFailed
+    ? ` OR (result = 'failed' AND reason IN ('no_attestation', 'verification_failed') AND github_asset_id IN ${assetsOf})`
+    : '';
+  sql = `UPDATE attestation_checks SET result = 'pending', attempts = 0 WHERE (${exhausted})${failedAttestations};
          UPDATE content_checks SET result = 'pending', attempts = 0 WHERE ${exhausted};
          UPDATE macos_signing_checks SET result = 'pending', attempts = 0 WHERE ${exhausted};
          UPDATE release_checks SET review_state = 'pending', review_attempts = 0, review_wait_until = NULL

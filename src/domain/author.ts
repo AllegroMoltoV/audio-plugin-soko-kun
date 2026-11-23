@@ -170,7 +170,8 @@ const BLOCKER_TEXT: Record<BlockerCode, { message: string; fix: string; criterio
     fix: 'See notGuidedBecause of each asset, fix the release workflow, then publish a new release.',
   },
   check_retries_exhausted: {
-    message: 'The attestation, content, or macOS check failed three times.',
+    message:
+      'The attestation, content, or macOS check failed three times, for example because a release file could not be downloaded or GitHub or Sigstore was temporarily unavailable.',
     fix: 'No action is needed. An administrator investigates the cause.',
   },
   license_pending: { message: 'The license at the release tag has not been checked yet.', fix: 'No action is needed.' },
