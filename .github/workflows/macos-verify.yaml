@@ -4,6 +4,10 @@ name: Verify macOS signing
 # (docs/design/scanning.md の「署名と公証の判定」)。判定の規則と出力の読み取りは .github/scripts/macos_judge.py に置く。
 # 音のプラグイン倉庫くんの /internal/macos-checks/ は、このリポジトリの main で動作するこのワークフローの OIDC のトークンだけを受け付ける。
 # job_workflow_ref はファイルごとの値のため、verify.yaml とファイルを分けている。配布物の中のコードは実行しない。
+# 第三者の配布物を処理する judge ジョブには id-token を付けない。MCP Registry は OIDC のトークンの repository_owner だけで
+# io.github.AllegroMoltoV/* の公開権限を与えるため、そのジョブで第三者のデータを処理するツール (codesign・ditto など) の脆弱性を
+# 突かれると、Registry の登録を書き換えられるトークンを発行されうる。トークンを取るのは、第三者のデータを処理しない
+# prepare と report だけにする。
 on:
   schedule:
     - cron: '12,27,42,57 * * * *'
@@ -11,7 +15,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 concurrency:
   group: verify-macos-signing
@@ -19,29 +22,85 @@ concurrency:
 
 env:
   SOKO_KUN_ORIGIN: https://audio-soko-kun.allegromoltov.jp
-  # 配布物 1 件の取得の上限 (2 GiB) と、ジョブの最初に確かめる空き容量 (取得の上限と展開後の合計の上限 4 GiB に 1 GiB を足した値)
+  # 配布物 1 件の取得の上限 (2 GiB) と、judge の最初に確かめる空き容量 (取得の上限と展開後の合計の上限 4 GiB に 1 GiB を足した値)
   MAX_DOWNLOAD_BYTES: '2147483648'
   MIN_FREE_BYTES: '7516192768'
-  # ジョブの開始からこの秒数を過ぎたら、新しい配布物を取得しない。残りは次の回に回す。
+  # judge の開始からこの秒数を過ぎたら、新しい配布物を取得しない。残りは次の回に回す。
   # 結果は最後にまとめて送るため、ジョブが時間切れ (timeout-minutes) になるとその回の結果をすべて失う。
   FETCH_DEADLINE_SECONDS: '1500'
 
 jobs:
-  verify:
+  # 判定待ちの一覧を受け取り、artifact で judge へ渡す。
+  prepare:
     if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      has_work: ${{ steps.pending.outputs.has_work }}
+    steps:
+      - name: Fetch pending macOS bundles
+        id: pending
+        run: |
+          set -euo pipefail
+          out="${RUNNER_TEMP}/pending"
+          mkdir -p "${out}"
+          token=$(curl -fsS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=audio-soko-kun" | jq -r '.value')
+          curl -fsS -H "Authorization: Bearer ${token}" "${SOKO_KUN_ORIGIN}/internal/macos-checks/pending" > "${out}/pending.json"
+          count=$(jq '.assets | length' "${out}/pending.json")
+          echo "pending: ${count} assets"
+          if [ "${count}" -eq 0 ]; then has_work=false; else has_work=true; fi
+          echo "has_work=${has_work}" >> "${GITHUB_OUTPUT}"
+      # 一覧は、配布物ごとにバンドルのパスを最大 200 件・各 1,024 字まで含むため、1 件で 100,000 バイトを超えうる。
+      # job output は環境変数で次の job へ渡り 128 KiB に掛かるため、artifact で渡す。prepare は第三者のデータを処理せず、
+      # 一覧は受け口が作ったものなので、judge で展開しても安全上の問題は無い。
+      - name: Upload the pending list
+        if: steps.pending.outputs.has_work == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pending-macos-checks
+          path: ${{ runner.temp }}/pending/pending.json
+          if-no-files-found: error
+          retention-days: 1
+
+  # 第三者の配布物を取得して判定し、送る結果を job output で report へ渡す。OIDC のトークンは取らない。
+  judge:
+    needs: prepare
+    if: needs.prepare.outputs.has_work == 'true'
     runs-on: macos-latest
     timeout-minutes: 40
+    permissions:
+      contents: read
+    outputs:
+      body: ${{ steps.judge.outputs.body }}
     steps:
+      # 権限の付け間違いで、このジョブが OIDC のトークンを取れる状態になっていないことを確かめる。
+      - name: Confirm that no OIDC token can be requested
+        run: |
+          if [ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] || [ -n "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
+            echo "The judge job must not have id-token: write." >&2
+            exit 1
+          fi
+          echo "No OIDC token request variables are set."
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           sparse-checkout: .github/scripts
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: pending-macos-checks
+          path: ${{ runner.temp }}/pending
       - name: Judge pending macOS bundles
+        id: judge
         run: |
           # codesign と spctl の却下は記録する結果のため、コマンドの失敗でステップを止めない (検証 A2 の経緯)。
           # 止めるべき失敗は、それぞれの箇所で明示して exit する。macOS の bash 3.2 でも動く書き方にする。
           set +e -uo pipefail
           # ログに出すバンドルのパスと spctl の出力は外部データのため、ワークフローのコマンドとして解釈させない。
+          # 結果はファイル (GITHUB_OUTPUT) で渡すため、この停止の影響を受けない。
           echo "::stop-commands::$(uuidgen)"
           started=$(date +%s)
           past_deadline() { [ $(( $(date +%s) - started )) -ge "${FETCH_DEADLINE_SECONDS}" ]; }
@@ -53,26 +112,18 @@ jobs:
             exit 0
           fi
 
-          token() {
-            curl -fsS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
-              "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=audio-soko-kun" | jq -r '.value'
-          }
           judge=.github/scripts/macos_judge.py
-          if ! curl -fsS -H "Authorization: Bearer $(token)" "${SOKO_KUN_ORIGIN}/internal/macos-checks/pending" > pending.json; then
-            echo "failed to fetch the pending list"
-            exit 1
-          fi
-          count=$(jq '.assets | length' pending.json)
+          pending="${RUNNER_TEMP}/pending/pending.json"
+          count=$(jq '.assets | length' "${pending}")
           echo "pending: ${count} assets"
-          if [ "${count}" -eq 0 ]; then exit 0; fi
 
-          echo '[]' > results.json
+          echo '[]' > "${work}/results.json"
           for i in $(seq 0 $((count - 1))); do
             if past_deadline; then
               echo "fetch deadline reached; $((count - i)) assets are left for the next run"
               break
             fi
-            item=$(jq -c ".assets[${i}]" pending.json)
+            item=$(jq -c ".assets[${i}]" "${pending}")
             asset_id=$(jq -r '.assetId' <<< "${item}")
             url=$(jq -r '.downloadUrl' <<< "${item}")
             digest=$(jq -r '.digest' <<< "${item}")
@@ -143,12 +194,34 @@ jobs:
             echo "${repository} ${tag} asset ${asset_id}: ${result} ${reason} ${teams}"
             jq --argjson id "${asset_id}" --arg result "${result}" --arg reason "${reason}" --argjson teams "${teams}" \
               '. + [{assetId: $id, result: $result, reason: (if $reason == "" then null else $reason end), teamIds: $teams}]' \
-              results.json > results.next && mv results.next results.json
+              "${work}/results.json" > "${work}/results.next" && mv "${work}/results.next" "${work}/results.json"
           done
 
-          jq '{results: .}' results.json > body.json
-          if ! curl -fsS -X POST -H "Authorization: Bearer $(token)" -H 'Content-Type: application/json' \
-              --data @body.json "${SOKO_KUN_ORIGIN}/internal/macos-checks/results"; then
-            echo "failed to post the results"
-            exit 1
+          # 結果は 1 件あたり assetId・result・reason・teamIds (最大 10 件) で小さく、最大 50 件でも環境変数の上限 (128 KiB) に収まる。
+          # 分けずに 1 つの output で渡す。
+          echo "body=$(jq -ac '{results: .}' "${work}/results.json")" >> "${GITHUB_OUTPUT}"
+
+  # judge の結果を倉庫くんへ送るだけにする。第三者のデータに由来する body は、展開も解析もせずにそのまま送り、形の検証は受け口に任せる。
+  report:
+    needs: judge
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      id-token: write
+    steps:
+      - name: Send results
+        env:
+          BODY: ${{ needs.judge.outputs.body }}
+        run: |
+          set -euo pipefail
+          # judge が空き容量の不足で早く終わった回は、本文が無い。送らない。
+          if [ -z "${BODY}" ]; then
+            echo "judge produced no results; nothing to send"
+            exit 0
           fi
+          token=$(curl -fsS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=audio-soko-kun" | jq -r '.value')
+          printf '%s' "${BODY}" \
+            | curl -fsS -X POST -H "Authorization: Bearer ${token}" -H 'Content-Type: application/json' \
+              --data-binary @- "${SOKO_KUN_ORIGIN}/internal/macos-checks/results"
