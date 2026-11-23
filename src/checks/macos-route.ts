@@ -44,20 +44,29 @@ function parseEntry(raw: unknown): MacosInput | null {
   if (typeof entry.assetId !== 'number' || !Number.isSafeInteger(entry.assetId)) return null;
   if (entry.result !== 'passed' && entry.result !== 'failed' && entry.result !== 'error') return null;
   const result = entry.result;
-  const reason = entry.reason ?? null;
+  let reason = entry.reason ?? null;
   const allowed: readonly string[] = REASONS[result];
-  if (result === 'passed' ? reason !== null : typeof reason !== 'string' || !allowed.includes(reason)) return null;
+  if (result === 'passed') {
+    if (reason !== null) return null;
+  } else if (typeof reason !== 'string' || !allowed.includes(reason)) {
+    // error の理由は、check.json が空のときの null のように、第三者のアーカイブの扱いで決まる。一覧の外なら check_error にする。
+    if (result !== 'error') return null;
+    reason = 'check_error';
+  }
 
-  const teamIds = entry.teamIds ?? [];
-  if (!Array.isArray(teamIds) || teamIds.length > MAX_TEAM_IDS) return null;
-  if (!teamIds.every((id) => typeof id === 'string' && TEAM_ID.test(id))) return null;
-  if (new Set(teamIds).size !== teamIds.length) return null;
+  // Team ID は第三者の署名から読んだ値で、別々の会社の署名を集めれば 10 件を超える。形の合わないものは 1 件ずつ捨て、
+  // 10 件を超えるときは並べ替えて先頭の 10 件に切り詰める。2 件以上が残るため、Team ID の食い違いの確認待ちは変わらない。
+  const rawTeamIds = entry.teamIds ?? [];
+  if (!Array.isArray(rawTeamIds)) return null;
+  const valid = rawTeamIds.filter((id): id is string => typeof id === 'string' && TEAM_ID.test(id));
+  if (new Set(valid).size !== valid.length) return null;
+  const teamIds = [...valid].sort().slice(0, MAX_TEAM_IDS);
   // 合格は Developer ID の署名を求めるため、Team ID を必ず持つ。
   if (result === 'passed' && teamIds.length === 0) return null;
-  return { assetId: entry.assetId, result, reason: reason as string | null, teamIds: teamIds as string[] };
+  return { assetId: entry.assetId, result, reason: reason as string | null, teamIds };
 }
 
-// 形が合わない結果、または同じ配布物の結果を 2 つ含む要求は、全体を拒否する。
+// ワークフローが作る値 (配布物の ID・result・重複・件数) の不正を含む要求は、全体を拒否する。
 function parseResults(body: unknown): MacosInput[] | null {
   const raw = (body as { results?: unknown })?.results;
   if (!Array.isArray(raw) || raw.length > MAX_RESULTS) return null;

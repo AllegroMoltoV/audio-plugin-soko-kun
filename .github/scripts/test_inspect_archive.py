@@ -208,6 +208,25 @@ class W01UnsafeEntries(ArchiveTest):
         self.assertEqual([b["path"] for b in result["bundles"]], ["Fixture.vst3"])
 
 
+class W01bPathLength(ArchiveTest):
+    """パスの長さは、Worker の受け口の isSafePath (JS の length、UTF-16 の単位数で 1,024 以下) と同じ数え方で比べる。"""
+
+    def test_bmp_outside_characters_count_as_two_units(self):
+        # 絵文字 600 字は、コードポイントでは 600、UTF-16 では 1,200 になる
+        name = "\U0001f600" * 600 + ".vst/Fixture.dll"
+        result = self.inspect([(name, pe(exports=("VSTPluginMain",))), VST3_WIN])
+        rejected = {r["path"]: r["reason"] for r in result["diagnostics"]["rejected"]}
+        self.assertEqual(rejected[name], "path_too_long")
+        self.assertEqual(result["result"], "passed")
+        self.assertEqual(result["vst2Files"], [])
+
+    def test_the_limit_is_1024_utf16_units(self):
+        self.assertIsNone(ia.unsafe_reason("\U0001f600" * 512))
+        self.assertEqual(ia.unsafe_reason("\U0001f600" * 513), "path_too_long")
+        self.assertIsNone(ia.unsafe_reason("a" * 1024))
+        self.assertEqual(ia.unsafe_reason("a" * 1025), "path_too_long")
+
+
 class W02Limits(ArchiveTest):
     def test_too_many_entries(self):
         entries = [(f"docs/{i}.txt", b"x") for i in range(11)] + [VST3_WIN]

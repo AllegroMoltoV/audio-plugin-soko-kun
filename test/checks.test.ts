@@ -239,7 +239,7 @@ describe('配布物の検証の結果', () => {
     expect(await macosRows()).toEqual([]);
   });
 
-  describe('I06・I07・I09 形の合わない結果は 400 で拒否し、どの行も書かない', () => {
+  describe('I06・I07・I09 形の合わない中身の検査の結果は、要求全体を拒まず、その配布物を error にして試行を数える', () => {
     const invalid: Array<[string, Record<string, unknown>]> = [
       ['I06 os の値が一覧の外 (MacOS)', { ...passedMac, os: ['MacOS'] }],
       [
@@ -267,6 +267,16 @@ describe('配布物の検証の結果', () => {
       ['I06 categories の値が一覧の外', { ...passedWindows, categories: ['utility'] }],
       ['I06 バンドルが無いのに categories がある', { result: 'no_plugin', categories: ['effect'] }],
     ];
+    // 配布物の中のパスの長さは UTF-16 の単位数で数える。絵文字は 1 字が 2 単位で、600 字なら 1,200 単位になる。
+    const emoji = '\u{1F600}'.repeat(600);
+    invalid.push([
+      'I07 バンドルのパスが UTF-16 の単位数で 1,024 を超える (BMP 外の文字 600 字)',
+      { ...passedWindows, bundles: [{ ...windowsBundle, path: `${emoji}.vst3` }] },
+    ]);
+    invalid.push([
+      'I07 vst2Files のパスが UTF-16 の単位数で 1,024 を超える (BMP 外の文字 600 字)',
+      { result: 'vst2_detected', vst2Files: [`${emoji}.vst/Fixture.dll`] },
+    ]);
     for (const [label, content] of invalid) {
       it(label, async () => {
         await register();
@@ -274,13 +284,37 @@ describe('配布物の検証の結果', () => {
           { assetId: SOURCE_ID, attestation: signer },
           { assetId: ARCHIVE_ID, attestation: signer, content },
         ]);
-        expect(response.status).toBe(400);
-        expect(await attestationOf(SOURCE_ID)).toMatchObject({ result: 'pending' });
-        expect(await attestationOf(ARCHIVE_ID)).toMatchObject({ result: 'pending' });
-        expect(await contentOf(ARCHIVE_ID)).toMatchObject({ result: 'pending' });
+        expect(response.status).toBe(200);
+        // 同じ要求のほかの配布物の結果は書かれ、ほかの作者の検証は止まらない。
+        expect(await attestationOf(SOURCE_ID)).toMatchObject({ result: 'passed' });
+        expect(await attestationOf(ARCHIVE_ID)).toMatchObject({ result: 'passed' });
+        expect(await contentOf(ARCHIVE_ID)).toMatchObject({ result: 'error', attempts: 1 });
+        expect(await env.DB.prepare('SELECT reason FROM content_checks').first('reason')).toBe('invalid_content');
         expect(await macosRows()).toEqual([]);
       });
     }
+  });
+
+  it('形の合わない中身の検査の結果は error として 3 回数え、3 回目の後は一覧に載せない', async () => {
+    await register();
+    await env.DB.prepare("UPDATE attestation_checks SET result = 'passed'").run();
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      expect((await pending()).map((asset) => asset.assetId)).toEqual([ARCHIVE_ID]);
+      expect((await post([{ assetId: ARCHIVE_ID, content: { ...passedWindows, os: ['MacOS'] } }])).status).toBe(200);
+    }
+    expect(await contentOf(ARCHIVE_ID)).toMatchObject({ result: 'error', attempts: 3 });
+    expect(await pending()).toEqual([]);
+  });
+
+  it('I06 の対照: 証明の結果の result が一覧の外なら、要求全体を 400 で拒否し、どの行も書かない', async () => {
+    await register();
+    const response = await post([
+      { assetId: SOURCE_ID, attestation: signer },
+      { assetId: ARCHIVE_ID, attestation: { result: 'pending' }, content: passedWindows },
+    ]);
+    expect(response.status).toBe(400);
+    expect(await attestationOf(SOURCE_ID)).toMatchObject({ result: 'pending' });
+    expect(await contentOf(ARCHIVE_ID)).toMatchObject({ result: 'pending' });
   });
 
   it('I12 同じ配布物の結果を 2 つ含む要求は 400 で拒否し、どの行も書かない', async () => {

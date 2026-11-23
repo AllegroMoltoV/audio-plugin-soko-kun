@@ -118,7 +118,21 @@ function parseAttestation(raw: unknown): AttestationInput | null | undefined {
   return { result: entry.result, reason, signerWorkflow };
 }
 
-// 中身の検査の結果を検証する。形が合わなければ undefined を返し、要求全体を 400 で拒否する。
+// 形の合わない中身の検査の結果を置き換える値。中身の検査の結果は全体が第三者のアーカイブから作られるため、
+// 要求全体を拒むと、試行が数えられないまま同じ一覧で毎回失敗し、ほかの配布物の検証も止まる。
+// error は案内にも passed にもつながらない。
+const INVALID_CONTENT: ContentInput = {
+  result: 'error',
+  reason: 'invalid_content',
+  bundles: [],
+  formats: [],
+  os: [],
+  arches: [],
+  vst2Files: [],
+  categories: [],
+};
+
+// 中身の検査の結果を検証する。形が合わなければ undefined を返す。
 function parseContent(raw: unknown): ContentInput | null | undefined {
   if (raw === undefined) return null;
   const entry = raw as Record<string, unknown>;
@@ -181,9 +195,10 @@ function parseResults(body: unknown): ResultInput[] | null {
     if (seen.has(entry.assetId)) return null;
     seen.add(entry.assetId);
     const attestation = parseAttestation(entry.attestation);
+    if (attestation === undefined) return null;
+    // 要求全体を拒むのは、ワークフローが作る値 (assetId・重複・件数・証明の result) の不正だけにする。
     const content = parseContent(entry.content);
-    if (attestation === undefined || content === undefined) return null;
-    results.push({ assetId: entry.assetId, attestation, content });
+    results.push({ assetId: entry.assetId, attestation, content: content === undefined ? INVALID_CONTENT : content });
   }
   return results;
 }

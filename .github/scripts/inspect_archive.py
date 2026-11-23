@@ -33,7 +33,7 @@ class Limits:
 DEFAULT_LIMITS = Limits()
 MAX_TEXT_READ = 1024 * 1024  # Info.plist・manifest.ttl・moduleinfo.json の上限
 MAX_EXPORT_NAMES = 200_000
-MAX_PATH_LENGTH = 1000  # Worker の受け口が受け付けるパスの長さに収める
+MAX_PATH_LENGTH = 1024  # Worker の受け口の上限。受け口は JS の length (UTF-16 の単位数) で数える
 MAX_BUNDLES = 200
 MAX_VST2_FILES = 100
 
@@ -87,7 +87,8 @@ def unsafe_reason(name):
         return "absolute_path"
     if any(part == ".." for part in n.split("/")):
         return "parent_reference"
-    if len(n) > MAX_PATH_LENGTH:
+    # 孤立したサロゲートは zip の項目名として読めず、ここへは届かない。BMP 外の文字は 2 単位になる。
+    if len(n.encode("utf-16-le")) // 2 > MAX_PATH_LENGTH:
         return "path_too_long"
     return None
 
