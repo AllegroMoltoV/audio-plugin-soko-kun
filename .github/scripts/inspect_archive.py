@@ -228,6 +228,7 @@ def parse_pe(d):
         return None
 
     exports = []
+    incomplete = False
     if dirs and dirs[0][0]:
         eo = rva2off(dirs[0][0])
         if eo is None:
@@ -236,6 +237,7 @@ def parse_pe(d):
         names_off = rva2off(struct.unpack_from("<I", d, eo + 32)[0])
         if nnames and names_off is None:
             raise ValueError("export name table RVA is not mapped")
+        incomplete = nnames > MAX_EXPORT_NAMES
         for i in range(min(nnames, MAX_EXPORT_NAMES)):
             o = rva2off(struct.unpack_from("<I", d, names_off + 4 * i)[0])
             if o is not None:
@@ -247,6 +249,7 @@ def parse_pe(d):
         "shared": bool(chars & 0x2000),  # IMAGE_FILE_DLL
         "executable": not chars & 0x2000,
         "exports": set(exports),
+        "exportsIncomplete": incomplete,
         "installer": None if chars & 0x2000 else installer_signature(d, section_names),
     }
 
@@ -277,14 +280,20 @@ def uleb(d, p):
 
 
 def walk_trie(d, start, size):
+    """エクスポートのトライを辿り、名前の一覧と、名前を読み切れなかったことを返す。
+    上限で止めたときにスタックが残る場合と、既読のノードへ別の接頭辞で着いた場合は、読み切れていない。"""
     names = []
     stack = [(0, b"")]
-    seen = set()
+    seen = {}
+    incomplete = False
     while stack and len(names) < MAX_EXPORT_NAMES:
         off, prefix = stack.pop()
-        if off in seen or off >= size:
+        if off >= size:
             continue
-        seen.add(off)
+        if off in seen:
+            incomplete = incomplete or seen[off] != prefix
+            continue
+        seen[off] = prefix
         p = start + off
         term, p = uleb(d, p)
         if term:
@@ -298,7 +307,7 @@ def walk_trie(d, start, size):
             p = end + 1
             child, p = uleb(d, p)
             stack.append((child, prefix + edge))
-    return names
+    return names, incomplete or bool(stack)
 
 
 def parse_macho_slice(d, base):
@@ -329,10 +338,12 @@ def parse_macho_slice(d, base):
             raise ValueError("cmdsize is 0")
         p += cmdsize
     exports = []
+    incomplete = False
     if trie:
-        exports = walk_trie(d, base + trie[0], trie[1])
+        exports, incomplete = walk_trie(d, base + trie[0], trie[1])
     elif symtab:
         symoff, nsyms, stroff, _strsize = symtab
+        incomplete = nsyms > MAX_EXPORT_NAMES
         esz = 16 if is64 else 12
         for i in range(min(nsyms, MAX_EXPORT_NAMES)):
             e = base + symoff + esz * i
@@ -343,7 +354,7 @@ def parse_macho_slice(d, base):
                 exports.append(d[s : d.index(b"\0", s)].decode("utf-8", "replace"))
     # Mach-O の C のシンボルは先頭に _ が付く。比べるため外す
     exports = [n[1:] if n.startswith("_") else n for n in exports]
-    return MACHO_CPU.get(cputype & 0xFFFFFFFF), MH_FILETYPE.get(ftype, f"type{ftype}"), exports
+    return MACHO_CPU.get(cputype & 0xFFFFFFFF), MH_FILETYPE.get(ftype, f"type{ftype}"), exports, incomplete
 
 
 def parse_macho(d):
@@ -370,6 +381,7 @@ def parse_macho(d):
         "shared": filetypes <= {"bundle", "dylib"},
         "executable": False,
         "exports": {e for s in slices for e in s[2]},
+        "exportsIncomplete": any(s[3] for s in slices),
     }
 
 
@@ -397,6 +409,7 @@ def parse_elf(d):
             _n, typ, _f, _a, off, size, link, _i, _al, entsize = struct.unpack_from(e + "IIIIIIIIII", d, o)
         sections.append((typ, off, size, link, entsize))
     exports = []
+    incomplete = False
     found = False
     for typ, off, size, link, entsize in sections:
         if typ != 11:  # SHT_DYNSYM
@@ -404,6 +417,7 @@ def parse_elf(d):
         found = True
         stroff = sections[link][1]
         esz = entsize or (24 if is64 else 16)
+        incomplete = incomplete or size // esz > MAX_EXPORT_NAMES
         for i in range(min(size // esz, MAX_EXPORT_NAMES)):
             s = off + esz * i
             if is64:
@@ -425,6 +439,7 @@ def parse_elf(d):
         "shared": etype == 3 and not has_interp,
         "executable": False,
         "exports": set(exports),
+        "exportsIncomplete": incomplete,
     }
 
 
@@ -715,6 +730,11 @@ def _inspect_zip(zf, limits, out, diagnostics):
         ex = b["exports"]
         if "VSTPluginMain" in ex or "main_macho" in ex or ("main" in ex and b["shared"]):
             vst2.append(name)
+
+    # エクスポート名を上限で読み切れなかったバイナリは、読まなかった名前に VST 2 の名前があり得るため判定不能にする。
+    for name, b in sorted(binaries.items()):
+        if b["exportsIncomplete"]:
+            undetermined(name, "export_names_incomplete")
 
     for name in files:
         if name_ends_with(name, NESTED_EXT):

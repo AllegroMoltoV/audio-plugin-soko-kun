@@ -242,6 +242,7 @@ I06 は、`os` の値の取り違えで macOS の判定を省かれる経路を�
 | W15 | `scan` と `judge` が空き容量の不足で早く終わる回。検証待ちが無い回 | `report` は空の本文を送らない。検証待ちが無い回は `scan` と `judge` を始めない。`macos-verify.yaml` でも確かめる |
 | W16 | `scan` と `judge` で、OIDC のトークンを要求する環境変数 (`ACTIONS_ID_TOKEN_REQUEST_URL`・`ACTIONS_ID_TOKEN_REQUEST_TOKEN`) が空でない | 最初のステップが失敗し、後続のステップを実行しない |
 | W17 | 読めない項目 (安全でないパス・同名の項目・データを持つフォルダー・アーカイブの外を指すリンク・バンドルの外に置かれた、あるいは同じバンドルの中へ解決されないリンク) に、VST 2 の dll・インストーラー・入れ子のアーカイブを置いたアーカイブ。名前がバンドル・インストーラー・入れ子のアーカイブのリンクと、名前の末尾に `.` か空白を付けたインストーラーや入れ子のアーカイブも含む | `undetermined`。`passed` にしない。バンドルの中に置かれ同じバンドルの中を指すリンク (framework の形) は、`passed` のまま |
+| W18 | エクスポート名の件数が上限を超えるバイナリ (PE・ELF・Mach-O のシンボル表とトライ。fat binary はスライスのどれか) を含むアーカイブ。上限の後ろに `VSTPluginMain` を置いたもの。Mach-O のトライで、2 つの辺が別の接頭辞で同じノードを指し、後から取り出す辺の名前を `VSTPluginMain` にしたもの | `undetermined`。診断の `undetermined` に `export_names_incomplete` を残す。`passed` にしない。上限より前に `VSTPluginMain` があれば `vst2_detected` のまま。件数が上限ちょうどのバイナリは `passed` のまま |
 
 ### 署名と公証の判定
 
