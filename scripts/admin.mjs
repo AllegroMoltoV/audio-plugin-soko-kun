@@ -92,7 +92,8 @@ if (command === 'suspend') {
   // 掲載の条件を満たしていない新しい版。管理者の確認を待つ理由と、証明の検証・中身の検査・macOS の判定を待っている件数を示す。
   // waiting_minutes は版の公開からの経過時間。定期処理が止まって検査が進まないことに気づけるよう示す。
   // 掲載中の版より前に公開された版は出さない。承認しても掲載されず、掲載されないまま後の版に置き換わった版 (superseded) が確認待ちに見えるため。
-  // 照会の試行切れは、掲載中だった版が照会し直しで止まった場合も出すため、掲載の期間の有無で除かない。
+  // 照会の試行切れは、掲載中だった版が照会し直しで止まった場合も出すため、掲載の期間の有無と管理者の承認の有無で除かない。
+  // approve-release では照会の試行切れは解けず、retry-scans か retry-all-scans で戻す。
   const scansExhausted = `(SELECT count(*) FROM assets a JOIN scans s ON s.digest = a.digest AND s.scanner = 'malwarebazaar'
             WHERE a.release_id = r.github_release_id AND s.result = 'error' AND s.attempts >= ${MAX_SCAN_ATTEMPTS})`;
   sql = `SELECT p.owner || '/' || p.repo AS plugin, r.tag, r.published_at,
@@ -127,10 +128,11 @@ if (command === 'suspend') {
             WHERE a.release_id = r.github_release_id AND t.result = 'failed') AS attestations_failed,
            ${scansExhausted} AS scans_exhausted
          FROM release_checks c JOIN releases r ON r.github_release_id = c.github_release_id JOIN plugins p ON p.id = r.plugin_id
-         WHERE c.admin_approved_at IS NULL AND p.removed = 0
-           AND (c.notes_held = 1
-             OR ${scansExhausted} > 0
-             OR NOT EXISTS (SELECT 1 FROM listing_periods l WHERE l.github_release_id = r.github_release_id))
+         WHERE p.removed = 0
+           AND ((c.admin_approved_at IS NULL
+                 AND (c.notes_held = 1
+                   OR NOT EXISTS (SELECT 1 FROM listing_periods l WHERE l.github_release_id = r.github_release_id)))
+             OR ${scansExhausted} > 0)
            AND NOT EXISTS (SELECT 1 FROM release_suspensions s WHERE s.github_release_id = r.github_release_id)
            AND NOT EXISTS (SELECT 1 FROM listing_periods l JOIN releases lr ON lr.github_release_id = l.github_release_id
              WHERE lr.plugin_id = r.plugin_id AND l.ended_at IS NULL AND lr.published_at > r.published_at)

@@ -69,7 +69,7 @@
 | `macos_waiting` | macOS の署名と公証の判定を待っている配布物の件数。数え方は `attestations_waiting` と同じ |
 | `checks_exhausted` | 証明の検証・中身の検査・macOS の判定のいずれかが `error` のまま試行を 3 回使い切った配布物の件数。作者には `check_retries_exhausted` と返る |
 | `attestations_failed` | 証明の検証に失敗した配布物の件数 |
-| `scans_exhausted` | MalwareBazaar の照会が `error` のまま試行を 5 回使い切った配布物の件数。作者には `scan_retries_exhausted` と返る。この列が 1 以上の版は、掲載の期間の有無にかかわらず表示する。照会し直しで止まった掲載中の版も含むためである |
+| `scans_exhausted` | MalwareBazaar の照会が `error` のまま試行を 5 回使い切った配布物の件数。作者には `scan_retries_exhausted` と返る。この列が 1 以上の版は、掲載の期間の有無と管理者の承認の有無にかかわらず表示する。照会し直しで止まった掲載中の版も含むためである。`approve-release` では解けない |
 
 `approve-release` は、乗っ取りの兆候・LLM のレビューの指摘・レビューの失敗・macOS の署名の Team ID の食い違い・リリースノートの編集 (`notes_held`) による確認待ちを解きます。承認の後にリリースノートが編集され、新しい本文が型に当たると、承認は取り消されます。あわせて、同期で所有者の変更を検出したことによる確認待ちも解きます。証明・不変・配布の形・中身の検査・ライセンス・宣言ファイルの条件は解けません。証明の検証・中身の検査・macOS の判定が 3 回 `error` で終わった配布物を含む版も、承認だけでは掲載されません。原因を確かめてから `retry-checks` で検査し直します。確認待ちの理由と算出規則は [データモデル](../design/data-model.md) と [審査の基準](../design/review-criteria.md) に記載しています。
 

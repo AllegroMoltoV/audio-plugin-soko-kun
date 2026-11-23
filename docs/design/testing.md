@@ -285,7 +285,7 @@ I06 は、`os` の値の取り違えで macOS の判定を省かれる経路を�
 | C16 | 照会を上限まで行う。同期を待つプラグインが多い。検査の途中で予算を使い切る。検査で GitHub が 500 を返し続ける | 同期 1 件の分を残して、新しい版の検査 1 件の予算が残る。1 回の起動で検査が D1 の状態を進める。予算を使い切ったときと 500 が続くときは検査だけを止め、同じ起動で同期を進める。500 では試行を数え、上限で止める |
 | C17 | 掲載中の配布物を 7 日ごとに照会し直す。旧い数え方で `attempts` が 7 に積み上がった `not_found` を照会し直す。その後 `error` になり、次の起動で照会する | 照会し直しの `not_found` で `attempts` を 0 に戻す。`error` は 1 になり、次の起動で選ばれて照会される。対照として、`attempts` が上限に達した `error` は選ばれず、上限未満は選ばれる |
 | C18 | 照会が fetch の例外、JSON でない 200 の応答になる。対照として、429 と、照会の途中の予算の超過 | その配布物を `error`・`attempts` 1 で記録し、`detail` は 200 文字までの例外の名前とメッセージ。同じ起動のほかの配布物の照会と、新しい版の検査・同期が続く。429 は試行に数えずに止め、予算の超過は投げ直して `stoppedBy` に記録する |
-| C19 | `scripts/admin.mjs` の `MAX_CHECK_ATTEMPTS`・`MAX_REVIEW_ATTEMPTS`・`MAX_SCAN_ATTEMPTS` | `src/domain/status.ts` の値と一致する (`test/admin-script.test.ts`)。`retry-scans` と `retry-all-scans` の SQL は手元の D1 (`--local`) で確かめ、`error` で上限に達した行だけが `pending` に戻り、ほかのプラグインの同じタグの版は戻らないこと、`pending` の `scans_exhausted` に掲載中の版も出ることを確認した |
+| C19 | `scripts/admin.mjs` の `MAX_CHECK_ATTEMPTS`・`MAX_REVIEW_ATTEMPTS`・`MAX_SCAN_ATTEMPTS` | `src/domain/status.ts` の値と一致する (`test/admin-script.test.ts`)。`retry-scans` と `retry-all-scans` の SQL は手元の D1 (`--local`) で確かめ、`error` で上限に達した行だけが `pending` に戻り、ほかのプラグインの同じタグの版は戻らないこと、`pending` の `scans_exhausted` に掲載中の版と管理者が承認した版も出ることを確認した |
 
 ### 外部データの無害化
 
