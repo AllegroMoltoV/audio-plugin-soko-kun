@@ -52,7 +52,7 @@
 
 `hide-images` は、掲載を続けたままロゴと説明の画像だけを止めます。不適切な画像の通報を受けたときに使います。`show-images` で元に戻します。
 
-版やプラグインが管理者の確認待ちになると、定期処理が 15 分ほどで管理者だけが見られる Discord のチャンネルへ通知します。通知は確認待ちの理由ごとに 1 回です。版の単位の理由ではプラグイン ID・タグ・理由のコード・GitHub のリリースの URL を、`readme_held` と `owner_changed` ではプラグイン ID・理由のコード・リポジトリの URL だけを載せます。通知を受けたら `pending --remote` で詳細を確かめます。通知の成否は、定期処理のログの `adminNotify` に出ます (`sent`・`skipped_none`・`skipped_no_url`・`skipped_budget`・`failed_<HTTP のステータスコード>`・`failed_error`)。`failed_` が続くときは、webhook の URL の有効性を Discord で確かめ、`DISCORD_WEBHOOK_URL` を設定し直します。
+版やプラグインが管理者の確認待ちになると、定期処理が 15 分ほどで管理者だけが見られる Discord のチャンネルへ通知します。通知は確認待ちの理由ごとに 1 回です。版の単位の理由ではプラグイン ID・タグ・理由のコード・GitHub のリリースの URL を、`readme_held` と `owner_changed` ではプラグイン ID・理由のコード・リポジトリの URL だけを載せます。通知を受けたら `pending --remote` で詳細を確かめます。運営者以外の作者がプラグインを登録したときも、同じチャンネルへプラグインごとに 1 回だけ通知します。この通知は確認待ちではありません。受けたら、[派生元の ADR 0019](https://github.com/AllegroMoltoV/plugin-soko-kun/blob/main/docs/decisions/0019-verification-principles.md) の原則に照らした改善のうち、運営者以外の作者が来てから影響するものに着手します。通知の成否は、定期処理のログの `adminNotify` に出ます (`sent`・`skipped_none`・`skipped_no_url`・`skipped_budget`・`failed_<HTTP のステータスコード>`・`failed_error`)。`failed_` が続くときは、webhook の URL の有効性を Discord で確かめ、`DISCORD_WEBHOOK_URL` を設定し直します。
 
 `pending` は、まだ掲載していない新しい版のうち、管理者が承認しておらず、止めてもいない版を表示します。掲載したことのある版でも、リリースノートの編集で確認待ち (`notes_held` が 1) になった版は表示します。掲載中の版より前に公開された版は表示しません。承認しても掲載されないためです。主な列は次のとおりです。
 

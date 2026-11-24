@@ -80,13 +80,13 @@ curl "http://localhost:8787/__scheduled?cron=*/15+*+*+*+*"
 | `synced`・`failed` | 同期した件数と、同期に失敗した件数 |
 | `releasesChecked` | 新しい版の検査を行った件数 |
 | `releaseChecksSkipped` | 新しい版の検査を打ち切った理由。予算の超過は `budget`、GitHub の異常は `github_` で始まる。検査を打ち切っても後段の同期は進む |
-| `downloadsRecorded` | ダウンロード数を記録した件数 |
+| `downloadsRecorded`・`downloadsFailed` | ダウンロード数を記録した件数と、記録に失敗して記録しなかった件数 |
 | `translated` | 説明文を翻訳した件数 |
 | `previews` | 説明の画像から詳細ページ向けの軽い画像を作った件数 |
 | `subrequests`・`d1Queries` | 使った外部呼び出しと D1 のクエリの件数 |
 | `stoppedBy` | 処理を途中で止めた理由。GitHub の異常は `github_` で、予算の不足は `budget_` で始まる |
 | `verifyDispatch`・`macosVerifyDispatch` | `verify.yaml` と `macos-verify.yaml` の起動の結果。ローカルでは `skipped_no_token` になる |
-| `adminNotify` | 管理者の確認待ちの通知の結果。値の意味は [管理コマンドと掲載停止](suspend.md) に記載する。`.dev.vars` に `DISCORD_WEBHOOK_URL` が無いと `skipped_no_url` になる |
+| `adminNotify` | 管理者の確認待ちと登録の通知の結果。値の意味は [管理コマンドと掲載停止](suspend.md) に記載する。`.dev.vars` に `DISCORD_WEBHOOK_URL` が無いと `skipped_no_url` になる |
 
 `.dev.vars` に `DISCORD_WEBHOOK_URL` を置くと、ローカルの定期処理も Discord へ通知します。本番と同じ URL を置くと本番の通知と混ざるため、置かないか、試しのチャンネルの URL を置きます。テストはこの値を読みません。
 
