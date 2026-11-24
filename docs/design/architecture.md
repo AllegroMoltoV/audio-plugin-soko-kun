@@ -58,7 +58,7 @@ flowchart LR
   domain -->|リポジトリとリリースの情報| ghApi[GitHub API]
   domain -->|digest の照会| scanners[MalwareBazaar]
   domain -->|翻訳と LLM のレビュー| ai[Workers AI]
-  domain -->|管理者の確認待ちの通知| discord[Discord webhook]
+  domain -->|管理者の確認待ちと登録の通知| discord[Discord webhook]
   verify -->|配布物と証明の取得| ghApi
   domain -->|workflow_dispatch| macos
   macos -->|配布物の取得| ghApi
