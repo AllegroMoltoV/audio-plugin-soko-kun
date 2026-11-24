@@ -1,5 +1,7 @@
 # Audio Plugin Soko-kun (音のプラグイン倉庫くん)
 
+[![Audio Plugin Soko-kun MCP connector](https://glama.ai/mcp/connectors/io.github.AllegroMoltoV/audio-plugin-soko-kun/badges/score.svg)](https://glama.ai/mcp/connectors/io.github.AllegroMoltoV/audio-plugin-soko-kun)
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/VST_Compatible_Logo_Steinberg_negative.png">
   <img src="docs/images/VST_Compatible_Logo_Steinberg.png" alt="VST Compatible" width="120">
