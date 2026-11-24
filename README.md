@@ -148,6 +148,12 @@ MIT License です。[LICENSE](LICENSE) を参照してください。VST Compat
 
 ## 更新履歴
 
+### 0.1.38 (2026-11-23)
+
+- 証明の検証で、GitHub や Sigstore の一時的な障害を、本物の検証の失敗と区別するようにしました。これまでは、`gh attestation verify` が 5xx・レート制限・通信の失敗で終わっても、終了コードが 1 で失敗の種類を区別できないため、すべて `failed` (`verification_failed`) になり、作者の待ち (`attestation_failed`) になっていました。管理者も戻せませんでした。検証を 3 段に分け、信頼の根の取得 (`gh attestation trusted-root`)、証明の取得 (`gh attestation download`)、通信を使わない照合の順に行います。証明の取得で HTTP 404 か SLSA の証明が無いときだけ `no_attestation` の `failed` にし、取得に失敗したときと信頼の根を取得できなかったときは `error` (`attestation_fetch_failed`・`trust_root_unavailable`) にして試行を数えます。上限に達した版は、管理者の待ち (`check_retries_exhausted`) になります。
+- 証明の検証のスクリプトが想定外に失敗しても、ほかの配布物の処理を止めず、その配布物の証明を `error` (`attestation_check_failed`) として送るようにしました。検証の手順は `.github/scripts/verify-attestation.sh` にまとめ、`.github/scripts/test_verify_attestation.py` で分類を確かめます。
+- 管理用スクリプトの `retry-checks` に `--include-failed` を足しました。証明の検証が `no_attestation` か `verification_failed` で `failed` になった配布物も待ちの状態に戻します。一時的な障害を本物の失敗と取り違えたときに使います。ハッシュ・リポジトリ ID・ワークフローの不一致は戻しません。
+
 ### 0.1.37 (2026-11-23)
 
 - MalwareBazaar の照会の試行の数え方を、続けて失敗した回数に改めました。`attempts` は、`error` のときだけ 1 増え、`not_found` と `malicious` で 0 に戻ります。これまでは、結果を問わず照会のたびに増えていたため、7 日ごとの照会し直しが 5 回を超えた掲載中の版は、1 回の `error` で二度と照会されず、掲載から外れたまま管理者にも知らされませんでした。`error` が 5 回続いた配布物を持つ版には、新しい理由 `scan_retries_exhausted` (待つ相手は管理者) を付けて掲載を止め、管理者への通知に載せます。上限は `MAX_SCAN_ATTEMPTS` に 1 か所で定めました。

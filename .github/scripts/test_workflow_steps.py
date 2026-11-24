@@ -107,8 +107,19 @@ case "${url}" in
   *) cp "${STUB_ASSET}" "${out}" ;;
 esac
 """,
-    # 証明の検証は失敗させる。呼ばれたことは記録で確かめる。
-    "gh": LOG_ARGS + "exit 1\n",
+    # 信頼の根の取得と証明の取得は成功させ、照合は失敗させる。呼ばれたことは記録で確かめる。
+    # STUB_NO_TRUSTED_ROOT のファイルがあれば、信頼の根の取得も失敗させる。
+    "gh": LOG_ARGS
+    + """
+case "$2" in
+  trusted-root)
+    if [ -f "${STUB_NO_TRUSTED_ROOT}" ]; then exit 1; fi
+    echo '{"mediaType":"trusted-root"}'
+    ;;
+  download) echo '{"bundle":1}' > 'sha256-0000.jsonl' ;;
+  *) exit 1 ;;
+esac
+""",
     # verify.yaml は df --output=avail -B1、macos-verify.yaml は df -k の 4 列目を読む。
     "df": """
 if [ "$1" = "-k" ]; then printf 'Filesystem 1K-blocks Used Available\\n/dev/stub 1 1 99999999999\\n'
@@ -236,16 +247,21 @@ class WorkflowStepTest(unittest.TestCase):
 
     # --- ステップの実行 ---
 
-    def workspace(self, name, scripts=False):
-        """job ごとの作業ディレクトリ。checkout する job だけ、スクリプトを写した場所にする。"""
+    def workspace(self, name, scripts=False, replace=None):
+        """job ごとの作業ディレクトリ。checkout する job だけ、スクリプトを写した場所にする。
+        replace は、写した後に差し替えるスクリプト ({.github/scripts からの相対パス: 本文})。"""
         path = os.path.join(self.root, f"workspace-{name}")
         os.makedirs(path)
         if scripts:
             shutil.copytree(HERE, os.path.join(path, ".github", "scripts"),
                             ignore=shutil.ignore_patterns("__pycache__"))
+            for relative, body in (replace or {}).items():
+                with open(os.path.join(path, ".github", "scripts", relative), "w", encoding="utf-8", newline="\n") as f:
+                    f.write(body)
         return path
 
-    def exec_step(self, workflow, name, job, pending_path, asset, id_token, extra_env=None, scripts=False):
+    def exec_step(self, workflow, name, job, pending_path, asset, id_token, extra_env=None, scripts=False,
+                  replace=None):
         """name のステップを bash で 1 回走らせ、終了コードを確かめずに結果を返す。"""
         runner = os.path.join(self.root, f"runner-{job}")
         os.makedirs(runner, exist_ok=True)
@@ -269,20 +285,21 @@ class WorkflowStepTest(unittest.TestCase):
             "STUB_POSTED": slash(os.path.join(self.root, "posted.json")),
             "STUB_ASSET": slash(asset or ""),
             "STUB_SCAN_DIR": slash(self.scan_dir),
+            "STUB_NO_TRUSTED_ROOT": slash(os.path.join(self.root, "no-trusted-root")),
             "STUB_INSPECT": slash(self.inspect),
         })
         if id_token:
             env["ACTIONS_ID_TOKEN_REQUEST_URL"] = "https://token.invalid/?api-version=2.0"
             env["ACTIONS_ID_TOKEN_REQUEST_TOKEN"] = "request-token"
         env.update(extra_env or {})
-        cwd = self.workspace(job, scripts=scripts)
+        cwd = self.workspace(job, scripts=scripts, replace=replace)
         return subprocess.run([BASH, slash(script)], cwd=cwd, env=env, capture_output=True, text=True, encoding="utf-8")
 
     def ok(self, proc):
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         return proc
 
-    def pipeline(self, kind, pending, asset, min_free="1"):
+    def pipeline(self, kind, pending, asset, min_free="1", replace=None):
         """prepare → scan (judge) → report を順に走らせ、report が Worker へ送った本文を返す。送らなかった回は None を返す。"""
         cfg = PIPELINES[kind]
         pending_path = os.path.join(self.root, "pending-input.json")
@@ -299,7 +316,8 @@ class WorkflowStepTest(unittest.TestCase):
                         os.path.join(self.root, "runner-scan", "pending"))
 
         self.ok(self.exec_step(cfg["workflow"], CONFIRM_STEP, "confirm", pending_path, asset, False, extra))
-        self.ok(self.exec_step(cfg["workflow"], cfg["scan"], "scan", pending_path, asset, False, extra, scripts=True))
+        self.ok(self.exec_step(cfg["workflow"], cfg["scan"], "scan", pending_path, asset, False, extra, scripts=True,
+                                  replace=replace))
         outputs = read_outputs(os.path.join(self.root, "output-scan.txt"))
         if kind == "verify":
             body_env = {f"BODY_{k}": outputs.get(f"body_{k}", "") for k in range(8)}
@@ -329,16 +347,40 @@ class WorkflowStepTest(unittest.TestCase):
         self.assertEqual(result["attestation"], {"result": "failed", "reason": "digest_mismatch"})
         # 中身の検査のスクリプトも digest を照合し、中身を読まずに error の digest_mismatch を返す (test_inspect_archive.py の W07)。
         self.assertEqual((result["content"]["result"], result["content"]["reason"]), ("error", "digest_mismatch"))
-        self.assertEqual(self.calls("gh"), [])
+        # 信頼の根の取得は、検証待ちがあれば最初に 1 回行う。証明の取得と照合は呼ばない。
+        self.assertEqual(self.calls("gh"), [["attestation", "trusted-root"]])
 
     def test_w07_control_matching_digest_is_verified(self):
         path, digest = self.zip_with(["Fixture.vst3/Contents/x86_64-win/Fixture.vst3"])
         body = json.loads(self.pipeline("verify", self.verify_pending(digest), path))
         result = body["results"][0]
-        # gh のスタブは検証を失敗させる。digest が一致すれば証明の検証へ進む。
+        # gh のスタブは、信頼の根と証明の取得に成功し、照合に失敗する。digest が一致すれば証明の検証へ進む。
         self.assertEqual(result["attestation"], {"result": "failed", "reason": "verification_failed"})
         self.assertNotEqual(result["content"].get("reason"), "digest_mismatch")
-        self.assertEqual(len(self.calls("gh")), 1)
+        self.assertEqual([call[:2] for call in self.calls("gh")],
+                         [["attestation", "trusted-root"], ["attestation", "download"], ["attestation", "verify"]])
+
+    def test_w07_trusted_root_failure_marks_attestation_error_and_still_inspects(self):
+        """信頼の根を取得できない回は、証明を error の trust_root_unavailable にする。中身の検査は行う。"""
+        path, digest = self.zip_with(["Fixture.vst3/Contents/x86_64-win/Fixture.vst3"])
+        open(os.path.join(self.root, "no-trusted-root"), "w").close()
+        body = json.loads(self.pipeline("verify", self.verify_pending(digest), path))
+        result = body["results"][0]
+        self.assertEqual(result["attestation"], {"result": "error", "reason": "trust_root_unavailable"})
+        self.assertIn("result", result["content"])
+        self.assertNotEqual(result["content"].get("reason"), "digest_mismatch")
+        self.assertEqual(self.calls("gh"), [["attestation", "trusted-root"]])
+
+    def test_w07_script_failure_marks_attestation_error_and_still_posts(self):
+        """証明の検証のスクリプトが想定外に失敗しても、証明は error の attestation_check_failed として送る。"""
+        path, digest = self.zip_with(["Fixture.vst3/Contents/x86_64-win/Fixture.vst3"])
+        raw = self.pipeline("verify", self.verify_pending(digest, assets=2), path,
+                            replace={"verify-attestation.sh": "#!/usr/bin/env bash\nexit 3\n"})
+        results = json.loads(raw)["results"]
+        self.assertEqual([item["attestation"] for item in results],
+                         [{"result": "error", "reason": "attestation_check_failed"}] * 2)
+        self.assertEqual([item["assetId"] for item in results], [8001, 8002])
+        self.assertTrue(all("result" in item["content"] for item in results))
 
     def test_w07_hit_file_names_are_normalized_before_sending(self):
         """改行・CR を含む名前と長い名前の当たりを、受け口が捨てない形に整えて送る (jtl.52)。"""

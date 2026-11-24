@@ -426,7 +426,13 @@ macOS の判定を待つ配布物は、`verify.yaml` が中身の検査の結果
 
 ### 証明の検証
 
-配信プラグイン倉庫くんと同じ規則で、リリースのすべての配布物について行います。`gh attestation verify <配布物> --repo <リポジトリ> --source-ref refs/tags/<タグ> --source-digest <タグのコミット>` に、記録したリリースのワークフローがあれば `--signer-workflow <リポジトリ>/<ワークフローのパス>` を加えて実行します。現在の名前で通らなければ、旧い名前を新しい順に試します。証明書の `sourceRepositoryIdentifier` がリポジトリ ID と違えば `failed` (`repository_id_mismatch`) にします。ダウンロードした配布物の SHA-256 が `digest` と違えば `failed` (`digest_mismatch`) にします。
+配信プラグイン倉庫くんと同じ規則で、リリースのすべての配布物について行います。ワークフローは、証明の検証を 3 段に分けて行います。GitHub や Sigstore の一時的な障害を、本物の検証の失敗と区別するためです。`gh attestation verify` の終了コードは失敗の種類によらず 1 のため、1 回の実行では両者を区別できません。検証と分類は `.github/scripts/verify-attestation.sh` が行い、`.github/scripts/test_verify_attestation.py` が分類を確かめます。
+
+1. 起動ごとに 1 回、検証待ちの配布物があるときに、`gh attestation trusted-root` で Sigstore の信頼の根を取得する。取得に失敗した回は、ハッシュが一致した配布物の証明をすべて `error` (`trust_root_unavailable`) にする
+2. 名前ごとに、`gh attestation download <配布物> --repo <リポジトリ> --predicate-type https://slsa.dev/provenance/v1 --limit 1000` で証明を取得する。download は種類を問わず取得し、種類の絞り込みを取得の後に手元で行う。既定の 30 件では、同じ digest のリリースの証明が多いとビルドの証明が押し出されるため、gh の上限の 1,000 件を取得する。標準エラーに `HTTP 404: Not Found` か `no attestations found` を含むとき、または API が 0 件を返して標準出力に `No attestations found` が出たときだけ、本物の失敗 (`no_attestation`) にする。後者の gh は終了コード 0 で、証明のファイルを作らない。不変のリリースには GitHub がリリースの証明を付けるため、ビルドの証明が無くても API は 200 を返し、gh の絞り込みで 0 件になる。それ以外の失敗と、取得した証明のファイルが 1 つでないときは、一時的な失敗 (`attestation_fetch_failed`) にする。レート制限の文面は確かめていないため、原因を特定できない失敗として一時的な失敗に数える
+3. 取得した証明と信頼の根で、`gh attestation verify <配布物> --repo <リポジトリ> --source-ref refs/tags/<タグ> --source-digest <タグのコミット> --bundle <証明> --custom-trusted-root <信頼の根>` を実行する。記録したリリースのワークフローがあれば `--signer-workflow <リポジトリ>/<ワークフローのパス>` を加える。この照合は通信を使わないため、失敗はすべて本物の失敗 (`verification_failed`) にする
+
+現在の名前で通らなければ、旧い名前を新しい順に試します。証明書の `sourceRepositoryIdentifier` がリポジトリ ID と違えば、本物の失敗 (`repository_id_mismatch`) にします。どれかの名前で通れば `passed` です。通らず、一時的な失敗が 1 つでもあれば `error` にします。すべて本物の失敗なら、最後の本物の失敗の理由で `failed` にします。ダウンロードした配布物の SHA-256 が `digest` と違えば `failed` (`digest_mismatch`) にします。スクリプトが想定外に失敗したときは、その配布物の証明を `error` (`attestation_check_failed`) にして、ほかの配布物の処理を続けます。`error` は受け口で試行を数え、上限で管理者の確認待ち (`check_retries_exhausted`) にします ([派生元の ADR 0019](https://github.com/AllegroMoltoV/plugin-soko-kun/blob/main/docs/decisions/0019-verification-principles.md) の原則 2)。
 
 ### 中身の検査
 

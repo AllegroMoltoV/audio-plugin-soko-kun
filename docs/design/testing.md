@@ -233,7 +233,7 @@ I06 は、`os` の値の取り違えで macOS の判定を省かれる経路を�
 | W04 | `.vst3` のフォルダーの形をとるが、バイナリが `GetPluginFactory` をエクスポートしない | VST 3 のバンドルとみなさない |
 | W05 | `.vst` のバンドル、`VSTPluginMain` か `main_macho` をエクスポートするバイナリ、`main` をエクスポートする共有ライブラリのいずれかを含む | `vst2_detected`。ほかに VST 3 のバンドルがあっても変わらない |
 | W06 | アーカイブの中に別のアーカイブかインストーラーがある | `undetermined`。`passed` にしない |
-| W07 | ダウンロードした配布物の SHA-256 が `digest` と違う。ワークフローのテストは、`verify.yaml` の `prepare`・`scan`・`report` の 3 つのジョブのステップを、artifact・ジョブの出力・環境変数の代わりのファイルで受け渡しながら順に走らせ、`report` が Worker へ送る本文で確かめる | 証明の段は `failed` の `digest_mismatch` を書き、証明を検証せず中身も検査しない。中身の検査 (`inspect_archive.py`) が自分で不一致を見つけたときは `error` の `digest_mismatch` を返す |
+| W07 | ダウンロードした配布物の SHA-256 が `digest` と違う。ワークフローのテストは、`verify.yaml` の `prepare`・`scan`・`report` の 3 つのジョブのステップを、artifact・ジョブの出力・環境変数の代わりのファイルで受け渡しながら順に走らせ、`report` が Worker へ送る本文で確かめる | 証明の段は `failed` の `digest_mismatch` を書き、証明を検証せず中身も検査しない。中身の検査 (`inspect_archive.py`) が自分で不一致を見つけたときは `error` の `digest_mismatch` を返す。信頼の根の取得は、検証待ちがあれば最初に 1 回だけ行う。信頼の根を取得できない回は、証明が `error` の `trust_root_unavailable` で、中身の検査は行う。証明の検証のスクリプトが想定外に失敗した回は、証明が `error` の `attestation_check_failed` で、結果は送られる |
 | W08 | PE・Mach-O・ELF の各アーキテクチャと、Mach-O の fat binary | `x86_64`・`x86`・`arm64` のいずれか。fat binary はスライスごとの値をすべて並べる |
 | W09 | Windows の単一ファイルの `.vst3` | VST 3 のバンドルとみなさない |
 | W10 | `manifest.ttl` があり、`lv2:binary` が指すバイナリが無い `.lv2` のフォルダー。対照として、パーセントエンコードされた `lv2:binary` が指すバイナリがあるもの | 前者は LV2 のバンドルとみなさない。後者は LV2 のバンドルとみなす |
@@ -245,6 +245,7 @@ I06 は、`os` の値の取り違えで macOS の判定を省かれる経路を�
 | W16 | `scan` と `judge` で、OIDC のトークンを要求する環境変数 (`ACTIONS_ID_TOKEN_REQUEST_URL`・`ACTIONS_ID_TOKEN_REQUEST_TOKEN`) が空でない | 最初のステップが失敗し、後続のステップを実行しない |
 | W17 | 読めない項目 (安全でないパス・同名の項目・データを持つフォルダー・アーカイブの外を指すリンク・バンドルの外に置かれた、あるいは同じバンドルの中へ解決されないリンク) に、VST 2 の dll・インストーラー・入れ子のアーカイブを置いたアーカイブ。名前がバンドル・インストーラー・入れ子のアーカイブのリンクと、名前の末尾に `.` か空白を付けたインストーラーや入れ子のアーカイブも含む | `undetermined`。`passed` にしない。バンドルの中に置かれ同じバンドルの中を指すリンク (framework の形) は、`passed` のまま |
 | W18 | エクスポート名の件数が上限を超えるバイナリ (PE・ELF・Mach-O のシンボル表とトライ。fat binary はスライスのどれか) を含むアーカイブ。上限の後ろに `VSTPluginMain` を置いたもの。Mach-O のトライで、2 つの辺が別の接頭辞で同じノードを指し、後から取り出す辺の名前を `VSTPluginMain` にしたもの | `undetermined`。診断の `undetermined` に `export_names_incomplete` を残す。`passed` にしない。上限より前に `VSTPluginMain` があれば `vst2_detected` のまま。件数が上限ちょうどのバイナリは `passed` のまま |
+| W19 | 証明の検証のスクリプト `verify-attestation.sh` を、終了コードと標準エラーを返す偽の gh で走らせる。証明の取得が HTTP 404、200 でビルドの証明が無い、API が 0 件を返し gh が終了コード 0 で `No attestations found` と書く、5xx、通信の失敗、証明のファイルが無い。照合の失敗。リポジトリ ID の不一致。旧い名前だけで通る。一時的な失敗と本物の失敗が混在する。本物の失敗だけが続く。信頼の根が無い | 404 とビルドの証明が無いときと 0 件のときだけ `failed` の `no_attestation`。証明の取得は `--limit 1000` で行う。5xx・通信の失敗・証明のファイルが無いときは `error` の `attestation_fetch_failed`。照合の失敗は `failed` の `verification_failed`、リポジトリ ID の不一致は `failed` の `repository_id_mismatch`。成功は、取得した証明と信頼の根を使い、通信を使わずに照合する。名前の集約は、どれかで通れば `passed`、一時的な失敗が 1 つでもあれば `error`、本物の失敗だけなら最後の理由の `failed`。信頼の根が無ければ gh を呼ばず `error` の `trust_root_unavailable` |
 
 ### 署名と公証の判定
 
