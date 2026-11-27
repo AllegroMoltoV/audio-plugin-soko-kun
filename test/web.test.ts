@@ -698,7 +698,11 @@ describe('Google AI で検索', () => {
       expect(refresh.href).toBe(link.href);
       expect(refresh.origin + refresh.pathname).toBe('https://www.google.com/search');
       expect(refresh.searchParams.get('udm')).toBe('50');
-      expect(refresh.searchParams.get('q')).toBe(t.aiSearchPrompt(`${ORIGIN}/?lang=${lang}`, '音量 balance'));
+      const q = refresh.searchParams.get('q');
+      expect(q).toBe(t.aiSearchPrompt(`${ORIGIN}/`, '音量 balance'));
+      expect(q, lang).not.toContain('?lang=');
+      expect(html, lang).not.toContain('&#39;');
+      expect(t.aiSearchPrompt('CATALOG', 'INPUT'), lang).toMatch(/URL.*INPUT$/s);
       expect(html).toContain(escapeHtml(t.aiSearchRedirect));
     }
   });
@@ -707,17 +711,17 @@ describe('Google AI で検索', () => {
   it('Cookie が無いときも、フォームの lang の言語で質問の文を組み立てる', async () => {
     const response = await postAiSearch({ lang: 'ko', q: 'mosaic' }, { headers: { 'Accept-Language': 'en' } });
     const { refresh } = targetsOf(await response.text());
-    expect(refresh.searchParams.get('q')).toBe(DICTS.ko.aiSearchPrompt(`${ORIGIN}/?lang=ko`, 'mosaic'));
+    expect(refresh.searchParams.get('q')).toBe(DICTS.ko.aiSearchPrompt(`${ORIGIN}/`, 'mosaic'));
   });
 
   it('入力は 100 文字で切り、空のときは探したいものを尋ねるよう伝える', async () => {
     const long = await postAiSearch({ lang: 'ja', q: 'あ'.repeat(150) });
     expect(targetsOf(await long.text()).refresh.searchParams.get('q')).toBe(
-      DICTS.ja.aiSearchPrompt(`${ORIGIN}/?lang=ja`, 'あ'.repeat(100)),
+      DICTS.ja.aiSearchPrompt(`${ORIGIN}/`, 'あ'.repeat(100)),
     );
     const empty = await postAiSearch({ lang: 'ja', q: '   ' });
     expect(targetsOf(await empty.text()).refresh.searchParams.get('q')).toBe(
-      DICTS.ja.aiSearchPrompt(`${ORIGIN}/?lang=ja`, DICTS.ja.aiSearchEmpty),
+      DICTS.ja.aiSearchPrompt(`${ORIGIN}/`, DICTS.ja.aiSearchEmpty),
     );
   });
 
@@ -726,7 +730,7 @@ describe('Google AI で検索', () => {
     const response = await postAiSearch({ lang: 'en', q: `${'a'.repeat(99)}😀` });
     expect(response.status).toBe(200);
     expect(targetsOf(await response.text()).refresh.searchParams.get('q')).toBe(
-      DICTS.en.aiSearchPrompt(`${ORIGIN}/?lang=en`, 'a'.repeat(99)),
+      DICTS.en.aiSearchPrompt(`${ORIGIN}/`, 'a'.repeat(99)),
     );
   });
 
@@ -761,10 +765,7 @@ describe('Google AI で検索', () => {
       const { refresh } = targetsOf(await response.text());
       expect(refresh.href.length, lang).toBeLessThanOrEqual(2048);
       // 本番の ORIGIN でも収まる
-      const production = DICTS[lang].aiSearchPrompt(
-        `https://audio-soko-kun.allegromoltov.jp/?lang=${lang}`,
-        '漢'.repeat(100),
-      );
+      const production = DICTS[lang].aiSearchPrompt('https://audio-soko-kun.allegromoltov.jp/', '漢'.repeat(100));
       expect(aiSearchUrl(production).length, lang).toBeLessThanOrEqual(2048);
     }
   });

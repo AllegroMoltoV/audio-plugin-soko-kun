@@ -462,7 +462,8 @@ for (const key of PAGE_KEYS) {
 export const AI_SEARCH_MAX_INPUT = 100;
 
 export function aiSearchUrl(prompt: string): string {
-  return `https://www.google.com/search?udm=50&q=${encodeURIComponent(prompt)}`;
+  // ' は encodeURIComponent が残すため、meta refresh の属性に &#39; で出ないよう %27 にする。
+  return `https://www.google.com/search?udm=50&q=${encodeURIComponent(prompt).replaceAll("'", '%27')}`;
 }
 
 // フォームの送信 (application/x-www-form-urlencoded) だけを受け、本文は検索欄の上限に余裕を持たせた 4 KB までにする。
@@ -488,7 +489,7 @@ app.post(
             .slice(0, AI_SEARCH_MAX_INPUT)
             .replace(/[\uD800-\uDBFF]$/, '')
         : '';
-    const catalogUrl = `${c.env.ORIGIN}${withLang('/', lang)}`;
+    const catalogUrl = `${c.env.ORIGIN}/`;
     const target = aiSearchUrl(t.aiSearchPrompt(catalogUrl, input || t.aiSearchEmpty));
     c.header('X-Robots-Tag', 'noindex');
     c.header('Cache-Control', 'no-store');
