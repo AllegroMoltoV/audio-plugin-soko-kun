@@ -430,6 +430,7 @@ export const es419: Record<PageKey, PageContent> = {
         paragraphs: [
           'Al iniciar sesión para enviar un plugin, esta plataforma guarda tu ID de usuario y nombre de inicio de sesión de GitHub, el token de acceso de GitHub que se usa para revisar los permisos del repositorio y el token de actualización que se usa para renovarlo. Esta plataforma guarda los tokens cifrados y solo los usa para revisar los permisos en los repositorios enviados.',
           'Para evitar abusos, esta plataforma guarda por poco tiempo un hash irreversible de tu dirección IP. Navegar por el catálogo no usa cookies, salvo una que recuerda el idioma elegido.',
+          'El texto que envías con el botón Buscar con la IA de Google no se guarda en esta plataforma. Se pasa al Modo IA de Google, donde aplica la Política de Privacidad de Google.',
         ],
       },
       {

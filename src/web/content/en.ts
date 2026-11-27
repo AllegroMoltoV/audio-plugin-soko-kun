@@ -427,6 +427,7 @@ export const en: Record<PageKey, PageContent> = {
         paragraphs: [
           'When you sign in to submit a plugin, the service stores your GitHub user ID and login name, and the GitHub access token needed to check your repository permissions, together with the refresh token used to renew it. The tokens are stored encrypted and are used only to check permissions on the repositories you submit.',
           'To limit abuse, the service stores a one-way hash of your IP address for a short time. Browsing the catalog does not require cookies, except one that remembers your language choice.',
+          'Text you send with the Search with Google AI button is not stored by the service. It is passed to Google AI Mode, where the Google Privacy Policy applies.',
         ],
       },
       {

@@ -416,6 +416,7 @@ export const zhHans: Record<PageKey, PageContent> = {
         paragraphs: [
           '为提交插件而登录时，本平台会保存您的 GitHub 用户 ID 和登录名，以及用于确认仓库权限的 GitHub 访问令牌和用于更新该令牌的刷新令牌。本平台加密保存令牌，仅用于确认您所提交仓库的权限。',
           '为防止滥用，本平台会将 IP 地址进行单向哈希后短期保存。浏览目录时，除记住语言选择的 cookie 外不使用其他 cookie。',
+          '通过“用 Google AI 搜索”按钮发送的文字不会保存在本平台中，而是传给 Google 的 AI 模式，并适用 Google 的隐私政策。',
         ],
       },
       {

@@ -98,14 +98,16 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 
 header.site { background: var(--primary) linear-gradient(var(--primary-light), var(--primary)); border-bottom: 2px solid var(--primary-dark); color: var(--on-primary); }
 header.site .wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding-top: 8px; padding-bottom: 8px; }
-.brand { color: var(--on-primary); text-decoration: none; display: flex; align-items: center; gap: 8px; margin-right: auto; min-width: 0; }
+/* サービス名は 1 行を占め、検索欄と言語のボタンを次の行に並べる。サービス名の幅は言語で変わり、
+   検索欄と同じ行に入ると言語のボタンだけが次の行の左端に落ちるため */
+.brand { color: var(--on-primary); text-decoration: none; display: flex; align-items: center; gap: 8px; margin-right: auto; min-width: 0; flex: 1 1 100%; }
 .brand img { flex: none; }
 .brand-text { display: flex; flex-direction: column; min-width: 0; }
 .brand:visited, .brand:hover { color: var(--on-primary); }
 .brand b { font-size: 22px; letter-spacing: 1px; text-shadow: 1px 1px 0 var(--primary-dark); }
 .brand small { font-size: 11px; }
 header.site search { display: block; min-width: 0; max-width: 100%; }
-/* 検索欄、検索ボタン、言語のボタンを同じ高さにし、縦の中央でそろえる。 */
+/* 検索欄、2 つのボタン、言語のボタンを同じ高さにし、縦の中央でそろえる。 */
 header.site form { display: flex; flex-wrap: nowrap; align-items: center; gap: 3px; min-width: 0; }
 header.site input[type=search], header.site button, details.lang summary { height: var(--control-height); }
 header.site input[type=search] { width: 14rem; min-width: 0; flex: 0 1 14rem; padding: 0 4px; border: 1px solid var(--primary-dark); font-size: 12px; background: var(--paper); color: var(--ink); }
@@ -179,6 +181,12 @@ form.search .row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center
 form.search .row:first-of-type { flex-wrap: nowrap; }
 form.search input[type=search] { flex: 1 1 auto; width: 0; min-width: 0; height: var(--control-height); padding: 0 4px; font-size: 13px; border: 1px solid var(--line); background: var(--paper); color: var(--ink); }
 form.search button { height: var(--control-height); }
+/* 「Google AI で検索」の説明。送り先と、回答が誤りうることを示す注記 */
+form.search .ai-search-hint { margin: 4px 0 0; font-size: 11px; }
+/* 検索のボタンと AI のボタンを同じ見た目で横に並べる。幅の広い表示では入力欄の横に置く */
+.search-buttons { display: flex; gap: 3px; flex: none; }
+.search-buttons .icon-button { gap: 4px; }
+.ai-redirect { max-width: 860px; margin: 0 auto; padding: 16px; }
 form.search select { font-size: 12px; max-width: 100%; background: var(--paper); color: var(--ink); border: 1px solid var(--line); }
 /* VST Compatible ロゴは縦横の比を保ったまま、高さ 38 px で表示する。ガイドラインの最小サイズの高さ 10 mm を、96 dpi で換算した値。 */
 .vst-logo { display: inline-flex; flex: none; vertical-align: middle; }
@@ -256,9 +264,15 @@ p.contact-address { font-family: "Courier New", monospace; font-size: 15px; font
   .side-narrow { display: flex; }
   .notice .long { display: none; }
   .notice .short { display: inline; }
-  .brand { flex: 1 1 100%; }
-  header.site search { flex: 1 1 0; }
+  /* 上部の帯は、サービス名、言語のボタン (右寄せ)、検索欄、2 つのボタンの順に行を分ける。
+     言語のボタンをサービス名と同じ行に置くと、サービス名が狭くなって何行にも折り返すため */
+  details.lang { order: 1; margin-left: auto; }
+  header.site search { order: 2; flex: 1 1 100%; }
   header.site input[type=search] { flex: 1 1 auto; width: 0; }
+  /* 2 つのボタンを入力欄の次の行に、同じ幅で並べる。長い文言は折り返し、ボタンの高さを文言に合わせる */
+  header.site form, form.search .row:first-of-type { flex-wrap: wrap; }
+  .search-buttons { flex: 1 1 100%; }
+  header.site .search-buttons button, form.search .search-buttons button { flex: 1 1 0; min-width: 0; height: auto; min-height: var(--control-height); white-space: normal; }
   details.lang[open] { flex: 1 1 100%; }
   details.lang ul { position: static; min-width: 0; margin-top: 4px; }
   table.info th { width: 6.5rem; }
