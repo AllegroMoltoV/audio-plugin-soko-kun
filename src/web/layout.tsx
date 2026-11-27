@@ -39,15 +39,75 @@ export function withLang(path: string, lang: Lang): string {
   return `${url.pathname}${url.search}`;
 }
 
-// 検索ボタンは虫眼鏡の図だけを見せ、読み上げ用に文字を残す。画像ファイルを使わず、CSP の img-src に依存しない。
+// 検索のボタンと「Google AI で検索」のボタンは、同じ見た目で横に並べる。幅の広い表示では入力欄の横に、
+// 幅の狭い表示では入力欄の次の行に置く (CSS の .search-buttons)。図は HTML に直接書いた SVG で描き、CSP の img-src に依存しない。
+export const SearchButtons: FC<{ t: Dict }> = ({ t }) => (
+  <span class="search-buttons">
+    <SearchButton label={t.searchButton} />
+    <AiSearchButton t={t} />
+  </span>
+);
+
 export const SearchButton: FC<{ label: string }> = ({ label }) => (
-  <button type="submit" class="icon-button" title={label}>
+  <button type="submit" class="icon-button">
     <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
       <circle cx="6.5" cy="6.5" r="4.5" fill="none" stroke="currentColor" stroke-width="2" />
       <line x1="10" y1="10" x2="14.5" y2="14.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" />
     </svg>
-    <span class="visually-hidden">{label}</span>
+    <span>{label}</span>
   </button>
+);
+
+// 検索欄の文を、利用者自身の AI (Google の AI モード) に渡すボタン。倉庫くんは検索をせず、
+// POST /ai-search が質問の文を組み立てて別のタブで転送する。Enter キーの暗黙の送信はツリー順で最初の送信ボタンを使うため、
+// 検索のボタンより後ろに置き、Enter キーでは今までどおり部分一致の検索をする。
+// 図は 4 方向に光る星。Google のロゴは使わず、配色の規則に合わせて文字と同じ色で描く。
+export const AiSearchButton: FC<{ t: Dict }> = ({ t }) => (
+  <button
+    type="submit"
+    class="icon-button ai-search"
+    formaction="/ai-search"
+    formmethod="post"
+    formtarget="_blank"
+    title={t.aiSearchHint}
+  >
+    <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <path
+        d="M8 0C8.6 4.6 11.4 7.4 16 8C11.4 8.6 8.6 11.4 8 16C7.4 11.4 4.6 8.6 0 8C4.6 7.4 7.4 4.6 8 0Z"
+        fill="currentColor"
+      />
+    </svg>
+    <span>{t.aiSearchButton}</span>
+  </button>
+);
+
+// POST /ai-search の応答。表示のためのページではなく、Google の AI モードへ移るための応答。
+// 303 で転送するとフォームの送信の続きとして CSP の form-action の対象になり、form-action 'self' で止まる。
+// meta refresh とリンクによる移動はフォームの送信ではないため、CSP を変えずに移れる。
+export const AiSearchRedirect: FC<{ t: Dict; lang: Lang; target: string }> = ({ t, lang, target }) => (
+  <>
+    {raw('<!DOCTYPE html>')}
+    <html lang={lang}>
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="robots" content="noindex" />
+        <meta http-equiv="refresh" content={`0;url=${target}`} />
+        <title>{t.aiSearchOpen}</title>
+        <link rel="stylesheet" href={`/style.css?v=${STYLE_VERSION}`} />
+      </head>
+      <body>
+        <main class="ai-redirect">
+          <p>{t.aiSearchRedirect}</p>
+          <p>
+            <a href={target} rel="noreferrer">
+              {t.aiSearchOpen}
+            </a>
+          </p>
+        </main>
+      </body>
+    </html>
+  </>
 );
 
 const SITE_NAME = '音のプラグイン倉庫くん';
@@ -163,7 +223,7 @@ export const Layout: FC<{ meta: PageMeta; side: Child; sideNarrow: Child; childr
                     aria-label={t.searchPlaceholder}
                     maxlength={100}
                   />
-                  <SearchButton label={t.searchButton} />
+                  <SearchButtons t={t} />
                 </form>
               </search>
               <details class="lang">

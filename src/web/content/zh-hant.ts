@@ -416,6 +416,7 @@ export const zhHant: Record<PageKey, PageContent> = {
         paragraphs: [
           '為提交外掛而登入時，本平台會保存您的 GitHub 使用者 ID 和登入名稱，以及用於確認儲存庫權限的 GitHub 存取權杖和用於更新該權杖的重新整理權杖。本平台加密保存權杖，僅用於確認您所提交儲存庫的權限。',
           '為防止濫用，本平台會將 IP 位址進行單向雜湊後短期保存。瀏覽目錄時，除記住語言選擇的 cookie 外不使用其他 cookie。',
+          '透過「用 Google AI 搜尋」按鈕送出的文字不會保存在本平台中，而是傳給 Google 的 AI 模式，並適用 Google 的隱私權政策。',
         ],
       },
       {

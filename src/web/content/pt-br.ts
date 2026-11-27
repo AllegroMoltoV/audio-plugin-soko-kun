@@ -427,6 +427,7 @@ export const ptBR: Record<PageKey, PageContent> = {
         paragraphs: [
           'Ao entrar para enviar um plugin, esta plataforma armazena seu ID de usuário e nome de login do GitHub, o token de acesso do GitHub usado para verificar as permissões do repositório e o token de atualização usado para renová-lo. Esta plataforma armazena os tokens criptografados e os usa apenas para verificar as permissões nos repositórios enviados.',
           'Para evitar abusos, esta plataforma armazena por pouco tempo um hash irreversível do seu endereço IP. Navegar pelo catálogo não usa cookies, exceto um que lembra o idioma escolhido.',
+          'O texto enviado pelo botão Buscar com a IA do Google não é armazenado por esta plataforma. Ele é passado ao Modo IA do Google, onde vale a Política de Privacidade do Google.',
         ],
       },
       {

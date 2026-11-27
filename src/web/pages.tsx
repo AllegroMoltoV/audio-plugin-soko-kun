@@ -4,7 +4,7 @@ import type { Arch, Category, Format, Os } from '../domain/metadata';
 import type { ScanResult } from '../domain/status';
 import type { Block, PageContent } from './content';
 import type { Dict, Lang } from './i18n';
-import { ContactButton, SearchButton, VstLogo, withLang } from './layout';
+import { ContactButton, SearchButtons, VstLogo, withLang } from './layout';
 
 const formatDate = (iso: string | null | undefined, lang: Lang) =>
   iso ? new Intl.DateTimeFormat(lang, { dateStyle: 'medium' }).format(new Date(iso)) : '-';
@@ -314,7 +314,7 @@ export const SearchForm: FC<{
           aria-label={t.searchPlaceholder}
           maxlength={100}
         />
-        <SearchButton label={t.searchButton} />
+        <SearchButtons t={t} />
       </div>
       <div class="row">
         <label>
@@ -353,6 +353,7 @@ export const SearchForm: FC<{
           </select>
         </label>
       </div>
+      <p class="ai-search-hint">{t.aiSearchHint}</p>
     </form>
   </search>
 );
